@@ -1,0 +1,313 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{9158E101-C663-30E2-9E6C-F21356BF6F50}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>BagelEngine</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">BagelEngine.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">BagelEngine</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</GenerateManifest>
+    <LocalDebuggerWorkingDirectory Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build</LocalDebuggerWorkingDirectory>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">BagelEngine.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">BagelEngine</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</GenerateManifest>
+    <LocalDebuggerWorkingDirectory Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build</LocalDebuggerWorkingDirectory>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">BagelEngine.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">BagelEngine</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">true</GenerateManifest>
+    <LocalDebuggerWorkingDirectory Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build</LocalDebuggerWorkingDirectory>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">BagelEngine.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">BagelEngine</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</GenerateManifest>
+    <LocalDebuggerWorkingDirectory Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build</LocalDebuggerWorkingDirectory>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;ktx.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/Debug/BagelEngine.lib</ImportLibrary>
+      <ProgramDataBaseFile>C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/Debug/BagelEngine.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;ktx.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/Release/BagelEngine.lib</ImportLibrary>
+      <ProgramDataBaseFile>C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/Release/BagelEngine.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;ktx.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/MinSizeRel/BagelEngine.lib</ImportLibrary>
+      <ProgramDataBaseFile>C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/MinSizeRel/BagelEngine.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src;C:\VulkanSDK\1.3.261.1\Include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\tinyobjloader;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glfw-3.3.8.bin.WIN64\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\glm;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\KTX-Software\include;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;ktx.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/RelWithDebInfo/BagelEngine.lib</ImportLibrary>
+      <ProgramDataBaseFile>C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/RelWithDebInfo/BagelEngine.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_buffer.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_descriptors.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_device.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_swap_chain.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_pipeline.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_renderer.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_window.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_camera.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_gameobject.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_model.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\first_app.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\keyboard_movement_controller.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\main.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\point_light_render_system.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\simple_render_system.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_buffer.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_descriptors.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_device.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_swap_chain.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_frame_info.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_pipeline.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_renderer.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_window.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_camera.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_gameobject.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_model.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\first_app.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\keyboard_movement_controller.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\point_light_render_system.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\simple_render_system.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\shaders\point_light.frag" />
+    <None Include="..\shaders\point_light.vert" />
+    <None Include="..\shaders\simple_shader.frag" />
+    <None Include="..\shaders\simple_shader.vert" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="BagelEngine.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
