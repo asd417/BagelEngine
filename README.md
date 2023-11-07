@@ -1,1 +1,3 @@
-# VulkanEngine
+# Bagel
+
+Game engine using Vulkan
