@@ -17,7 +17,7 @@ namespace bagel {
 	class SimpleRenderSystem {
 	public:
 
-		SimpleRenderSystem(BGLDevice& device, VkRenderPass renderPass, VkDescriptorSetLayout globalSetLayout);
+		SimpleRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts);
 		~SimpleRenderSystem();
 
 		SimpleRenderSystem(const SimpleRenderSystem&) = delete;
@@ -25,7 +25,7 @@ namespace bagel {
 		void renderGameObjects(FrameInfo &frameInfo);
 
 	private:
-		void createPipelineLayout(VkDescriptorSetLayout globalSetLayout);
+		void createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts);
 		void createPipeline(VkRenderPass renderPass);
 
 		BGLDevice& bglDevice;

@@ -51,5 +51,5 @@ void main(){
 	//outColor = vec4(push.color.xyz, light_exponential(dist));
 
 	//cosine
-	outColor = vec4(push.color.xyz, light_cos(dist));
+	outColor = vec4(push.color.xyz+light_cos(dist), light_cos(dist));
 }

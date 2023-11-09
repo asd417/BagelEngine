@@ -99,7 +99,6 @@
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Header Files">
@@ -108,14 +107,5 @@
     <Filter Include="Source Files">
       <UniqueIdentifier>{7EC18898-BB16-30D0-96C7-CA456CFC0A98}</UniqueIdentifier>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\shaders\point_light.frag" />
-    <None Include="..\shaders\point_light.vert" />
-    <None Include="..\shaders\simple_shader.frag" />
-    <None Include="..\shaders\simple_shader.vert" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="BagelEngine.rc" />
   </ItemGroup>
 </Project>

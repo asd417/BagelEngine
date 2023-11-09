@@ -19,7 +19,7 @@ namespace bagel {
 			int lookDown = GLFW_KEY_DOWN;
 		};
 
-		bool moveInPlaneXZ(GLFWwindow* window, float dt, BGLGameObject& gameObject);
+		bool moveInPlaneXZ(GLFWwindow* window, float dt, BGLGameObject& gameObject, uint32_t transformIndex);
 
 
 		KeyMappings keys{};

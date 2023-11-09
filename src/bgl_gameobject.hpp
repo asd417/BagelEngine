@@ -38,7 +38,11 @@ namespace bagel {
 
 		std::shared_ptr<BGLModel> model{};
 		glm::vec3 color{};
-		TransformComponent transform{};
+		//TransformComponent transform{};
+		void addTransformComponent(TransformComponent tr) { transforms.push_back(tr); }
+		void createDefaultTransform() { transforms.push_back(TransformComponent{}); }
+		std::vector<TransformComponent> transforms{};
+		uint32_t transformCount = 1;
 
 		std::unique_ptr<PointLightComponent> pointLight = nullptr;
 

@@ -1,7 +1,8 @@
 #pragma once
 #include "bagel_engine_device.hpp"
 #include "bagel_buffer.hpp"
-
+#include "bagel_textures.h"
+#include "bagel_descriptors.hpp"
 // GLM functions will expect radian angles for all its functions
 #define GLM_FORCE_RADIANS
 
@@ -35,16 +36,27 @@ namespace bagel {
 		};
 
 		BGLModel(BGLDevice& device, const BGLModel::Builder<uint16_t>& builder);
-		BGLModel(BGLDevice& device, const BGLModel::Builder<uint32_t>& builder);
+		BGLModel::BGLModel(
+			BGLDevice& device, 
+			const BGLModel::Builder<uint32_t>& builder, 
+			std::string textureFilePath, 
+			std::unique_ptr<BGLDescriptorSetLayout>& modelSetLayout,
+			BGLDescriptorPool& globalPool);
 		~BGLModel();
 
 		BGLModel(const BGLModel&) = delete;
 		BGLModel& operator=(const BGLModel&) = delete;
 
-		static std::unique_ptr<BGLModel> createModelFromFile(BGLDevice& device, const std::string& filepath, uint32_t textureIndex);
+		static std::unique_ptr<BGLModel> BGLModel::createModelFromFile(
+			BGLDevice& device, 
+			const std::string& filepath, 
+			const std::string& textureFilePath,
+			std::unique_ptr<BGLDescriptorSetLayout>& modelSetLayout,
+			BGLDescriptorPool& globalPool);
 
 		void bind(VkCommandBuffer commandBuffer);
 		void draw(VkCommandBuffer commandBuffer);
+		VkDescriptorSet getTextureDescriptorSet() const { return modelDescriptorSet; }
 	private:
 		BGLDevice& bglDevice;
 		bool hasIndexBuffer = false;
@@ -59,6 +71,9 @@ namespace bagel {
 		//VkDeviceMemory indexBufferMemory;
 		std::unique_ptr<BGLBuffer> indexBuffer;
 		uint32_t indexCount;
+
+		VkDescriptorSet modelDescriptorSet;
+		std::unique_ptr<BGLTexture> modelTexture;
 
 		void createVertexBuffers(const std::vector<Vertex>& vertices);
 		template<typename T>

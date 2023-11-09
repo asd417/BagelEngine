@@ -9,9 +9,9 @@
 
 
 
-bool PRINT_AVAILABLE_DEVICE_EXTENTION = true;
-bool PRINT_REQUIRED_DEVICE_EXTENSION = true;
-bool PRINT_PHYSICAL_DEVICE = true;
+#define PRINT_AVAILABLE_DEVICE_EXTENTION
+#define PRINT_REQUIRED_DEVICE_EXTENSION
+#define PRINT_PHYSICAL_DEVICE 
 
 namespace bagel {
 
@@ -87,11 +87,11 @@ namespace bagel {
 
         VkApplicationInfo appInfo = {};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "LittleVulkanEngine App";
+        appInfo.pApplicationName = "Bagel Engine APP";
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.pEngineName = "No Engine";
+        appInfo.pEngineName = "Bagel Engine";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.apiVersion = VK_API_VERSION_1_0;
+        appInfo.apiVersion = VK_API_VERSION_1_2;
 
         VkInstanceCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -118,7 +118,7 @@ namespace bagel {
 
         if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
         {
-            throw std::runtime_error("failed to create instance!");
+            throw std::runtime_error("Failed to create instance!");
         }
 
         hasGflwRequiredInstanceExtensions();
@@ -129,7 +129,7 @@ namespace bagel {
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
         if (deviceCount == 0)
         {
-            throw std::runtime_error("failed to find GPUs with Vulkan support!");
+            throw std::runtime_error("Failed to find GPUs with Vulkan support!");
         }
         std::cout << "Device count: " << deviceCount << std::endl;
         std::vector<VkPhysicalDevice> devices(deviceCount);
@@ -146,11 +146,13 @@ namespace bagel {
 
         if (physicalDevice == VK_NULL_HANDLE)
         {
-            throw std::runtime_error("failed to find a suitable GPU!");
+            throw std::runtime_error("Failed to find a suitable GPU!");
         }
 
         vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-        if(PRINT_PHYSICAL_DEVICE) std::cout << "physical device: " << properties.deviceName << std::endl;
+#ifdef PRINT_PHYSICAL_DEVICE:
+        std::cout << "physical device: " << properties.deviceName << std::endl;
+#endif
     }
 
     void BGLDevice::createLogicalDevice() {
@@ -169,9 +171,11 @@ namespace bagel {
             queueCreateInfo.pQueuePriorities = &queuePriority;
             queueCreateInfos.push_back(queueCreateInfo);
         }
-
         VkPhysicalDeviceFeatures deviceFeatures = {};
         deviceFeatures.samplerAnisotropy = VK_TRUE;
+        VkPhysicalDeviceVulkan12Features vk12deviceFeatures{};
+        vk12deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+        vk12deviceFeatures.runtimeDescriptorArray = VK_TRUE;
 
         VkDeviceCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -180,6 +184,7 @@ namespace bagel {
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
         createInfo.pEnabledFeatures = &deviceFeatures;
+        createInfo.pNext = &vk12deviceFeatures;
         createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
         createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
@@ -298,7 +303,7 @@ namespace bagel {
         {
             extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
-
+        //extensions.push_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         return extensions;
     }
 
@@ -308,24 +313,27 @@ namespace bagel {
         std::vector<VkExtensionProperties> extensions(extensionCount);
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
-        if(PRINT_AVAILABLE_DEVICE_EXTENTION) std::cout << "available extensions:" << std::endl;
+#ifdef PRINT_AVAILABLE_DEVICE_EXTENTION:
+        std::cout << "available extensions:" << std::endl;
         std::unordered_set<std::string> available;
         for (const auto &extension : extensions)
         {
-            if (PRINT_AVAILABLE_DEVICE_EXTENTION) std::cout << "\t" << extension.extensionName << std::endl;
+            std::cout << "\t" << extension.extensionName << std::endl;
             available.insert(extension.extensionName);
         }
-
-        if(PRINT_REQUIRED_DEVICE_EXTENSION) std::cout << "required extensions:" << std::endl;
+#endif
+#ifdef PRINT_REQUIRED_DEVICE_EXTENSION:
+        std::cout << "required extensions:" << std::endl;
         auto requiredExtensions = getRequiredExtensions();
         for (const auto &required : requiredExtensions)
         {
-            if (PRINT_REQUIRED_DEVICE_EXTENSION) std::cout << "\t" << required << std::endl;
+            std::cout << "\t" << required << std::endl;
             if (available.find(required) == available.end())
             {
                 throw std::runtime_error("Missing required glfw extension");
             }
         }
+#endif
     }
 
     bool BGLDevice::checkDeviceExtensionSupport(VkPhysicalDevice device) {

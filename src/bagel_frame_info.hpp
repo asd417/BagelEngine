@@ -26,7 +26,7 @@ namespace bagel {
 		glm::mat4 viewMatrix{ 1.f };
 		glm::mat4 inverseViewMatrix{ 1.f };
 		//alignas(16) glm::vec3 lightDir = glm::normalize(glm::vec3{ 1.0f,-3.0,-1.0f });
-		glm::vec4 ambientLightColor{ 1.f,1.f,1.f,0.2f };
+		glm::vec4 ambientLightColor{ 1.f,1.f,1.f,0.01f };
 		PointLight pointLights[MAX_LIGHTS];
 		int numLights;
 	};

@@ -42,9 +42,9 @@ namespace bagel {
 		// alignas aligns the variable to the 
 		glm::mat4 normalMatrix{ 1.0f };
 	};
-	SimpleRenderSystem::SimpleRenderSystem(BGLDevice& device, VkRenderPass renderPass, VkDescriptorSetLayout globalSetLayout) : bglDevice{device}
+	SimpleRenderSystem::SimpleRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts) : bglDevice{device}
 	{
-		createPipelineLayout(globalSetLayout);
+		createPipelineLayout(setLayouts);
 		createPipeline(renderPass);
 	}
 	SimpleRenderSystem::~SimpleRenderSystem()
@@ -64,29 +64,39 @@ namespace bagel {
 			1, //descriptorSet Count 
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
-		// Error here
-		//If any of the sets being bound include dynamic uniform or storage buffers, then pDynamicOffsets includes one element for each array element in each dynamic descriptor type binding in each set. Values are taken from pDynamicOffsets in an order such that all entries for set N come before set N+1; within a set, entries are ordered by the binding numbers in the descriptor set layouts; and within a binding array, elements are in order. dynamicOffsetCount must equal the total number of dynamic descriptors in the sets being bound.
-
+		
 		for (auto& kv : frameInfo.gameObjects) {
 			auto& obj = kv.second;
 			if (obj.model == nullptr) continue;
-			SimplePushConstantData push{};
-			push.modelMatrix = obj.transform.mat4();
-			push.normalMatrix = obj.transform.normalMatrix();
 
-			vkCmdPushConstants(
-				frameInfo.commandBuffer,
-				pipelineLayout,
-				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-				0,
-				sizeof(SimplePushConstantData),
-				&push);
+			auto objTextureDescriptor = obj.model->getTextureDescriptorSet();
+			std::array<VkDescriptorSet, 1> descriptors = { objTextureDescriptor };
 			obj.model->bind(frameInfo.commandBuffer);
-			obj.model->draw(frameInfo.commandBuffer);
+			vkCmdBindDescriptorSets(
+				frameInfo.commandBuffer,
+				VK_PIPELINE_BIND_POINT_GRAPHICS,
+				pipelineLayout,
+				1, //first set
+				descriptors.size(), //descriptorSet Count 
+				descriptors.data(),
+				0, nullptr);
+			for (int i = 0; i < obj.transforms.size(); i++) {
+				SimplePushConstantData push{};
+				push.modelMatrix = obj.transforms[i].mat4();
+				push.normalMatrix = obj.transforms[i].normalMatrix();
+				vkCmdPushConstants(
+					frameInfo.commandBuffer,
+					pipelineLayout,
+					VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+					0,
+					sizeof(SimplePushConstantData),
+					&push);
+				obj.model->draw(frameInfo.commandBuffer);
+			}
 		}
 	}
 
-	void SimpleRenderSystem::createPipelineLayout(VkDescriptorSetLayout globalSetLayout)
+	void SimpleRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
 	{
 		VkPushConstantRange pushConstantRange{};
 		// This flag indicates that we want this pushconstantdata to be accessible in both vertex and fragment shaders
@@ -95,15 +105,14 @@ namespace bagel {
 		pushConstantRange.offset = 0;
 		pushConstantRange.size = sizeof(SimplePushConstantData);
 
-		std::vector<VkDescriptorSetLayout> descriptorSetLayout{ globalSetLayout };
 
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
 		//desciptor set layout information
-		std::cout << "Creating Simple Render System Pipeline with descriptorSetLayout count of " << descriptorSetLayout.size() << "\n";
-		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayout.size());
-		pipelineLayoutInfo.pSetLayouts = descriptorSetLayout.data();
+		std::cout << "Creating Simple Render System Pipeline with descriptorSetLayout count of " << setLayouts.size() << "\n";
+		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
+		pipelineLayoutInfo.pSetLayouts = setLayouts.data();
 
 		pipelineLayoutInfo.pushConstantRangeCount = 1;
 		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;

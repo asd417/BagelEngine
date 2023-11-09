@@ -35,8 +35,8 @@ namespace bagel {
 		texture.width = ktx_texture->baseWidth;
 		texture.height = ktx_texture->baseHeight;
 		texture.mip_levels = ktx_texture->numLevels;
-		std::cout << " image has " << texture.mip_levels << " mipmaps\n";
-		std::cout << " image WxH " << texture.width << "x" << texture.height << "\n";
+		//std::cout << " image has " << texture.mip_levels << " mipmaps\n";
+		//std::cout << " image WxH " << texture.width << "x" << texture.height << "\n";
 		// We prefer using staging to copy the texture data to a device local optimal image
 		VkBool32 use_staging = true;
 
@@ -54,7 +54,7 @@ namespace bagel {
 		VkBufferCreateInfo buffer_create_info{};
 		buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		buffer_create_info.size = ktx_texture_size;
-		std::cout << "Allocating " << ktx_texture_size << " bytes of memory\n";
+		//std::cout << "Allocating " << ktx_texture_size << " bytes of memory\n";
 		// This buffer is used as a transfer source for the buffer copy
 		buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 		buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -98,7 +98,7 @@ namespace bagel {
 			buffer_copy_region.imageExtent.depth = 1;
 		
 			buffer_copy_region.bufferOffset = offset;
-			std::cout << "mipmap level: " << i << " offset: " << offset << " WxH: " << buffer_copy_region.imageExtent.width << "x" << buffer_copy_region.imageExtent.height << "\n";
+			//std::cout << "mipmap level: " << i << " offset: " << offset << " WxH: " << buffer_copy_region.imageExtent.width << "x" << buffer_copy_region.imageExtent.height << "\n";
 			buffer_copy_regions.push_back(buffer_copy_region);
 		}
 
@@ -268,8 +268,8 @@ namespace bagel {
 		texture->info.width = ktx_texture->baseWidth;
 		texture->info.height = ktx_texture->baseHeight;
 		texture->info.mip_levels = ktx_texture->numLevels;
-		std::cout << " image has " << ktx_texture->numLevels << " mipmaps\n";
-		std::cout << " image WxH " << ktx_texture->baseWidth << "x" << ktx_texture->baseHeight << "\n";
+		//std::cout << " image has " << ktx_texture->numLevels << " mipmaps\n";
+		//std::cout << " image WxH " << ktx_texture->baseWidth << "x" << ktx_texture->baseHeight << "\n";
 
 		ktx_uint8_t* ktx_image_data = ktx_texture->pData;
 		ktx_size_t   ktx_texture_size = ktx_texture->dataSize;

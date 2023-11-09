@@ -16,7 +16,10 @@
 #include "bgl_camera.hpp"
 #include "keyboard_movement_controller.hpp"
 
-#define MAX_IMAGE_COUNT 2
+#define GLOBAL_SET_IMAGE_COUNT 1
+#define MAX_MODEL_COUNT 10
+
+//#define SHOW_FPS
 
 namespace bagel {
 	// PushConstantData is a performant and simple way to send data to vertex and fragment shader
@@ -40,19 +43,16 @@ namespace bagel {
 	//this means r and g from the memory will be assigned to blank memory, causing those value to be unread
 	//to fix this, align the vec3 variable to the multiple of 16 bytes with alignas(16)
 
-
-	 
 	FirstApp::FirstApp()
 	{
 		globalPool = BGLDescriptorPool::Builder(bglDevice)
-			.setMaxSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, BGLSwapChain::MAX_FRAMES_IN_FLIGHT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BGLSwapChain::MAX_FRAMES_IN_FLIGHT)
+			.setMaxSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT + MAX_MODEL_COUNT)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, BGLSwapChain::MAX_FRAMES_IN_FLIGHT + MAX_MODEL_COUNT)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BGLSwapChain::MAX_FRAMES_IN_FLIGHT + MAX_MODEL_COUNT)
 			.build();
 		std::cout << "Finished Creating Global Pool" << "\n";
-		loadGameObjects();
+
 		std::cout << "Finished Loading Game Objects" << "\n";
-		
 	}
 	FirstApp::~FirstApp()
 	{
@@ -72,10 +72,24 @@ namespace bagel {
 			uboBuffers[i]->map();
 		}
 
+		// Global Descriptor Set Layout
 		auto globalSetLayout = BGLDescriptorSetLayout::Builder(bglDevice)
 			.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
-			.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_ALL_GRAPHICS, MAX_IMAGE_COUNT)
+			.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_ALL_GRAPHICS, GLOBAL_SET_IMAGE_COUNT)
 			.build();
+
+
+		// Model Descriptor Set Layout
+		modelSetLayout = BGLDescriptorSetLayout::Builder(bglDevice)
+			.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1) //Diffuse texture
+			.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1) // 
+			.build();
+
+		loadGameObjects();
+
+		//These are built here to pass into pipeline creation
+
+
 
 		/*auto globalImageSetLayoutBuilder = BGLDescriptorSetLayout::Builder(bglDevice);
 		for (int i = 1; i < MAX_IMAGE_DESCRIPTOR_COUNT+1; i++) {
@@ -110,45 +124,33 @@ namespace bagel {
 			This approach is useful when changes are infrequent, as it avoids the overhead of reallocating descriptor structures for all images.
 			The choice between these two approaches depends on the specific use case and performance considerations.In practice, you might also consider a hybrid approach, where you track and update bindings for frequently changing images and reallocate VkDescriptorImageInfo for larger, less dynamic sets of images.*/
 
-
 		//For now we will only use one descriptorset and render only 1 image
-		std::unique_ptr<BGLTexture> texture1 = createTextureImage("../textures/texture.ktx");
-		std::unique_ptr<BGLTexture> texture2 = createTextureImage("../textures/c_rocketlauncher.ktx");
-
+		std::unique_ptr<BGLTexture> texture1 = createTextureImage("../materials/texture.ktx");
 		VkDescriptorImageInfo imageInfo1 = texture1->getDescriptorImageInfo();
-		VkDescriptorImageInfo imageInfo2 = texture2->getDescriptorImageInfo();
-		std::array<VkDescriptorImageInfo, 2> imageInfos = { imageInfo1, imageInfo2 };
+		std::array<VkDescriptorImageInfo, 1> imageInfos = { imageInfo1 };
 
 		std::vector<VkDescriptorSet> globalDescriptorSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT);
 		for (int i = 0; i < globalDescriptorSets.size(); i++) {
-			std::cout << "Looping descriptor sets. Index: " << i << "\n";
+			std::cout << "Binding descriptor set for frame index: " << i << "\n";
 			
 			VkDescriptorBufferInfo bufferInfo = uboBuffers[i]->descriptorInfo();
 			BGLDescriptorWriter(*globalSetLayout, *globalPool)
 				.writeBuffer(0, &bufferInfo)
 				.writeImages(1, imageInfos.data(), imageInfos.size())
 				.build(globalDescriptorSets[i]);
-
-
-			//for (int imageI = 1; imageI < MAX_IMAGE_DESCRIPTOR_COUNT + 1; imageI++) {
-			//	VkDescriptorImageInfo imageInfo = texture->getDescriptorImageInfo(); // This needs to be properly constructed either dynamically or with "blank" imageview, sampler, etc ...
-			//	// Since this is outside the render loop, it is probably appropriate to load in fake default images by the number of max_image_descriptor_count first.
-			//	BGLDescriptorWriter(*globalImageSetLayout, *globalPool)
-			//		.writeImage(imageI, &imageInfo)
-			//		.build(globalDescriptorSets[i][imageI]);
-			//}
 		}
+
+		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { globalSetLayout->getDescriptorSetLayout() , modelSetLayout->getDescriptorSetLayout() };
 
 		SimpleRenderSystem simpleRenderSystem{ 
 			bglDevice, 
 			bglRenderer.getSwapChainRenderPass(), 
-			globalSetLayout->getDescriptorSetLayout()};
+			pipelineDescriptorSetLayouts };
 
 		PointLightSystem pointLightSystem{
 			bglDevice,
 			bglRenderer.getSwapChainRenderPass(),
 			globalSetLayout->getDescriptorSetLayout() };
-
 
 		BGLCamera camera{};
 		float zrot = 1.0f;
@@ -156,6 +158,7 @@ namespace bagel {
 		auto currentTime = std::chrono::high_resolution_clock::now();
 
 		auto viewerObject = BGLGameObject::createGameObject();
+		viewerObject.createDefaultTransform();
 		KeyboardMovementController cameraController{};
 		// Game loop
 		while (!bglWindow.shouldClose())
@@ -170,7 +173,7 @@ namespace bagel {
 			float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
 			currentTime = newTime;
 
-			cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject);
+			cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
 
 			//ctrl k ctrl c to mark comment multiple lines
 			//ctrl k ctrl u to uncomment multiple lines
@@ -183,15 +186,16 @@ namespace bagel {
 					<< viewerObject.transform.rotation.z << " " << "\n";
 			}*/
 			
-			camera.setViewYXZ(viewerObject.transform.translation, viewerObject.transform.rotation);
+			camera.setViewYXZ(viewerObject.transforms[0].translation, viewerObject.transforms[0].rotation);
 
 			float aspect = bglRenderer.getAspectRatio();
-			//camera.setOrthographicProjection(-aspect, aspect, -1, 1, -1, 1);
 			camera.setPerspectiveProjection(glm::radians(70.0f), aspect, 0.1f, 30.0f);
+
 			//bglRenderer.beginFrame returns nullptr if the swapchain needs to be recreated
 			if (auto commandBuffer = bglRenderer.beginFrame()) {
 
 				int frameIndex = bglRenderer.getFrameIndex();
+				//std::cout << "Current Frame Index: " << frameIndex << "\n";
 				FrameInfo frameInfo{
 					frameIndex,
 					frameTime,
@@ -212,8 +216,6 @@ namespace bagel {
 				uboBuffers[frameIndex]->writeToBuffer(&ubo);
 				uboBuffers[frameIndex]->flush();
 
-
-				
 				//Render
 				bglRenderer.beginSwapChainRenderPass(commandBuffer);
 
@@ -222,13 +224,13 @@ namespace bagel {
 				simpleRenderSystem.renderGameObjects(frameInfo);
 				pointLightSystem.render(frameInfo);
 
-
-
 				bglRenderer.endSwapChainRenderPass(commandBuffer);
 				bglRenderer.endFrame();
 				auto stop = std::chrono::high_resolution_clock::now();
 				auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+#ifdef SHOW_FPS:
 				std::cout << (long long)1000000/duration.count() << "fps\n";
+#endif
 			}
 		}
 		//CPU will block until all gpu operations are complete
@@ -237,19 +239,28 @@ namespace bagel {
 
 	void FirstApp::loadGameObjects()
 	{
-		std::shared_ptr<BGLModel> rocketLauncherModel = BGLModel::createModelFromFile(bglDevice, "../models/rocketlauncher.obj",1);
+		std::shared_ptr<BGLModel> rocketLauncherModel = 
+			BGLModel::createModelFromFile(bglDevice, "../models/rocketlauncher.obj", "../materials/models/c_rocketlauncher.ktx", modelSetLayout, *globalPool);
 		auto rocketLauncher = BGLGameObject::createGameObject();
 		rocketLauncher.model = rocketLauncherModel;
-		rocketLauncher.transform.translation = { 0.0f,0.0f,4.5f };
-		rocketLauncher.transform.scale = { -0.2f,-0.2f,0.2f };
+		TransformComponent tr1{};
+		tr1.translation = { 0.0f,0.0f,4.5f };
+		tr1.scale = { -0.2f,-0.2f,0.2f };
+		TransformComponent tr2{};
+		tr2.translation = { 2.0f,4.0f,4.5f };
+		tr2.scale = { -0.12f,-1.2f,0.2f };
+		rocketLauncher.addTransformComponent(tr1);
+		rocketLauncher.addTransformComponent(tr2);
 		gameObjects.emplace(rocketLauncher.getId(),std::move(rocketLauncher));
 
-		/*std::shared_ptr<BGLModel> floorModel = BGLModel::createModelFromFile(bglDevice, "../models/floor.obj", 0);
+		std::shared_ptr<BGLModel> floorModel = BGLModel::createModelFromFile(bglDevice, "../models/floor.obj", "../materials/texture.ktx", modelSetLayout, *globalPool);
 		auto floor = BGLGameObject::createGameObject();
 		floor.model = floorModel;
-		floor.transform.translation = { 0.0f,2.0f,4.5f };
-		floor.transform.scale = { 10.f,1.f,10.f };
-		gameObjects.emplace(floor.getId(), std::move(floor));*/
+		TransformComponent tr3{};
+		tr3.translation = { 0.0f,2.0f,4.5f };
+		tr3.scale = { 10.f,1.f,10.f };
+		floor.addTransformComponent(tr3);
+		gameObjects.emplace(floor.getId(), std::move(floor));
 
 		std::vector<glm::vec3> lightColors{
 			 {1.f, .1f, .1f},
@@ -261,11 +272,12 @@ namespace bagel {
 		};
 		for (int i = 0; i < lightColors.size();i++) {
 			auto pointLight = BGLGameObject::makePointLight(2.f);
+
 			auto rotateLight = glm::rotate(
 				glm::mat4(1.0f), 
 				(i*glm::two_pi<float>()/ lightColors.size()),
 				{0.f,-1.f,0.f}); //axis of rotation
-			pointLight.transform.translation = (rotateLight * glm::vec4(glm::vec3{ 3.f,-2.0f,0.0f }, 1.0f)) + glm::vec4(0.f, 0.f, 3.0f, 1.0f);
+			pointLight.transforms[0].translation = (rotateLight * glm::vec4(glm::vec3{3.f,-2.0f,0.0f}, 1.0f)) + glm::vec4(0.f, 0.f, 3.0f, 1.0f);
 			pointLight.color = lightColors[i];
 			gameObjects.emplace(pointLight.getId(), std::move(pointLight));
 		}
@@ -290,6 +302,7 @@ namespace bagel {
 		if (load_image_from_file(bglDevice, "../textures/texture.ktx", texture)) {
 			std::cout << "Successfully loaded texture..?" << "\n";
 		}*/
+		std::cout << "Loading " << filepath << "\n";
 		return BGLTexture::createTextureFromFile(bglDevice, filepath, VK_FORMAT_R8G8B8A8_SRGB);
 	}
 }

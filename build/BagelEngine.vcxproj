@@ -296,16 +296,8 @@
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\point_light_render_system.hpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\simple_render_system.hpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.h" />
-    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\shaders\point_light.frag" />
-    <None Include="..\shaders\point_light.vert" />
-    <None Include="..\shaders\simple_shader.frag" />
-    <None Include="..\shaders\simple_shader.vert" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="BagelEngine.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

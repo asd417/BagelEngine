@@ -1,6 +1,17 @@
 #include "bagel_descriptors.hpp"
 
 
+#define VK_CHECK(x)                                                     \
+	do                                                                  \
+	{                                                                   \
+		VkResult err = x;                                               \
+		if (err)                                                        \
+		{                                                               \
+			std::cout <<"Detected Vulkan error: " << err << std::endl;  \
+			abort();                                                    \
+		}                                                               \
+	} while (0)
+
 // std
 #include <iostream>
 #include <cassert>
@@ -60,7 +71,6 @@ namespace bagel {
     }
 
     // *************** Descriptor Pool Builder *********************
-
     BGLDescriptorPool::Builder& BGLDescriptorPool::Builder::addPoolSize(
         VkDescriptorType descriptorType, uint32_t count) {
         poolSizes.push_back({ descriptorType, count });
@@ -121,9 +131,10 @@ namespace bagel {
 
         // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
         // a new pool whenever an old pool fills up. But this is beyond our current scope
-        if (vkAllocateDescriptorSets(bglDevice.device(), &allocInfo, &descriptor) != VK_SUCCESS) {
+        VK_CHECK(vkAllocateDescriptorSets(bglDevice.device(), &allocInfo, &descriptor));
+        /*if ( != VK_SUCCESS) {
             return false;
-        }
+        }*/
         return true;
     }
 
@@ -189,6 +200,7 @@ namespace bagel {
     bool BGLDescriptorWriter::build(VkDescriptorSet& set) {
         bool success = pool.allocateDescriptor(setLayout.getDescriptorSetLayout(), set);
         if (!success) {
+            throw "Fuck";
             return false;
         }
         overwrite(set); 

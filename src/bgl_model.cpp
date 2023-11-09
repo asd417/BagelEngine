@@ -2,7 +2,7 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
-
+#include <array>
 //lib
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
@@ -16,8 +16,20 @@ namespace bagel {
 		createIndexBuffers<uint16_t>(builder.indices);
 		useUint16 = true;
 	}
-	BGLModel::BGLModel(BGLDevice& device, const BGLModel::Builder<uint32_t>& builder) : bglDevice{ device }
+	BGLModel::BGLModel(
+		BGLDevice& device, 
+		const BGLModel::Builder<uint32_t>& builder, 
+		std::string textureFilePath, 
+		std::unique_ptr<BGLDescriptorSetLayout>& modelSetLayout,
+		BGLDescriptorPool& globalPool) : bglDevice{ device }
 	{
+		modelTexture = BGLTexture::createTextureFromFile(bglDevice, textureFilePath, VK_FORMAT_R8G8B8A8_SRGB);
+
+		VkDescriptorImageInfo imageInfo1 = modelTexture->getDescriptorImageInfo();
+		std::array<VkDescriptorImageInfo, 1> imageInfos = { imageInfo1};
+		BGLDescriptorWriter(*modelSetLayout, globalPool)
+			.writeImages(0, imageInfos.data(), imageInfos.size())
+			.build(modelDescriptorSet);
 		createVertexBuffers(builder.vertices);
 		createIndexBuffers<uint32_t>(builder.indices);
 	}
@@ -36,13 +48,19 @@ namespace bagel {
 		}
 	}
 
-	std::unique_ptr<BGLModel> BGLModel::createModelFromFile(BGLDevice& device, const std::string& filepath, uint32_t textureIndex)
+	std::unique_ptr<BGLModel> BGLModel::createModelFromFile(
+		BGLDevice& device, 
+		const std::string& filepath, 
+		const std::string& textureFilePath,
+		std::unique_ptr<BGLDescriptorSetLayout>& modelSetLayout,
+		BGLDescriptorPool& globalPool)
 	{
 		Builder<uint32_t> builder{};
-		builder.loadModel(filepath, textureIndex);
+		builder.loadModel(filepath, 0);
 		std::cout << "Loading Model: " << filepath << "\n";
-		std::cout << "Vertex Count: " << builder.vertices.size() << "\n";
-		return std::make_unique<BGLModel>(device, builder);
+		//std::cout << "Vertex Count: " << builder.vertices.size() << "\n";
+		//(BGLDevice & device, const BGLModel::Builder<uint32_t>&builder, std::string textureFilePath, std::unique_ptr<BGLDescriptorSetLayout> modelSetLayout, std::unique_ptr <BGLDescriptorPool> globalPool)
+		return std::make_unique<BGLModel>(device, builder, textureFilePath, modelSetLayout, globalPool);
 	}
 
 	void BGLModel::bind(VkCommandBuffer commandBuffer)
@@ -160,6 +178,18 @@ namespace bagel {
 
 		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, filename.c_str())) {
 			throw std::runtime_error(warn + error);
+		}
+		//std::cout << filename << " has Following Textures:\n";
+		for (auto p : materials) {
+			std::cout << p.diffuse_texname << "\n";
+			std::cout << p.ambient_texname << "\n";            // map_Ka. For ambient or ambient occlusion.
+			std::cout << p.diffuse_texname << "\n";             // map_Kd
+			std::cout << p.specular_texname << "\n";            // map_Ks
+			std::cout << p.specular_highlight_texname << "\n";  // map_Ns
+			std::cout << p.bump_texname << "\n";                // map_bump, map_Bump, bump
+			std::cout << p.displacement_texname << "\n";        // disp
+			std::cout << p.alpha_texname << "\n";               // map_d
+			std::cout << p.reflection_texname << "\n";
 		}
 
 		vertices.clear();

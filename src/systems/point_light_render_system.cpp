@@ -68,8 +68,8 @@ namespace bagel {
 				frameInfo.frameTime,
 				{ 0.f,-1.f,0.f }); //axis of rotation
 
-			obj.transform.translation = rotateLight * (glm::vec4(obj.transform.translation, 1.f) - glm::vec4(0.f, 0.f, 5.0f, 1.0f)) + glm::vec4(0.f, 0.f, 5.0f, 1.0f);
-			ubo.pointLights[lightIndex].position = glm::vec4(obj.transform.translation,1.f);
+			obj.transforms[0].translation = rotateLight * (glm::vec4(obj.transforms[0].translation, 1.f) - glm::vec4(0.f, 0.f, 5.0f, 1.0f)) + glm::vec4(0.f, 0.f, 5.0f, 1.0f);
+			ubo.pointLights[lightIndex].position = glm::vec4(obj.transforms[0].translation,1.f);
 			ubo.pointLights[lightIndex].color = glm::vec4(obj.color, obj.pointLight->lightIntensity);
 			lightIndex++;
 		}
@@ -85,7 +85,7 @@ namespace bagel {
 		for (auto& kv : frameInfo.gameObjects) {
 			auto& obj = kv.second;
 			if (obj.pointLight == nullptr) continue;
-			auto offset = frameInfo.camera.getPosition() - obj.transform.translation;
+			auto offset = frameInfo.camera.getPosition() - obj.transforms[0].translation;
 			float disSquared = glm::dot(offset, offset);
 			sortedlights[disSquared] = obj.getId();
 		}
@@ -102,9 +102,9 @@ namespace bagel {
 		for (auto it = sortedlights.rbegin(); it != sortedlights.rend();++it) {
 			auto& obj = frameInfo.gameObjects.at(it->second);
 			PointLightPushConstant push{};
-			push.positions = glm::vec4(obj.transform.translation,1.f);
+			push.positions = glm::vec4(obj.transforms[0].translation,1.f);
 			push.color = glm::vec4(obj.color, obj.pointLight->lightIntensity);
-			push.radius = obj.transform.scale.x;
+			push.radius = obj.transforms[0].scale.x;
 		
 			vkCmdPushConstants(
 				frameInfo.commandBuffer,
