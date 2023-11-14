@@ -96,6 +96,7 @@ if (WIN32)
     ${GLM_PATH}
     ${KTX}
     ${STB}
+    ${ENTT}
     )
  
   target_link_directories(${PROJECT_NAME} PUBLIC

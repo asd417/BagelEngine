@@ -9,6 +9,7 @@
 
 #include "systems/simple_render_system.hpp"
 #include "systems/point_light_render_system.hpp"
+#include "systems/ecs_model_render_system.hpp"
 
 #include "bgl_gameobject.hpp"
 #include "bgl_model.hpp"
@@ -33,7 +34,8 @@ namespace bagel {
 		FirstApp& operator=(const FirstApp&) = delete;
 
 		void run();
-
+		void loadECSObjects();
+		entt::registry& getRegistry() { return registry; }
 	private:
 		void loadGameObjects();
 		std::unique_ptr<BGLTexture> createTextureImage(std::string filepath);
@@ -46,10 +48,9 @@ namespace bagel {
 
 		std::unique_ptr<BGLDescriptorSetLayout> modelSetLayout;
 		std::unique_ptr<BGLDescriptorPool> globalPool{};
-
+		//It is critical to define variables that require bglDevice below this line as variables below will get destroyed first
+		entt::registry registry;
 		BGLGameObject::Map gameObjects;
-
-		
 	};
 	
 }

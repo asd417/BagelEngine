@@ -2,21 +2,12 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
-
+#include "bagel_ecs_components.hpp"
 #include "bgl_model.hpp"
 #include <unordered_map>
 #include <memory>
 namespace bagel {
-	struct TransformComponent {
-		glm::vec3 translation{};
-		glm::vec3 scale{ 1.f,1.f,1.f };
-		glm::vec3 rotation;
-		glm::mat4 mat4();
-		glm::mat3 normalMatrix();
-	};
-	struct PointLightComponent {
-		float lightIntensity = 1.0f;
-	};
+	
 	class BGLGameObject {
 	public:
 		using id_t = unsigned int;
@@ -39,9 +30,9 @@ namespace bagel {
 		std::shared_ptr<BGLModel> model{};
 		glm::vec3 color{};
 		//TransformComponent transform{};
-		void addTransformComponent(TransformComponent tr) { transforms.push_back(tr); }
-		void createDefaultTransform() { transforms.push_back(TransformComponent{}); }
-		std::vector<TransformComponent> transforms{};
+		//void addTransformComponent(TransformComponent tr) { transform.push_back(tr); }
+		//void createDefaultTransform() { TransformComponent{}; }
+		TransformComponent transform{};
 		uint32_t transformCount = 1;
 
 		std::unique_ptr<PointLightComponent> pointLight = nullptr;

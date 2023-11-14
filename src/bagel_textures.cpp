@@ -16,7 +16,7 @@
 //https://github.com/KhronosGroup/Vulkan-Samples/blob/main/samples/api/texture_loading/texture_loading.cpp
 namespace bagel {
 	//Working example of texture loading
-	bool load_image_from_file(BGLDevice& bglDevice, const char* file, BGLTexture::textureInfoStruct& texture)
+	bool load_image_from_file(BGLDevice& bglDevice, const char* file, BGLTexture::BGLTextureInfoComponent& texture)
 	{
 		// We use the Khronos texture format (https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/)
 		// ktx1 doesn't know whether the content is sRGB or linear, but most tools save in sRGB, so assume that.

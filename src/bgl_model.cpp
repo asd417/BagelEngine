@@ -7,7 +7,6 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
-
 //https://www.youtube.com/watch?v=mnKp501RXDc&list=PL8327DO66nu9qYVKLDmdLW_84-yE4auCR&index=8&ab_channel=BrendanGalea
 namespace bagel {
 	BGLModel::BGLModel(BGLDevice& device, const BGLModel::Builder<uint16_t>& builder) : bglDevice{device}
@@ -214,6 +213,123 @@ namespace bagel {
 				vertices.push_back(vertex);
 			}
 		}
+	}
+
+	ModelDescriptionComponentBuilder::ModelDescriptionComponentBuilder(BGLDevice& _device, ModelDescriptionComponent& _tC)
+		: bglDevice{ _device }, 
+		targetComponent{ _tC }
+	{
+		;
+	}
+
+	void ModelDescriptionComponentBuilder::buildComponent(const std::string& modelFilename, const std::string& textureFilename)
+	{
+		loadModel(modelFilename);
+		loadTexture(textureFilename);
+		createVertexBuffer();
+		if (indices.size() > 0) {
+			targetComponent.hasIndexBuffer = true;
+			createIndexBuffer();
+		}
+	}
+
+	void ModelDescriptionComponentBuilder::loadModel(const std::string& filename) {
+		tinyobj::attrib_t attrib;
+		std::vector<tinyobj::shape_t> shapes;
+		std::vector<tinyobj::material_t> materials;
+		std::string warn, error;
+
+		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, filename.c_str())) {
+			throw std::runtime_error(warn + error);
+		}
+
+		for (const auto& shape : shapes) {
+			for (const auto& index : shape.mesh.indices) {
+				BGLModel::Vertex vertex{};
+				if (index.vertex_index >= 0) {
+					vertex.position = { attrib.vertices[3 * index.vertex_index + 0] , attrib.vertices[3 * index.vertex_index + 1] , attrib.vertices[3 * index.vertex_index + 2] };
+				}
+				vertex.color = { attrib.colors[3 * index.vertex_index] , attrib.colors[3 * index.vertex_index + 1] , attrib.colors[3 * index.vertex_index + 2] };
+
+				if (index.normal_index >= 0) {
+					vertex.normal = { attrib.normals[3 * index.normal_index + 0] , attrib.normals[3 * index.normal_index + 1] , attrib.normals[3 * index.normal_index + 2] };
+				}
+				if (index.texcoord_index >= 0) {
+					vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0] , 1 - attrib.texcoords[2 * index.texcoord_index + 1] };
+				}
+				vertices.push_back(vertex);
+				indices.push_back(index.vertex_index);
+			}
+		}
+	}
+
+	void ModelDescriptionComponentBuilder::loadTexture(const std::string& textureFilename)
+	{
+		/*modelTexture = BGLTexture::createTextureFromFile(bglDevice, textureFilePath, VK_FORMAT_R8G8B8A8_SRGB);
+
+		VkDescriptorImageInfo imageInfo1 = modelTexture->getDescriptorImageInfo();
+		std::array<VkDescriptorImageInfo, 1> imageInfos = { imageInfo1 };
+		BGLDescriptorWriter(*modelSetLayout, globalPool)
+			.writeImages(0, imageInfos.data(), imageInfos.size())
+			.build(modelDescriptorSet);*/
+	}
+
+	void ModelDescriptionComponentBuilder::createVertexBuffer()
+	{
+		targetComponent.vertexCount = static_cast<uint32_t>(vertices.size());
+		assert(targetComponent.vertexCount >= 3 && "Vertex count must be at least 3");
+		VkDeviceSize bufferSize = sizeof(vertices[0]) * targetComponent.vertexCount;
+		uint32_t vertexSize = sizeof(vertices[0]);
+
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingMemory;
+		void* mapped;
+		bufferSize = vertexSize * targetComponent.vertexCount;
+		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
+		vkMapMemory(bglDevice.device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
+		//Write Vertex data to stagingBuffer
+		assert(mapped && "Cannot copy to unmapped buffer");
+		memcpy(mapped, (void*)vertices.data(), bufferSize);
+
+		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent.vertexBuffer, targetComponent.vertexMemory);
+
+		// Finished Mapping vertex buffer to staging buffer inside device
+		bglDevice.copyBuffer(stagingBuffer, targetComponent.vertexBuffer, bufferSize);
+
+		// Finished Mapping device staging buffer to device vertex buffer. Destroy staging buffer.
+		vkUnmapMemory(bglDevice.device(), stagingMemory);
+		vkDestroyBuffer(bglDevice.device(), stagingBuffer, nullptr);
+		vkFreeMemory(bglDevice.device(), stagingMemory, nullptr);
+		mapped = nullptr;
+	}
+
+	void ModelDescriptionComponentBuilder::createIndexBuffer()
+	{
+		targetComponent.indexCount = static_cast<uint32_t>(indices.size());
+		assert(targetComponent.indexCount >= 3 && "Vertex count must be at least 3");
+		VkDeviceSize bufferSize = sizeof(indices[0]) * targetComponent.indexCount;
+		uint32_t indexSize = sizeof(uint32_t);
+
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingMemory;
+		void* mapped;
+		bufferSize = indexSize * targetComponent.indexCount;
+		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
+		vkMapMemory(bglDevice.device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
+		//Write Vertex data to stagingBuffer
+		assert(mapped && "Cannot copy to unmapped buffer");
+		memcpy(mapped, (void*)indices.data(), bufferSize);
+
+		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent.indexBuffer, targetComponent.indexMemory);
+
+		// Finished Mapping vertex buffer to staging buffer inside device
+		bglDevice.copyBuffer(stagingBuffer, targetComponent.indexBuffer, bufferSize);
+
+		// Finished Mapping device staging buffer to device vertex buffer. Destroy staging buffer.
+		vkUnmapMemory(bglDevice.device(), stagingMemory);
+		vkDestroyBuffer(bglDevice.device(), stagingBuffer, nullptr);
+		vkFreeMemory(bglDevice.device(), stagingMemory, nullptr);
+		mapped = nullptr;
 	}
 
 }

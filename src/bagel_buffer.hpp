@@ -3,6 +3,14 @@
 #include "bagel_engine_device.hpp"
 
 namespace bagel {
+	struct BGLBufferCreateInfo {
+		BGLDevice& device;
+		VkDeviceSize instanceSize;
+		uint32_t instanceCount;
+		VkBufferUsageFlags usageFlags;
+		VkMemoryPropertyFlags memoryPropertyFlags;
+		VkDeviceSize minOffsetAlignment;
+	};
 	class BGLBuffer {
 	public:
 		BGLBuffer(

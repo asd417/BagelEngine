@@ -3,9 +3,10 @@
 #include "bagel_buffer.hpp"
 #include "bagel_textures.h"
 #include "bagel_descriptors.hpp"
+#include "bagel_ecs_components.hpp"
+
 // GLM functions will expect radian angles for all its functions
 #define GLM_FORCE_RADIANS
-
 // Expect depths buffer to range from 0 to 1. (opengl depth buffer ranges from -1 to 1)
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -34,6 +35,8 @@ namespace bagel {
 			std::vector<T> indices{};
 			void loadModel(const std::string& filename, uint32_t materialIndex);
 		};
+
+		
 
 		BGLModel(BGLDevice& device, const BGLModel::Builder<uint16_t>& builder);
 		BGLModel::BGLModel(
@@ -79,5 +82,24 @@ namespace bagel {
 		template<typename T>
 		void createIndexBuffers(const std::vector<T>& indices);
 
+	};
+
+	class ModelDescriptionComponentBuilder {
+	public:
+		ModelDescriptionComponentBuilder(BGLDevice& _device, ModelDescriptionComponent& _tC);
+
+		void buildComponent(const std::string& filename, const std::string& textureFilename);
+
+		void loadModel(const std::string& filename);
+		void loadTexture(const std::string& textureFilename);
+		void createVertexBuffer();
+		void createIndexBuffer();
+
+	private:
+		ModelDescriptionComponent& targetComponent;
+		BGLDevice& bglDevice;
+
+		std::vector<BGLModel::Vertex> vertices{};
+		std::vector<uint32_t> indices{};
 	};
 }

@@ -14,7 +14,9 @@
 #include "bagel_frame_info.hpp"
 #include "bagel_buffer.hpp"
 #include "bgl_camera.hpp"
+#include "bagel_ecs_components.hpp"
 #include "keyboard_movement_controller.hpp"
+#include "entt.hpp"
 
 #define GLOBAL_SET_IMAGE_COUNT 1
 #define MAX_MODEL_COUNT 10
@@ -52,14 +54,14 @@ namespace bagel {
 			.build();
 		std::cout << "Finished Creating Global Pool" << "\n";
 
-		std::cout << "Finished Loading Game Objects" << "\n";
+		registry = entt::registry{};
+		std::cout << "Creating Entity Registry" << "\n";
 	}
 	FirstApp::~FirstApp()
 	{
-		
 	}
 	void FirstApp::run()
-	{
+	{	
 		//Create UBO buffers by the number of MAX_FRAMES_IN_FLIGHT. 3 for triple buffering
 		std::vector<std::unique_ptr<BGLBuffer>> uboBuffers(BGLSwapChain::MAX_FRAMES_IN_FLIGHT);
 		for (int i = 0; i < uboBuffers.size(); i++) {
@@ -78,14 +80,13 @@ namespace bagel {
 			.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_ALL_GRAPHICS, GLOBAL_SET_IMAGE_COUNT)
 			.build();
 
-
 		// Model Descriptor Set Layout
 		modelSetLayout = BGLDescriptorSetLayout::Builder(bglDevice)
 			.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1) //Diffuse texture
 			.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1) // 
 			.build();
 
-		loadGameObjects();
+		//loadGameObjects();
 
 		//These are built here to pass into pipeline creation
 
@@ -142,6 +143,15 @@ namespace bagel {
 
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { globalSetLayout->getDescriptorSetLayout() , modelSetLayout->getDescriptorSetLayout() };
 
+		//loadECSObjects();
+		loadGameObjects();
+
+
+		/*ModelRenderSystem modelRenderSystem{
+			bglDevice,
+			bglRenderer.getSwapChainRenderPass(),
+			pipelineDescriptorSetLayouts };*/
+
 		SimpleRenderSystem simpleRenderSystem{ 
 			bglDevice, 
 			bglRenderer.getSwapChainRenderPass(), 
@@ -158,7 +168,7 @@ namespace bagel {
 		auto currentTime = std::chrono::high_resolution_clock::now();
 
 		auto viewerObject = BGLGameObject::createGameObject();
-		viewerObject.createDefaultTransform();
+		//viewerObject.createDefaultTransform();
 		KeyboardMovementController cameraController{};
 		// Game loop
 		while (!bglWindow.shouldClose())
@@ -174,19 +184,8 @@ namespace bagel {
 			currentTime = newTime;
 
 			cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
-
-			//ctrl k ctrl c to mark comment multiple lines
-			//ctrl k ctrl u to uncomment multiple lines
-			/*if (cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject)) {
-				std::cout << viewerObject.transform.translation.x << " "
-					<< viewerObject.transform.translation.y << " "
-					<< viewerObject.transform.translation.z << " "
-					<< viewerObject.transform.rotation.x << " "
-					<< viewerObject.transform.rotation.y << " "
-					<< viewerObject.transform.rotation.z << " " << "\n";
-			}*/
 			
-			camera.setViewYXZ(viewerObject.transforms[0].translation, viewerObject.transforms[0].rotation);
+			camera.setViewYXZ(viewerObject.transform.translation[0], viewerObject.transform.rotation[0]);
 
 			float aspect = bglRenderer.getAspectRatio();
 			camera.setPerspectiveProjection(glm::radians(70.0f), aspect, 0.1f, 30.0f);
@@ -221,6 +220,8 @@ namespace bagel {
 
 				//this means all the objects in simpleRenderSystem will be rendered before the objects in pointlight system
 				//always render solid objects before rendering transparency
+				//simpleRenderSystem.renderGameObjects(frameInfo);
+				//modelRenderSystem.renderEntities(registry,frameInfo);
 				simpleRenderSystem.renderGameObjects(frameInfo);
 				pointLightSystem.render(frameInfo);
 
@@ -237,6 +238,22 @@ namespace bagel {
 		vkDeviceWaitIdle(bglDevice.device());
 	}
 
+	void FirstApp::loadECSObjects() {
+		for (auto i = 0u; i < 10u; ++i) {
+			const auto entity = registry.create();
+			//registry.emplace<bagel::TransformComponent>(entity, i * 1.f, i * 1.f);
+			registry.emplace<bagel::ModelDescriptionComponent>(entity, bglDevice);
+		}
+		auto view = registry.view<ModelDescriptionComponent>();
+		for (auto entity : view) {
+			auto& mdc = view.get<ModelDescriptionComponent>(entity);
+		
+			auto builder = new ModelDescriptionComponentBuilder(bglDevice, mdc);
+			builder->buildComponent("../models/rocketlauncher.obj", "../materials/models/c_rocketlauncher.ktx");
+			delete builder;
+		}
+	}
+
 	void FirstApp::loadGameObjects()
 	{
 		std::shared_ptr<BGLModel> rocketLauncherModel = 
@@ -244,22 +261,22 @@ namespace bagel {
 		auto rocketLauncher = BGLGameObject::createGameObject();
 		rocketLauncher.model = rocketLauncherModel;
 		TransformComponent tr1{};
-		tr1.translation = { 0.0f,0.0f,4.5f };
-		tr1.scale = { -0.2f,-0.2f,0.2f };
+		tr1.translation = { { 0.0f,0.0f,4.5f } };
+		tr1.scale = { { -0.2f,-0.2f,0.2f } };
 		TransformComponent tr2{};
-		tr2.translation = { 2.0f,4.0f,4.5f };
-		tr2.scale = { -0.12f,-1.2f,0.2f };
-		rocketLauncher.addTransformComponent(tr1);
-		rocketLauncher.addTransformComponent(tr2);
+		tr2.translation = { { 2.0f,4.0f,4.5f } };
+		tr2.scale = { { -0.12f,-1.2f,0.2f} };
+		//rocketLauncher.addTransformComponent(tr1);
+		//rocketLauncher.addTransformComponent(tr2);
 		gameObjects.emplace(rocketLauncher.getId(),std::move(rocketLauncher));
 
 		std::shared_ptr<BGLModel> floorModel = BGLModel::createModelFromFile(bglDevice, "../models/floor.obj", "../materials/texture.ktx", modelSetLayout, *globalPool);
 		auto floor = BGLGameObject::createGameObject();
 		floor.model = floorModel;
 		TransformComponent tr3{};
-		tr3.translation = { 0.0f,2.0f,4.5f };
-		tr3.scale = { 10.f,1.f,10.f };
-		floor.addTransformComponent(tr3);
+		tr3.translation = { { 0.0f,2.0f,4.5f } };
+		tr3.scale = { { 10.f,1.f,10.f } };
+		//floor.addTransformComponent(tr3);
 		gameObjects.emplace(floor.getId(), std::move(floor));
 
 		std::vector<glm::vec3> lightColors{
@@ -277,7 +294,7 @@ namespace bagel {
 				glm::mat4(1.0f), 
 				(i*glm::two_pi<float>()/ lightColors.size()),
 				{0.f,-1.f,0.f}); //axis of rotation
-			pointLight.transforms[0].translation = (rotateLight * glm::vec4(glm::vec3{3.f,-2.0f,0.0f}, 1.0f)) + glm::vec4(0.f, 0.f, 3.0f, 1.0f);
+			pointLight.transform.translation[0] = (rotateLight * glm::vec4(glm::vec3{3.f,-2.0f,0.0f}, 1.0f)) + glm::vec4(0.f, 0.f, 3.0f, 1.0f);
 			pointLight.color = lightColors[i];
 			gameObjects.emplace(pointLight.getId(), std::move(pointLight));
 		}

@@ -82,6 +82,7 @@ void main(){
 
 	vec3 ambientLight = ubo.ambientLightColor.xyz * ubo.ambientLightColor.w;
 	vec4 UVcolor = texture(samplerModelColor, vec2(fragUV.x,fragUV.y), 1.0f);
+	//vec4 UVColor = vec4(1.0f,1.0f,1.0f,1.0f);
 	// move colorspace of SRGB texture to linear space
 	// This is okay because in BGLtexture class when we import the ktx textures, we assumed that it is in VK_FORMAT_R8G8B8A8_SRGB
 	vec3 DiffuseColor = pow(UVcolor.rgb, vec3(gamma));

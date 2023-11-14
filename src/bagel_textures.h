@@ -8,7 +8,7 @@ namespace bagel {
 	class BGLTexture
 	{
 	public:
-		struct textureInfoStruct {
+		struct BGLTextureInfoComponent {
 			VkSampler      sampler;
 			VkImage        image;
 			VkImageLayout  image_layout;
@@ -17,8 +17,8 @@ namespace bagel {
 			uint32_t       width, height;
 			uint32_t       mip_levels;
 
-			textureInfoStruct() = default;
-			textureInfoStruct(const textureInfoStruct&) = delete;
+			BGLTextureInfoComponent() = default;
+			BGLTextureInfoComponent(const BGLTextureInfoComponent&) = delete;
 		};
 		BGLTexture(BGLDevice &device, VkFormat format);
 		~BGLTexture();
@@ -28,7 +28,7 @@ namespace bagel {
 		VkDescriptorImageInfo getDescriptorImageInfo() const { return { info.sampler , info.view , info.image_layout }; }
 	private:
 		std::unique_ptr<BGLBuffer> stagingBuffer;
-		textureInfoStruct info{};
+		BGLTextureInfoComponent info{};
 		BGLDevice& bglDevice;
 		VkFormat imageFormat;
 		std::vector<VkBufferImageCopy> buffer_copy_regions{};
@@ -38,6 +38,6 @@ namespace bagel {
 	};
 
 	void populateBufferCopyRegion(std::vector<VkBufferImageCopy>& buffer_copy_regions, ktxTexture* ktx_texture, uint32_t mip_levels);
-	bool load_image_from_file(BGLDevice& bglDevice, const char* file, BGLTexture::textureInfoStruct& texture);
+	bool load_image_from_file(BGLDevice& bglDevice, const char* file, BGLTexture::BGLTextureInfoComponent& texture);
 
 }

@@ -1,4 +1,5 @@
-#include "simple_render_system.hpp"
+#include "ecs_model_render_system.hpp"
+#include "../bagel_ecs_components.hpp"
 
 #include <stdexcept>
 #include <array>
@@ -9,9 +10,7 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
-//#define SIERPINSKITRI_EXAMPLE
-//#define SIERPINSKITRI_USESOL2
-//#define SIERPINSKITRI_LOOPSOLUTION
+
 
 namespace bagel {
 
@@ -42,17 +41,17 @@ namespace bagel {
 		// alignas aligns the variable to the 
 		glm::mat4 normalMatrix{ 1.0f };
 	};
-	SimpleRenderSystem::SimpleRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts) : bglDevice{device}
+	ModelRenderSystem::ModelRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts) : bglDevice{device}
 	{
 		createPipelineLayout(setLayouts);
 		createPipeline(renderPass);
 	}
-	SimpleRenderSystem::~SimpleRenderSystem()
+	ModelRenderSystem::~ModelRenderSystem()
 	{
 		vkDestroyPipelineLayout(bglDevice.device(), pipelineLayout, nullptr);
 	}
 	
-	void SimpleRenderSystem::renderGameObjects(FrameInfo& frameInfo)
+	void ModelRenderSystem::renderEntities(entt::registry& registry, FrameInfo& frameInfo)
 	{
 		bglPipeline->bind(frameInfo.commandBuffer);
 		//uint32_t ints[1] = {static_cast<uint32_t>(sizeof(frameInfo.globalDescriptorSets[1])) };
@@ -64,26 +63,40 @@ namespace bagel {
 			1, //descriptorSet Count 
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
-		
-		for (auto& kv : frameInfo.gameObjects) {
-			auto& obj = kv.second;
-			if (obj.model == nullptr) continue;
 
-			auto objTextureDescriptor = obj.model->getTextureDescriptorSet();
-			std::array<VkDescriptorSet, 1> descriptors = { objTextureDescriptor };
-			obj.model->bind(frameInfo.commandBuffer);
+		auto view = registry.view<TransformComponent, ModelDescriptionComponent>();
+		for (auto [entity, transformComp, modelDescComp] : view.each()) {
+			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, { 0 });
+			VkDescriptorSet descriptor[] = {modelDescComp.descriptorSet};
 			vkCmdBindDescriptorSets(
 				frameInfo.commandBuffer,
 				VK_PIPELINE_BIND_POINT_GRAPHICS,
 				pipelineLayout,
 				1, //first set
-				descriptors.size(), //descriptorSet Count 
-				descriptors.data(),
+				1, //descriptorSet Count 
+				descriptor,
 				0, nullptr);
-			for (int i = 0; i < obj.transform.translation.size(); i++) {
+			if (modelDescComp.hasIndexBuffer) {
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				for (int i = 0; i < transformComp.translation.size(); i++) {
+					SimplePushConstantData push{};
+					push.modelMatrix = transformComp.mat4(i);
+					push.normalMatrix = transformComp.normalMatrix(i);
+					vkCmdPushConstants(
+						frameInfo.commandBuffer,
+						pipelineLayout,
+						VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+						0,
+						sizeof(SimplePushConstantData),
+						&push);
+					vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, 1, 0, 0, 0);
+				}
+			}
+			for (int i = 0; i < transformComp.translation.size(); i++) {
 				SimplePushConstantData push{};
-				push.modelMatrix = obj.transform.mat4(i);
-				push.normalMatrix = obj.transform.normalMatrix(i);
+				push.modelMatrix = transformComp.mat4(i);
+				push.normalMatrix = transformComp.normalMatrix(i);
 				vkCmdPushConstants(
 					frameInfo.commandBuffer,
 					pipelineLayout,
@@ -91,12 +104,13 @@ namespace bagel {
 					0,
 					sizeof(SimplePushConstantData),
 					&push);
-				obj.model->draw(frameInfo.commandBuffer);
+				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, 0, 0);
 			}
 		}
+
 	}
 
-	void SimpleRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
+	void ModelRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
 	{
 		VkPushConstantRange pushConstantRange{};
 		// This flag indicates that we want this pushconstantdata to be accessible in both vertex and fragment shaders
@@ -105,12 +119,11 @@ namespace bagel {
 		pushConstantRange.offset = 0;
 		pushConstantRange.size = sizeof(SimplePushConstantData);
 
-
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
 		//desciptor set layout information
-		std::cout << "Creating Simple Render System Pipeline with descriptorSetLayout count of " << setLayouts.size() << "\n";
+		std::cout << "Creating Model Render System Pipeline with descriptorSetLayout count of " << setLayouts.size() << "\n";
 		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
 		pipelineLayoutInfo.pSetLayouts = setLayouts.data();
 
@@ -122,7 +135,7 @@ namespace bagel {
 			throw std::runtime_error("failed to create pipeline layout");
 		}
 	}
-	void SimpleRenderSystem::createPipeline(VkRenderPass renderPass)
+	void ModelRenderSystem::createPipeline(VkRenderPass renderPass)
 	{
 		//assert(bglSwapChain != nullptr && "Cannot create pipeline before swapchain");
 		assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
