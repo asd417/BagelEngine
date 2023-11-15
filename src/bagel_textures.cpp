@@ -1,6 +1,8 @@
 #include "bagel_textures.h"
 
+#include <cassert>
 #include <iostream>
+#include <array>
 
 #define VK_CHECK(x)                                                     \
 	do                                                                  \
@@ -18,6 +20,7 @@ namespace bagel {
 	//Working example of texture loading
 	bool load_image_from_file(BGLDevice& bglDevice, const char* file, BGLTexture::BGLTextureInfoComponent& texture)
 	{
+		throw("load_image_from_file() will be deprecated");
 		// We use the Khronos texture format (https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/)
 		// ktx1 doesn't know whether the content is sRGB or linear, but most tools save in sRGB, so assume that.
 		VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
@@ -291,6 +294,7 @@ namespace bagel {
 		ktxTexture_Destroy(ktx_texture);
 
 		VkImageCreateInfo image_create_info{};
+		{
 		image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		image_create_info.imageType = VK_IMAGE_TYPE_2D;
 		image_create_info.format = imageFormat;
@@ -303,31 +307,36 @@ namespace bagel {
 		image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		image_create_info.extent = { texture->info.width, texture->info.height, 1 };
 		image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		}
 		bglDevice.createImageWithInfo(image_create_info, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture->info.image, texture->info.device_memory);
-		
 		// Image memory barriers for the texture image
 		// The sub resource range describes the regions of the image that will be transitioned using the memory barriers below
 		VkImageSubresourceRange subresource_range = {};
-		subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		subresource_range.baseMipLevel = 0;
-		subresource_range.levelCount = texture->info.mip_levels;
-		subresource_range.layerCount = 1;
+		{
+			subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			subresource_range.baseMipLevel = 0;
+			subresource_range.levelCount = texture->info.mip_levels;
+			subresource_range.layerCount = 1;
+		}
 
 		// Transition the texture image layout to transfer target, so we can safely copy our buffer data to it.
 		VkImageMemoryBarrier image_memory_barrier;
-		image_memory_barrier.pNext = nullptr;
-		image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		image_memory_barrier.image = texture->info.image;
-		image_memory_barrier.subresourceRange = subresource_range;
-		image_memory_barrier.srcAccessMask = 0;
-		image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		{
+			image_memory_barrier.pNext = nullptr;
+			image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			image_memory_barrier.image = texture->info.image;
+			image_memory_barrier.subresourceRange = subresource_range;
+			image_memory_barrier.srcAccessMask = 0;
+			image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		}
 
 		//Record the command that copies from staging buffer to VkImage
 		VkCommandBuffer copy_command = bglDevice.beginSingleTimeCommands();
+
 		vkCmdPipelineBarrier(
 			copy_command,
 			VK_PIPELINE_STAGE_HOST_BIT,
@@ -336,6 +345,7 @@ namespace bagel {
 			0, nullptr,
 			0, nullptr,
 			1, &image_memory_barrier);
+
 		// Copy mip levels from staging buffer
 		VkBuffer buffer = stagingBuffer->getBuffer();
 		vkCmdCopyBufferToImage(
@@ -347,10 +357,12 @@ namespace bagel {
 			texture->buffer_copy_regions.data());
 
 		// Once the data has been uploaded we transfer to the texture image to the shader read layout, so it can be sampled from
-		image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		{
+			image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		}
 
 		// Insert a memory dependency at the proper pipeline stages that will execute the image layout transition
 		// Source pipeline stage stage is copy command execution (VK_PIPELINE_STAGE_TRANSFER_BIT)
@@ -453,7 +465,7 @@ namespace bagel {
 			buffer_copy_region.imageSubresource.mipLevel = i;
 			buffer_copy_region.imageSubresource.baseArrayLayer = 0;
 			buffer_copy_region.imageSubresource.layerCount = 1;
-			buffer_copy_region.imageExtent.width = ktx_texture->baseWidth >> i;
+			buffer_copy_region.imageExtent.width = ktx_texture->baseWidth >> i; //divides the texture width by pow(2,i)
 			buffer_copy_region.imageExtent.height = ktx_texture->baseHeight >> i;
 			buffer_copy_region.imageExtent.depth = 1;
 			ktx_size_t        offset;
@@ -465,4 +477,175 @@ namespace bagel {
 		}
 	}
 
+	TextureComponentBuilder::TextureComponentBuilder(
+		BGLDevice& _bglDevice,
+		BGLDescriptorPool& _globalPool,
+		BGLDescriptorSetLayout& _modelSetLayout)
+		: bglDevice{ _bglDevice },
+		globalPool{ _globalPool },
+		modelSetLayout{ _modelSetLayout }
+	{
+	}
+
+	TextureComponentBuilder::~TextureComponentBuilder()
+	{
+	}
+
+	void TextureComponentBuilder::buildComponent(const char* filePath, VkFormat imageFormat)
+	{
+		assert(targetComponent != nullptr && "No targetComponent set for TextureComponentBuilder");
+		loadKTXImageInStagingBuffer(filePath, imageFormat);
+		generateImageCreateInfo(imageFormat);
+		//VK_CHECK(vkCreateImage(bglDevice.device(), &imageCreateInfo, nullptr, &targetComponent.image));
+		bglDevice.createImageWithInfo(imageCreateInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent->image, targetComponent->device_memory);
+		generateSubresRange();
+		setImageLayoutTransfer(targetComponent->image);
+
+		VkCommandBuffer cpyCmd = bglDevice.beginSingleTimeCommands();
+
+		VkBuffer buffer = stagingBuffer->getBuffer();
+		vkCmdPipelineBarrier(cpyCmd,VK_PIPELINE_STAGE_HOST_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0, nullptr,0, nullptr,1, &imageMemBarrier);
+		vkCmdCopyBufferToImage(cpyCmd,buffer,targetComponent->image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,static_cast<uint32_t>(buffCpyRegions.size()),buffCpyRegions.data());
+		// Once the data has been uploaded we transfer to the texture image to the shader read layout, so it can be sampled from
+		setImageLayoutShaderRead();
+		vkCmdPipelineBarrier(cpyCmd,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,0,0, nullptr,0, nullptr,1, &imageMemBarrier);
+		
+		bglDevice.endSingleTimeCommands(cpyCmd);
+
+		targetComponent->image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		generateSamplerCreateInfo();
+		VK_CHECK(vkCreateSampler(bglDevice.device(), &samplerCreateInfo, nullptr, &targetComponent->sampler));
+		generateImageViewCreateInfo(imageFormat, targetComponent->image);
+		VK_CHECK(vkCreateImageView(bglDevice.device(), &imageViewCreateInfo, nullptr, &targetComponent->view));
+		
+		VkDescriptorImageInfo imageInfo1 = targetComponent->getDescriptorImageInfo();
+		std::array<VkDescriptorImageInfo, 1> imageInfos = { imageInfo1 };
+		BGLDescriptorWriter(modelSetLayout, globalPool)
+			.writeImages(0, imageInfos.data(), imageInfos.size())
+			.build(targetComponent->descriptorSet);
+	}
+
+	void TextureComponentBuilder::loadKTXImageInStagingBuffer(const char* filePath, VkFormat format)
+	{
+		ktxTexture* ktx_texture;
+		KTX_error_code result;
+		result = ktxTexture_CreateFromNamedFile(filePath, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &ktx_texture);
+		std::string errlog = "Error loading texture: " + std::string(filePath);
+		assert(ktx_texture != nullptr && errlog.c_str());
+
+		width = ktx_texture->baseWidth;
+		height = ktx_texture->baseHeight;
+		mipLvl = ktx_texture->numLevels;
+
+		ktx_uint8_t* ktxImageData = ktx_texture->pData;
+		ktxTextureSize = ktx_texture->dataSize;
+		for (int i = 0; i < mipLvl; i++) {
+			ktx_size_t offset;
+			KTX_error_code    result = ktxTexture_GetImageOffset(ktx_texture, i, 0, 0, &offset);
+			imageBufferOffset.push_back(offset);
+		}
+		stagingBuffer = std::make_unique<BGLBuffer>(
+			bglDevice,
+			1,
+			static_cast<uint32_t>(ktxTextureSize),
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		);
+		stagingBuffer->map();
+		stagingBuffer->writeToBuffer(ktxImageData);
+		populateBufferCopyRegion(buffCpyRegions, ktx_texture, mipLvl);
+
+		// raw data no longer needed
+		ktxTexture_Destroy(ktx_texture);
+	}
+
+	void TextureComponentBuilder::generateSubresRange()
+	{
+		subresRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		subresRange.baseMipLevel = 0;
+		subresRange.levelCount = mipLvl;
+		subresRange.layerCount = 1;
+	}
+
+	void TextureComponentBuilder::setImageLayoutTransfer(VkImage image)
+	{
+		imageMemBarrier.pNext = nullptr;
+		imageMemBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageMemBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imageMemBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imageMemBarrier.image = image;
+		imageMemBarrier.subresourceRange = subresRange;
+		imageMemBarrier.srcAccessMask = 0;
+		imageMemBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		imageMemBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageMemBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	}
+
+	void TextureComponentBuilder::setImageLayoutShaderRead()
+	{
+		assert(imageMemBarrier.newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && "imageMemBarrier should be initialized with BGLTextureComponentBuilder::setImageLayoutTransfer()");
+		imageMemBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		imageMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		imageMemBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		imageMemBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+
+	void TextureComponentBuilder::generateImageCreateInfo(VkFormat imageFormat)
+	{
+		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageCreateInfo.format = imageFormat;
+		imageCreateInfo.mipLevels = mipLvl;
+		imageCreateInfo.arrayLayers = 1;
+		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageCreateInfo.extent = { width, height, 1 };
+		imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	}
+
+	void TextureComponentBuilder::generateSamplerCreateInfo()
+	{
+		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerCreateInfo.mipLodBias = 0.0f;
+		samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
+		samplerCreateInfo.minLod = 0.0f;
+		samplerCreateInfo.maxLod = static_cast<float>(mipLvl);
+		if (bglDevice.supportedFeatures.samplerAnisotropy)
+		{
+			samplerCreateInfo.maxAnisotropy = bglDevice.properties.limits.maxSamplerAnisotropy;
+			samplerCreateInfo.anisotropyEnable = VK_TRUE;
+		}
+		else
+		{
+			// The device does not support anisotropic filtering
+			samplerCreateInfo.maxAnisotropy = 1.0;
+			samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		}
+		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	}
+	// The subresource range describes the set of mip levels (and array layers) that can be accessed through this image view
+	// It's possible to create multiple image views for a single image referring to different (and/or overlapping) ranges of the image
+	void TextureComponentBuilder::generateImageViewCreateInfo(VkFormat imageFormat, VkImage image)
+	{
+		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewCreateInfo.format = imageFormat;
+		imageViewCreateInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewCreateInfo.subresourceRange.layerCount = 1;
+		// Linear tiling usually won't support mip maps
+		// Only set mip map count if optimal tiling is used
+		imageViewCreateInfo.subresourceRange.levelCount = mipLvl;
+		imageViewCreateInfo.image = image; // The view will be based on the texture's image
+	}
 }

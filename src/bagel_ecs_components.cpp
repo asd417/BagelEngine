@@ -57,4 +57,16 @@ namespace bagel {
                 invScale.z * (c1 * c2),
             } };
     }
+    TextureComponent::TextureComponent(BGLDevice& device) : bglDevice{device}
+    {
+
+    }
+    TextureComponent::~TextureComponent()
+    {
+        vkDestroyImageView(bglDevice.device(), view, nullptr);
+        vkDestroyImage(bglDevice.device(), image, nullptr);
+        vkDestroySampler(bglDevice.device(), sampler, nullptr);
+        vkFreeMemory(bglDevice.device(), device_memory, nullptr);
+    }
+
 }

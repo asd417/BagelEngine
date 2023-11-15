@@ -86,17 +86,16 @@ namespace bagel {
 
 	class ModelDescriptionComponentBuilder {
 	public:
-		ModelDescriptionComponentBuilder(BGLDevice& _device, ModelDescriptionComponent& _tC);
+		ModelDescriptionComponentBuilder(BGLDevice& _device);
+		void setBuildTarget(ModelDescriptionComponent* _tC) { targetComponent = _tC; }
+		void buildComponent(const std::string& filename);
 
-		void buildComponent(const std::string& filename, const std::string& textureFilename);
-
+	private:
 		void loadModel(const std::string& filename);
-		void loadTexture(const std::string& textureFilename);
 		void createVertexBuffer();
 		void createIndexBuffer();
 
-	private:
-		ModelDescriptionComponent& targetComponent;
+		ModelDescriptionComponent* targetComponent = nullptr;
 		BGLDevice& bglDevice;
 
 		std::vector<BGLModel::Vertex> vertices{};

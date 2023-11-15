@@ -215,22 +215,21 @@ namespace bagel {
 		}
 	}
 
-	ModelDescriptionComponentBuilder::ModelDescriptionComponentBuilder(BGLDevice& _device, ModelDescriptionComponent& _tC)
-		: bglDevice{ _device }, 
-		targetComponent{ _tC }
+	ModelDescriptionComponentBuilder::ModelDescriptionComponentBuilder(BGLDevice& _device) : bglDevice{ _device }
 	{
-		;
 	}
 
-	void ModelDescriptionComponentBuilder::buildComponent(const std::string& modelFilename, const std::string& textureFilename)
+	void ModelDescriptionComponentBuilder::buildComponent(const std::string& modelFilename)
 	{
+		assert(targetComponent != nullptr && "No targetComponent set for ModelDescriptionComponentBuilder");
 		loadModel(modelFilename);
-		loadTexture(textureFilename);
 		createVertexBuffer();
 		if (indices.size() > 0) {
-			targetComponent.hasIndexBuffer = true;
+			targetComponent->hasIndexBuffer = true;
 			createIndexBuffer();
 		}
+		vertices.clear();
+		indices.clear();
 	}
 
 	void ModelDescriptionComponentBuilder::loadModel(const std::string& filename) {
@@ -258,43 +257,32 @@ namespace bagel {
 					vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0] , 1 - attrib.texcoords[2 * index.texcoord_index + 1] };
 				}
 				vertices.push_back(vertex);
-				indices.push_back(index.vertex_index);
+				//indices.push_back(index.vertex_index);
 			}
 		}
 	}
 
-	void ModelDescriptionComponentBuilder::loadTexture(const std::string& textureFilename)
-	{
-		/*modelTexture = BGLTexture::createTextureFromFile(bglDevice, textureFilePath, VK_FORMAT_R8G8B8A8_SRGB);
-
-		VkDescriptorImageInfo imageInfo1 = modelTexture->getDescriptorImageInfo();
-		std::array<VkDescriptorImageInfo, 1> imageInfos = { imageInfo1 };
-		BGLDescriptorWriter(*modelSetLayout, globalPool)
-			.writeImages(0, imageInfos.data(), imageInfos.size())
-			.build(modelDescriptorSet);*/
-	}
-
 	void ModelDescriptionComponentBuilder::createVertexBuffer()
 	{
-		targetComponent.vertexCount = static_cast<uint32_t>(vertices.size());
-		assert(targetComponent.vertexCount >= 3 && "Vertex count must be at least 3");
-		VkDeviceSize bufferSize = sizeof(vertices[0]) * targetComponent.vertexCount;
-		uint32_t vertexSize = sizeof(vertices[0]);
-
+		targetComponent->vertexCount = static_cast<uint32_t>(vertices.size());
+		assert(targetComponent->vertexCount >= 3 && "Vertex count must be at least 3");
+		VkDeviceSize bufferSize = sizeof(vertices[0]) * targetComponent->vertexCount;
+		//uint32_t vertexSize = sizeof(vertices[0]);
+		std::cout << "Vertex Count: " << targetComponent->vertexCount;
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingMemory;
 		void* mapped;
-		bufferSize = vertexSize * targetComponent.vertexCount;
+		//bufferSize = vertexSize * targetComponent->vertexCount;
 		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
 		vkMapMemory(bglDevice.device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
 		//Write Vertex data to stagingBuffer
 		assert(mapped && "Cannot copy to unmapped buffer");
 		memcpy(mapped, (void*)vertices.data(), bufferSize);
 
-		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent.vertexBuffer, targetComponent.vertexMemory);
+		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent->vertexBuffer, targetComponent->vertexMemory);
 
 		// Finished Mapping vertex buffer to staging buffer inside device
-		bglDevice.copyBuffer(stagingBuffer, targetComponent.vertexBuffer, bufferSize);
+		bglDevice.copyBuffer(stagingBuffer, targetComponent->vertexBuffer, bufferSize);
 
 		// Finished Mapping device staging buffer to device vertex buffer. Destroy staging buffer.
 		vkUnmapMemory(bglDevice.device(), stagingMemory);
@@ -305,25 +293,25 @@ namespace bagel {
 
 	void ModelDescriptionComponentBuilder::createIndexBuffer()
 	{
-		targetComponent.indexCount = static_cast<uint32_t>(indices.size());
-		assert(targetComponent.indexCount >= 3 && "Vertex count must be at least 3");
-		VkDeviceSize bufferSize = sizeof(indices[0]) * targetComponent.indexCount;
-		uint32_t indexSize = sizeof(uint32_t);
+		targetComponent->indexCount = static_cast<uint32_t>(indices.size());
+		assert(targetComponent->indexCount >= 3 && "Vertex count must be at least 3");
+		VkDeviceSize bufferSize = sizeof(indices[0]) * targetComponent->indexCount;
+		//uint32_t indexSize = sizeof(indices[0]);
 
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingMemory;
 		void* mapped;
-		bufferSize = indexSize * targetComponent.indexCount;
+		//bufferSize = indexSize * targetComponent->indexCount;
 		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
 		vkMapMemory(bglDevice.device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
 		//Write Vertex data to stagingBuffer
 		assert(mapped && "Cannot copy to unmapped buffer");
 		memcpy(mapped, (void*)indices.data(), bufferSize);
 
-		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent.indexBuffer, targetComponent.indexMemory);
+		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent->indexBuffer, targetComponent->indexMemory);
 
 		// Finished Mapping vertex buffer to staging buffer inside device
-		bglDevice.copyBuffer(stagingBuffer, targetComponent.indexBuffer, bufferSize);
+		bglDevice.copyBuffer(stagingBuffer, targetComponent->indexBuffer, bufferSize);
 
 		// Finished Mapping device staging buffer to device vertex buffer. Destroy staging buffer.
 		vkUnmapMemory(bglDevice.device(), stagingMemory);

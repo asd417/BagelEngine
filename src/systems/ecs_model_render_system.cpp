@@ -64,11 +64,12 @@ namespace bagel {
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
 
-		auto view = registry.view<TransformComponent, ModelDescriptionComponent>();
-		for (auto [entity, transformComp, modelDescComp] : view.each()) {
+		auto view = registry.view<TransformComponent, ModelDescriptionComponent, TextureComponent>();
+		for (auto [entity, transformComp, modelDescComp, textureComp] : view.each()) {
 			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, { 0 });
-			VkDescriptorSet descriptor[] = {modelDescComp.descriptorSet};
+			VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
+			VkDescriptorSet descriptor[] = { textureComp.descriptorSet};
 			vkCmdBindDescriptorSets(
 				frameInfo.commandBuffer,
 				VK_PIPELINE_BIND_POINT_GRAPHICS,

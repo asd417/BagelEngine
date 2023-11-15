@@ -200,7 +200,7 @@ namespace bagel {
     bool BGLDescriptorWriter::build(VkDescriptorSet& set) {
         bool success = pool.allocateDescriptor(setLayout.getDescriptorSetLayout(), set);
         if (!success) {
-            throw "Fuck";
+            throw "Could not allocate descriptor";
             return false;
         }
         overwrite(set); 
