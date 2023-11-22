@@ -6,6 +6,9 @@
 
 #include <ktx.h>
 #include <memory>
+
+#define BINDLESS
+
 namespace bagel {
 	class BGLTexture
 	{
@@ -44,16 +47,31 @@ namespace bagel {
 	//Prototype function. Will be deprecated
 	bool load_image_from_file(BGLDevice& bglDevice, const char* file, BGLTexture::BGLTextureInfoComponent& texture);
 
+	static constexpr uint32_t UniformBinding = 0;
+	static constexpr uint32_t StorageBinding = 1;
+	static constexpr uint32_t TextureBinding = 2;
+
+	enum class TextureHandle : uint32_t { Invalid = 0 };
+	enum class BufferHandle : uint32_t { Invalid = 0 };
+
 	class TextureComponentBuilder
 	{
 	public:
+#ifndef BINDLESS
 		TextureComponentBuilder(
 			BGLDevice& _bglDevice, 
 			BGLDescriptorPool& _globalPool,
 			BGLDescriptorSetLayout& _modelSetLayout);
+#else
+		TextureComponentBuilder(
+			BGLDevice& _bglDevice,
+			BGLDescriptorPool& _globalPool,
+			BGLBindlessDescriptorManager& descriptorManager);
+#endif
 		~TextureComponentBuilder();
 		void setBuildTarget(TextureComponent* _tC) { targetComponent = _tC; }
 		void buildComponent(const char* filePath, VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB);
+
 	private:
 		void loadKTXImageInStagingBuffer(const char* filePath, VkFormat format);
 		void generateImageCreateInfo(VkFormat imageFormat);
@@ -62,12 +80,13 @@ namespace bagel {
 		void setImageLayoutShaderRead();
 		void generateSamplerCreateInfo();
 		void generateImageViewCreateInfo(VkFormat imageFormat, VkImage image);
-		uint32_t width;
-		uint32_t height;
-		uint32_t mipLvl;
-		std::vector<ktx_size_t> imageBufferOffset{};
-		
-		ktx_size_t   ktxTextureSize;
+		//BINDLESS
+
+		uint32_t width = 0;
+		uint32_t height = 0;
+		uint32_t mipLvl = 0;
+
+		ktx_size_t   ktxTextureSize = 0;
 
 		VkImageSubresourceRange subresRange{};
 		std::vector<VkBufferImageCopy> buffCpyRegions{};
@@ -80,6 +99,13 @@ namespace bagel {
 		BGLDevice& bglDevice;
 		BGLDescriptorPool& globalPool;
 		TextureComponent* targetComponent = nullptr;
+#ifndef BINDLESS
 		BGLDescriptorSetLayout& modelSetLayout;
+#else 
+		BGLBindlessDescriptorManager& descriptorManager;
+		//std::vector<VkImageView> textures{};
+		//VkDescriptorSetLayout bindlessSetLayout = nullptr;
+		//VkDescriptorSet bindlessDescriptorSet = nullptr;
+#endif
 	};
 }

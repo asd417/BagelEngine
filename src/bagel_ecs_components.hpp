@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <vector>
+#include <string>
 #include <iostream>
 #include "bagel_engine_device.hpp"
 //#include "bagel_textures.h"
@@ -11,6 +12,7 @@
 // Expect depths buffer to range from 0 to 1. (opengl depth buffer ranges from -1 to 1)
 //#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#define BINDLESS
 
 namespace bagel {
 	struct TransformComponent {
@@ -47,6 +49,8 @@ namespace bagel {
 		float lightIntensity = 1.0f;
 	};
 	struct ModelDescriptionComponent {
+		std::string modelName = "";
+
 		VkBuffer vertexBuffer = nullptr;
 		VkDeviceMemory vertexMemory = nullptr;
 		uint32_t vertexCount = 0;
@@ -79,11 +83,19 @@ namespace bagel {
 		VkImageView    view;
 		uint32_t       width, height;
 		uint32_t       mip_levels;
+#ifndef BINDLESS
 		VkDescriptorSet descriptorSet;
+#else
+		uint32_t textureHandle;
+#endif
 
 		BGLDevice& bglDevice;
 		TextureComponent(BGLDevice& device);
 		~TextureComponent();
 		VkDescriptorImageInfo getDescriptorImageInfo() const { return { sampler , view , image_layout }; }
+	};
+	struct DrawIndirectComponent {
+		std::unique_ptr<BGLBuffer> buffer = nullptr;
+
 	};
 }

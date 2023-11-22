@@ -55,6 +55,9 @@
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\simple_render_system.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\bagel_bindless.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_buffer.hpp">
@@ -109,6 +112,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\bagel_bindless.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

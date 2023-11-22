@@ -14,7 +14,7 @@ namespace bagel {
 
     class BGLSwapChain {
     public:
-        static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+        static constexpr int MAX_FRAMES_IN_FLIGHT = 1;
 
         BGLSwapChain(BGLDevice &deviceRef, VkExtent2D windowExtent);
         BGLSwapChain(BGLDevice& deviceRef, VkExtent2D windowExtent, std::shared_ptr<BGLSwapChain> previous);

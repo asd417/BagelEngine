@@ -173,9 +173,27 @@ namespace bagel {
         }
         VkPhysicalDeviceFeatures deviceFeatures = {};
         deviceFeatures.samplerAnisotropy = VK_TRUE;
+
+        VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
+        descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+        descriptorIndexingFeatures.pNext = nullptr;
+
+        VkPhysicalDeviceFeatures2 deviceFeatures2{};
+        deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        deviceFeatures2.pNext = &descriptorIndexingFeatures;
+        vkGetPhysicalDeviceFeatures2(physicalDevice, &deviceFeatures2);
+        assert(deviceFeatures2.features.samplerAnisotropy);
+        assert(descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing);
+        assert(descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind);
+        assert(descriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
+        assert(descriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
+        assert(descriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
+        assert(descriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind);
+
         VkPhysicalDeviceVulkan12Features vk12deviceFeatures{};
         vk12deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
         vk12deviceFeatures.runtimeDescriptorArray = VK_TRUE;
+        vk12deviceFeatures.pNext = &deviceFeatures2;
 
         VkDeviceCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -183,8 +201,8 @@ namespace bagel {
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
-        createInfo.pEnabledFeatures = &deviceFeatures;
-        createInfo.pNext = &vk12deviceFeatures;
+        //createInfo.pEnabledFeatures = &deviceFeatures;
+        createInfo.pNext = &deviceFeatures2;
         createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
         createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 

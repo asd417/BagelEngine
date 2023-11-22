@@ -1,8 +1,12 @@
 #include "bagel_textures.h"
+#include "bagel_engine_swap_chain.hpp"
 
 #include <cassert>
 #include <iostream>
 #include <array>
+
+#define BINDLESS
+#define GLOBAL_DESCRIPTOR_COUNT 1000
 
 #define VK_CHECK(x)                                                     \
 	do                                                                  \
@@ -33,8 +37,7 @@ namespace bagel {
 		{
 			throw std::runtime_error("Couldn't load texture");
 		}
-		// assert(!tex2D.empty());
-
+		
 		texture.width = ktx_texture->baseWidth;
 		texture.height = ktx_texture->baseHeight;
 		texture.mip_levels = ktx_texture->numLevels;
@@ -477,6 +480,7 @@ namespace bagel {
 		}
 	}
 
+#ifndef BINDLESS
 	TextureComponentBuilder::TextureComponentBuilder(
 		BGLDevice& _bglDevice,
 		BGLDescriptorPool& _globalPool,
@@ -486,9 +490,21 @@ namespace bagel {
 		modelSetLayout{ _modelSetLayout }
 	{
 	}
+#else
+	TextureComponentBuilder::TextureComponentBuilder(
+		BGLDevice& _bglDevice,
+		BGLDescriptorPool& _globalPool,
+		BGLBindlessDescriptorManager& _descriptorManager)
+		: bglDevice{ _bglDevice },
+		globalPool{ _globalPool },
+		descriptorManager{ _descriptorManager }
+	{
+	}
+#endif
 
 	TextureComponentBuilder::~TextureComponentBuilder()
 	{
+		
 	}
 
 	void TextureComponentBuilder::buildComponent(const char* filePath, VkFormat imageFormat)
@@ -503,9 +519,9 @@ namespace bagel {
 
 		VkCommandBuffer cpyCmd = bglDevice.beginSingleTimeCommands();
 
-		VkBuffer buffer = stagingBuffer->getBuffer();
 		vkCmdPipelineBarrier(cpyCmd,VK_PIPELINE_STAGE_HOST_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0, nullptr,0, nullptr,1, &imageMemBarrier);
-		vkCmdCopyBufferToImage(cpyCmd,buffer,targetComponent->image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,static_cast<uint32_t>(buffCpyRegions.size()),buffCpyRegions.data());
+		vkCmdCopyBufferToImage(cpyCmd, stagingBuffer->getBuffer(),targetComponent->image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,static_cast<uint32_t>(buffCpyRegions.size()),buffCpyRegions.data());
+		
 		// Once the data has been uploaded we transfer to the texture image to the shader read layout, so it can be sampled from
 		setImageLayoutShaderRead();
 		vkCmdPipelineBarrier(cpyCmd,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,0,0, nullptr,0, nullptr,1, &imageMemBarrier);
@@ -513,16 +529,14 @@ namespace bagel {
 		bglDevice.endSingleTimeCommands(cpyCmd);
 
 		targetComponent->image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
 		generateSamplerCreateInfo();
 		VK_CHECK(vkCreateSampler(bglDevice.device(), &samplerCreateInfo, nullptr, &targetComponent->sampler));
+
 		generateImageViewCreateInfo(imageFormat, targetComponent->image);
 		VK_CHECK(vkCreateImageView(bglDevice.device(), &imageViewCreateInfo, nullptr, &targetComponent->view));
 		
-		VkDescriptorImageInfo imageInfo1 = targetComponent->getDescriptorImageInfo();
-		std::array<VkDescriptorImageInfo, 1> imageInfos = { imageInfo1 };
-		BGLDescriptorWriter(modelSetLayout, globalPool)
-			.writeImages(0, imageInfos.data(), imageInfos.size())
-			.build(targetComponent->descriptorSet);
+		targetComponent->textureHandle = descriptorManager.storeTexture(targetComponent->view, targetComponent->sampler);
 	}
 
 	void TextureComponentBuilder::loadKTXImageInStagingBuffer(const char* filePath, VkFormat format)
@@ -542,7 +556,6 @@ namespace bagel {
 		for (int i = 0; i < mipLvl; i++) {
 			ktx_size_t offset;
 			KTX_error_code    result = ktxTexture_GetImageOffset(ktx_texture, i, 0, 0, &offset);
-			imageBufferOffset.push_back(offset);
 		}
 		stagingBuffer = std::make_unique<BGLBuffer>(
 			bglDevice,
@@ -648,4 +661,5 @@ namespace bagel {
 		imageViewCreateInfo.subresourceRange.levelCount = mipLvl;
 		imageViewCreateInfo.image = image; // The view will be based on the texture's image
 	}
+
 }

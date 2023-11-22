@@ -222,6 +222,7 @@ namespace bagel {
 	void ModelDescriptionComponentBuilder::buildComponent(const std::string& modelFilename)
 	{
 		assert(targetComponent != nullptr && "No targetComponent set for ModelDescriptionComponentBuilder");
+		targetComponent->modelName = modelFilename;
 		loadModel(modelFilename);
 		createVertexBuffer();
 		if (indices.size() > 0) {
@@ -230,6 +231,7 @@ namespace bagel {
 		}
 		vertices.clear();
 		indices.clear();
+
 	}
 
 	void ModelDescriptionComponentBuilder::loadModel(const std::string& filename) {

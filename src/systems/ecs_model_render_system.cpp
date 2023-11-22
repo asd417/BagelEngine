@@ -10,7 +10,7 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
-
+#define BINDLESS
 
 namespace bagel {
 
@@ -41,6 +41,13 @@ namespace bagel {
 		// alignas aligns the variable to the 
 		glm::mat4 normalMatrix{ 1.0f };
 	};
+
+	struct ECSPushConstantData {
+		glm::mat4 modelMatrix{ 1.0f };
+		glm::mat4 normalMatrix{ 1.0f };
+		uint32_t textureHandle;
+	};
+
 	ModelRenderSystem::ModelRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts) : bglDevice{device}
 	{
 		createPipelineLayout(setLayouts);
@@ -69,41 +76,41 @@ namespace bagel {
 			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
-			VkDescriptorSet descriptor[] = { textureComp.descriptorSet};
-			vkCmdBindDescriptorSets(
-				frameInfo.commandBuffer,
-				VK_PIPELINE_BIND_POINT_GRAPHICS,
-				pipelineLayout,
-				1, //first set
-				1, //descriptorSet Count 
-				descriptor,
-				0, nullptr);
+
 			if (modelDescComp.hasIndexBuffer) {
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 				for (int i = 0; i < transformComp.translation.size(); i++) {
-					SimplePushConstantData push{};
+					ECSPushConstantData push{};
 					push.modelMatrix = transformComp.mat4(i);
 					push.normalMatrix = transformComp.normalMatrix(i);
+#ifdef BINDLESS
+					push.textureHandle = textureComp.textureHandle;
+					std::cout << "handle pos: " << textureComp.textureHandle << "\n";
+#else 
+					push.textureHandle = 0;
+#endif
 					vkCmdPushConstants(
 						frameInfo.commandBuffer,
 						pipelineLayout,
 						VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 						0,
-						sizeof(SimplePushConstantData),
+						sizeof(ECSPushConstantData),
 						&push);
 					vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, 1, 0, 0, 0);
 				}
 			}
 			for (int i = 0; i < transformComp.translation.size(); i++) {
-				SimplePushConstantData push{};
+				ECSPushConstantData push{};
 				push.modelMatrix = transformComp.mat4(i);
 				push.normalMatrix = transformComp.normalMatrix(i);
+				push.textureHandle = textureComp.textureHandle;
+
 				vkCmdPushConstants(
 					frameInfo.commandBuffer,
 					pipelineLayout,
 					VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 					0,
-					sizeof(SimplePushConstantData),
+					sizeof(ECSPushConstantData),
 					&push);
 				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, 0, 0);
 			}
@@ -118,7 +125,8 @@ namespace bagel {
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 		// offset mainly for if you want to use separate ranges for vertex and fragment shader
 		pushConstantRange.offset = 0;
-		pushConstantRange.size = sizeof(SimplePushConstantData);
+
+		pushConstantRange.size = sizeof(ECSPushConstantData);
 
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

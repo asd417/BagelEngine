@@ -28,11 +28,12 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
 	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
 	int numLights;
 } ubo;
-layout (set = 0, binding = 1) uniform sampler2D GlobalUBOColor;
+layout (set = 0, binding = 2) uniform sampler2D GlobalUBOColor;
 
 layout(push_constant) uniform Push { 
 	mat4 modelMatrix;
 	mat4 normalMatrix;
+	uint textureHandle;
 } push;
 
 //Executed once per vertex

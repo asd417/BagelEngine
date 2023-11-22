@@ -16,6 +16,10 @@
 #include <iostream>
 #include <cassert>
 #include <stdexcept>
+#include <array>
+
+#define GLOBAL_DESCRIPTOR_COUNT 1000
+#define BINDLESS
 
 namespace bagel {
 
@@ -56,6 +60,16 @@ namespace bagel {
         descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         descriptorSetLayoutInfo.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
         descriptorSetLayoutInfo.pBindings = setLayoutBindings.data();
+
+#ifdef BINDLESS
+        descriptorSetLayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT;
+
+        VkDescriptorBindingFlags bindless_flags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+        VkDescriptorSetLayoutBindingFlagsCreateInfoEXT extended_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT, nullptr };
+        extended_info.pBindingFlags = &bindless_flags;
+        descriptorSetLayoutInfo.pNext = &extended_info;
+#endif
+
         std::cout << "Creating DescriptorSetLayout with size " << descriptorSetLayoutInfo.bindingCount << "\n";
         if (vkCreateDescriptorSetLayout(
             bglDevice.device(),
@@ -104,7 +118,11 @@ namespace bagel {
         descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         descriptorPoolInfo.pPoolSizes = poolSizes.data();
         descriptorPoolInfo.maxSets = maxSets;
+#ifdef BINDLESS
+        descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT | poolFlags;
+#else
         descriptorPoolInfo.flags = poolFlags;
+#endif
         std::cout << "Building Descriptor Pool with poolSizeCount: " << descriptorPoolInfo.poolSizeCount << "\n";
         for (auto& p : poolSizes) {
             std::cout << "  type: " << p.type << "\n";
@@ -128,6 +146,15 @@ namespace bagel {
         allocInfo.descriptorPool = descriptorPool;
         allocInfo.pSetLayouts = &descriptorSetLayout;
         allocInfo.descriptorSetCount = 1;
+
+#ifdef BINDLESS
+        VkDescriptorSetVariableDescriptorCountAllocateInfoEXT countInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT };
+        uint32_t max_binding = GLOBAL_DESCRIPTOR_COUNT;
+        countInfo.descriptorSetCount = 1;
+        // This number is the max allocatable count
+        countInfo.pDescriptorCounts = &max_binding;
+        allocInfo.pNext = &countInfo;
+#endif
 
         // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
         // a new pool whenever an old pool fills up. But this is beyond our current scope
@@ -212,6 +239,124 @@ namespace bagel {
             write.dstSet = set;
         }
         vkUpdateDescriptorSets(pool.bglDevice.device(), writes.size(), writes.data(), 0, nullptr);
+    }
+
+    // *************** BGLBindlessDescriptorManager *********************
+
+    BGLBindlessDescriptorManager::BGLBindlessDescriptorManager(BGLDevice& _bglDevice, BGLDescriptorPool& _globalPool) : bglDevice{ _bglDevice }, globalPool{_globalPool}
+    {
+    }
+
+    BGLBindlessDescriptorManager::~BGLBindlessDescriptorManager()
+    {
+        vkDestroyDescriptorSetLayout(bglDevice.device(), bindlessSetLayout, nullptr);
+    }
+
+    void BGLBindlessDescriptorManager::createBindlessDescriptorSet(uint32_t descriptorCount)
+    {
+        // Create three bindings: storage buffer,
+        // uniform buffer, and combined image sampler
+
+        VkDescriptorSetLayoutBinding uboBinding{};
+        uboBinding.binding = 0;
+        uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboBinding.descriptorCount = 1;
+        uboBinding.stageFlags = VK_SHADER_STAGE_ALL;
+        VkDescriptorSetLayoutBinding storageBinding{};
+        storageBinding.binding = 1;
+        storageBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        storageBinding.descriptorCount = descriptorCount;
+        storageBinding.stageFlags = VK_SHADER_STAGE_ALL;
+        VkDescriptorSetLayoutBinding imageBinding{};
+        imageBinding.binding = 2;
+        imageBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        imageBinding.descriptorCount = descriptorCount;
+        imageBinding.stageFlags = VK_SHADER_STAGE_ALL;
+
+        VkDescriptorBindingFlags bindFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+        std::array<VkDescriptorBindingFlags, 3> flagsArray = { bindFlags, bindFlags, bindFlags };
+
+        VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlags{};
+        bindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+        bindingFlags.pNext = nullptr;
+        bindingFlags.pBindingFlags = flagsArray.data();
+        bindingFlags.bindingCount = 3;
+
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboBinding ,storageBinding,imageBinding };
+
+        VkDescriptorSetLayoutCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        createInfo.bindingCount = 3;
+        createInfo.pBindings = bindings.data();
+        createInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+        createInfo.pNext = &bindingFlags;
+
+        // Create layout
+        VK_CHECK(vkCreateDescriptorSetLayout(bglDevice.device(), &createInfo, nullptr, &bindlessSetLayout));
+        globalPool.allocateDescriptor(bindlessSetLayout, bindlessDescriptorSet);
+    }
+
+    void BGLBindlessDescriptorManager::storeUBO(VkDescriptorBufferInfo bufferInfo)
+    {
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = bindlessDescriptorSet;
+        // Write one buffer that is being added
+        write.descriptorCount = 1;
+        // The array element that we are going to write to
+        // is the index, which we refer to as our handles
+        write.dstArrayElement = 0;
+        write.pBufferInfo = &bufferInfo;
+
+        write.dstBinding = UniformBinding;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+        vkUpdateDescriptorSets(bglDevice.device(), 1, &write, 0, nullptr);
+    }
+
+    uint32_t BGLBindlessDescriptorManager::storeBuffer(BGLBuffer& buffer)
+    {
+        size_t newHandle = buffers.size();
+        buffers.push_back(buffer.getBuffer());
+
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write.dstBinding = BufferBinding;
+        write.dstSet = bindlessDescriptorSet;
+
+        // Write one buffer that is being added
+        write.descriptorCount = 1;
+        write.pBufferInfo = &buffer.descriptorInfo();
+
+        vkUpdateDescriptorSets(bglDevice.device(), 1, &write, 0, nullptr);
+        return newHandle;
+    }
+
+    uint32_t BGLBindlessDescriptorManager::storeTexture(VkImageView imageView, VkSampler sampler)
+    {
+        size_t newHandle = textures.size();
+        textures.push_back(imageView);
+
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = imageView;
+        imageInfo.sampler = sampler;
+
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.dstBinding = TextureBinding;
+        write.dstSet = bindlessDescriptorSet;
+        // Write one texture that is being added
+        write.descriptorCount = 1;
+        // The array element that we are going to write to
+        // is the index, which we refer to as our handles
+        write.dstArrayElement = newHandle;
+        write.pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets(bglDevice.device(), 1, &write, 0, nullptr);
+        return newHandle;
     }
 
 }  // namespace lve

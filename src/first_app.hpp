@@ -47,8 +47,11 @@ namespace bagel {
 		BGLRenderer bglRenderer{ bglWindow,bglDevice };
 
 		std::unique_ptr<BGLDescriptorSetLayout> modelSetLayout;
-		std::unique_ptr<BGLDescriptorPool> globalPool{};
+		std::unique_ptr<BGLDescriptorPool> globalPool;
 		//It is critical to define variables that require bglDevice below this line as variables below will get destroyed first
+
+		std::unique_ptr<BGLBindlessDescriptorManager> descriptorManager;
+
 		entt::registry registry;
 		BGLGameObject::Map gameObjects;
 	};

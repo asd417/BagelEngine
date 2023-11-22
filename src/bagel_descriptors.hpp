@@ -1,7 +1,7 @@
 #pragma once
 
 #include "bagel_engine_device.hpp"
-
+#include "bagel_buffer.hpp"
 // std
 #include <memory>
 #include <unordered_map>
@@ -100,4 +100,30 @@ namespace bagel {
         std::vector<VkWriteDescriptorSet> writes;
     };
 
+    class BGLBindlessDescriptorManager {
+        const uint32_t UniformBinding = 0;
+        const uint32_t BufferBinding = 1;
+        const uint32_t TextureBinding = 2;
+    public:
+        BGLBindlessDescriptorManager(BGLDevice& bglDevice, BGLDescriptorPool& globalPool);
+        ~BGLBindlessDescriptorManager();
+
+        BGLBindlessDescriptorManager(const BGLBindlessDescriptorManager&) = delete;
+        BGLBindlessDescriptorManager& operator=(const BGLBindlessDescriptorManager&) = delete;
+
+        void createBindlessDescriptorSet(uint32_t descriptorCount);
+
+        void storeUBO(VkDescriptorBufferInfo bufferInfo);
+        uint32_t storeBuffer(BGLBuffer& buffer);
+        uint32_t storeTexture(VkImageView imageView, VkSampler sampler);
+        VkDescriptorSetLayout getDescriptorSetLayout() const { return bindlessSetLayout; }
+        VkDescriptorSet getDescriptorSet() const { return bindlessDescriptorSet; }
+    private:
+        BGLDevice& bglDevice;
+        BGLDescriptorPool& globalPool;
+        std::vector<VkBuffer> buffers{};
+        std::vector<VkImageView> textures{};
+        VkDescriptorSetLayout bindlessSetLayout = nullptr;
+        VkDescriptorSet bindlessDescriptorSet = nullptr;
+    };
 }  // namespace lve

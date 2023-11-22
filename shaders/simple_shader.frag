@@ -26,12 +26,13 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
 	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
 	int numLights;
 } ubo;
-layout (set = 0, binding = 1) uniform sampler2D samplerColor[];
-layout (set = 1, binding = 0) uniform sampler2D samplerModelColor;
+layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
+//layout (set = 1, binding = 0) uniform sampler2D samplerModelColor;
 
 layout(push_constant) uniform Push { 
 	mat4 modelMatrix;
 	mat4 normalMatrix;
+	uint textureHandle;
 } push;
 
 //Normal distribution function
@@ -81,7 +82,7 @@ void main(){
 	}
 
 	vec3 ambientLight = ubo.ambientLightColor.xyz * ubo.ambientLightColor.w;
-	vec4 UVcolor = texture(samplerModelColor, vec2(fragUV.x,fragUV.y), 1.0f);
+	vec4 UVcolor = texture(samplerColor[push.textureHandle], vec2(fragUV.x,fragUV.y), 1.0f);
 	//vec4 UVcolor = vec4(1.0f,1.0f,1.0f,1.0f);
 	// move colorspace of SRGB texture to linear space
 	// This is okay because in BGLtexture class when we import the ktx textures, we assumed that it is in VK_FORMAT_R8G8B8A8_SRGB
