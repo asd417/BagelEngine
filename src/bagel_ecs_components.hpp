@@ -47,6 +47,7 @@ namespace bagel {
 	};
 	struct PointLightComponent {
 		glm::vec4 color = { 1.0f,1.0f,1.0f,1.0f }; //4th is strength
+		float radius = 1.0f;
 	};
 	struct ModelDescriptionComponent {
 		std::string modelName = "";
@@ -83,11 +84,7 @@ namespace bagel {
 		VkImageView    view;
 		uint32_t       width, height;
 		uint32_t       mip_levels;
-#ifndef BINDLESS
-		VkDescriptorSet descriptorSet;
-#else
 		uint32_t textureHandle;
-#endif
 
 		BGLDevice& bglDevice;
 		TextureComponent(BGLDevice& device);

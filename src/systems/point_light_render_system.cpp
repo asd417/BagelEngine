@@ -63,13 +63,6 @@ namespace bagel {
 			ubo.pointLights[lightIndex].color = glm::vec4(pointLightComp.color);
 			lightIndex++;
 		}
-		//for (auto& kv : frameInfo.gameObjects) {
-		//	assert( lightIndex < MAX_LIGHTS && "Attempted to add more lights than MAX_LIGHTS! Ignoring...");
-
-		//	auto& obj = kv.second;
-		//	if (obj.pointLight == nullptr) continue;
-
-		//}
 		ubo.numLights = lightIndex;
 	}
 
@@ -107,7 +100,7 @@ namespace bagel {
 			PointLightPushConstant push{};
 			push.positions = glm::vec4(transformComp.translation[0],1.f);
 			push.color = pointLightComp.color;
-			push.radius = transformComp.scale[0].x;
+			push.radius = pointLightComp.radius;
 		
 			vkCmdPushConstants(
 				frameInfo.commandBuffer,
@@ -132,8 +125,6 @@ namespace bagel {
 
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-
-		//desciptor set layout information
 		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
 		pipelineLayoutInfo.pSetLayouts = setLayouts.data();
 
@@ -147,7 +138,6 @@ namespace bagel {
 	}
 	void PointLightSystem::createPipeline(VkRenderPass renderPass)
 	{
-		//assert(bglSwapChain != nullptr && "Cannot create pipeline before swapchain");
 		assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		PipelineConfigInfo pipelineConfig{};

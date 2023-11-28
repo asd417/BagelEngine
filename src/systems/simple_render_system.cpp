@@ -94,7 +94,6 @@ namespace bagel {
 	}
 	void SimpleRenderSystem::createPipeline(VkRenderPass renderPass)
 	{
-		//assert(bglSwapChain != nullptr && "Cannot create pipeline before swapchain");
 		assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		PipelineConfigInfo pipelineConfig{};
