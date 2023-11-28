@@ -64,36 +64,6 @@ namespace bagel {
 			1, //descriptorSet Count 
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
-		
-		for (auto& kv : frameInfo.gameObjects) {
-			auto& obj = kv.second;
-			if (obj.model == nullptr) continue;
-
-			auto objTextureDescriptor = obj.model->getTextureDescriptorSet();
-			std::array<VkDescriptorSet, 1> descriptors = { objTextureDescriptor };
-			obj.model->bind(frameInfo.commandBuffer);
-			vkCmdBindDescriptorSets(
-				frameInfo.commandBuffer,
-				VK_PIPELINE_BIND_POINT_GRAPHICS,
-				pipelineLayout,
-				1, //first set
-				descriptors.size(), //descriptorSet Count 
-				descriptors.data(),
-				0, nullptr);
-			for (int i = 0; i < obj.transform.translation.size(); i++) {
-				SimplePushConstantData push{};
-				push.modelMatrix = obj.transform.mat4(i);
-				push.normalMatrix = obj.transform.normalMatrix(i);
-				vkCmdPushConstants(
-					frameInfo.commandBuffer,
-					pipelineLayout,
-					VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-					0,
-					sizeof(SimplePushConstantData),
-					&push);
-				obj.model->draw(frameInfo.commandBuffer);
-			}
-		}
 	}
 
 	void SimpleRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)

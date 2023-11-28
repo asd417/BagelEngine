@@ -1,4 +1,5 @@
 #include "point_light_render_system.hpp"
+#include "bagel_ecs_components.hpp"
 
 #include <stdexcept>
 #include <array>
@@ -9,9 +10,6 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
-//#define SIERPINSKITRI_EXAMPLE
-//#define SIERPINSKITRI_USESOL2
-//#define SIERPINSKITRI_LOOPSOLUTION
 
 namespace bagel {
 
@@ -22,7 +20,6 @@ namespace bagel {
 	// But its size is limited to 128 bytes (technically each device has different max size but only 128 is guaranteed)
 	// This maximum size varies from device to device and is specified in bytes by the max_push_constants_size field of vk::PhysicalDeviceLimits
 	// Even the high end device (RTX3080) has only 256 bytes available so it is unrealistic to send most data
-	// 
 	// 
 	//Struct normally packs the data as close as possible so it 
 	//packs like this: (host memory layout)
@@ -43,9 +40,9 @@ namespace bagel {
 		float radius;
 	};
 
-	PointLightSystem::PointLightSystem(BGLDevice& device, VkRenderPass renderPass, VkDescriptorSetLayout globalSetLayout) : bglDevice{device}
+	PointLightSystem::PointLightSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> globalSetLayouts) : bglDevice{device}
 	{
-		createPipelineLayout(globalSetLayout);
+		createPipelineLayout(globalSetLayouts);
 		createPipeline(renderPass);
 	}
 	PointLightSystem::~PointLightSystem()
@@ -57,38 +54,42 @@ namespace bagel {
 	{
 		// Copy all point light information into the globalubo point light information
 		int lightIndex = 0;
-		for (auto& kv : frameInfo.gameObjects) {
-			assert( lightIndex < MAX_LIGHTS && "Attempted to add more lights than MAX_LIGHTS! Ignoring...");
-
-			auto& obj = kv.second;
-			if (obj.pointLight == nullptr) continue;
-
-			auto rotateLight = glm::rotate(
-				glm::mat4(1.0f),
-				frameInfo.frameTime,
-				{ 0.f,-1.f,0.f }); //axis of rotation
-
-			obj.transform.translation[0] = rotateLight * (glm::vec4(obj.transform.translation[0], 1.f) - glm::vec4(0.f, 0.f, 5.0f, 1.0f)) + glm::vec4(0.f, 0.f, 5.0f, 1.0f);
-			ubo.pointLights[lightIndex].position = glm::vec4(obj.transform.translation[0],1.f);
-			ubo.pointLights[lightIndex].color = glm::vec4(obj.color, obj.pointLight->lightIntensity);
+		auto view = frameInfo.registry.view<TransformComponent, PointLightComponent>();
+		for (auto [entity, transformComp, pointLightComp] : view.each()) {
+			auto rotateLight = glm::rotate(glm::mat4(1.0f), frameInfo.frameTime,{ 0.f,-1.f,0.f }); //axis of rotation
+			transformComp.translation[0] = rotateLight * (glm::vec4(transformComp.translation[0], 1.f) - glm::vec4(0.f, 0.f, 5.0f, 1.0f)) + glm::vec4(0.f, 0.f, 5.0f, 1.0f);
+			
+			ubo.pointLights[lightIndex].position = glm::vec4(transformComp.translation[0],1.f);
+			ubo.pointLights[lightIndex].color = glm::vec4(pointLightComp.color);
 			lightIndex++;
 		}
+		//for (auto& kv : frameInfo.gameObjects) {
+		//	assert( lightIndex < MAX_LIGHTS && "Attempted to add more lights than MAX_LIGHTS! Ignoring...");
+
+		//	auto& obj = kv.second;
+		//	if (obj.pointLight == nullptr) continue;
+
+		//}
 		ubo.numLights = lightIndex;
 	}
 
 	void PointLightSystem::render(FrameInfo& frameInfo)
 	{
-		std::map<float, BGLGameObject::id_t> sortedlights;
+		//alpha sorting
+		//transparent entities need to be drawn from back to front.
+		glm::vec3 camPos = frameInfo.camera.getPosition();
+		frameInfo.registry.sort<TransformComponent>([&](const auto& lhs, const auto& rhs) {
+			glm::vec3 lhsOffset = camPos - lhs.translation[0];
+			float lhsDisSquared = glm::dot(lhsOffset, lhsOffset);
+			glm::vec3 rhsOffset = camPos - rhs.translation[0];
+			float rhsDisSquared = glm::dot(rhsOffset, rhsOffset);
+
+			//Need to sort it so that close things are last
+			return lhsDisSquared > rhsDisSquared;
+			});
+
 		bglPipeline->bind(frameInfo.commandBuffer);
 
-		//alpha sorting
-		for (auto& kv : frameInfo.gameObjects) {
-			auto& obj = kv.second;
-			if (obj.pointLight == nullptr) continue;
-			auto offset = frameInfo.camera.getPosition() - obj.transform.translation[0];
-			float disSquared = glm::dot(offset, offset);
-			sortedlights[disSquared] = obj.getId();
-		}
 		vkCmdBindDescriptorSets(
 			frameInfo.commandBuffer,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -98,13 +99,15 @@ namespace bagel {
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
 
-		// create pushconstant and send it to device and draw.
-		for (auto it = sortedlights.rbegin(); it != sortedlights.rend();++it) {
-			auto& obj = frameInfo.gameObjects.at(it->second);
+		// Create pushconstant and send it to device and draw.
+		// Accessing in order of TransformComponent which was sorted above.
+		auto view = frameInfo.registry.view<TransformComponent, PointLightComponent>();
+		view.use<TransformComponent>();
+		for (auto [entity, transformComp, pointLightComp] : view.each()) {
 			PointLightPushConstant push{};
-			push.positions = glm::vec4(obj.transform.translation[0],1.f);
-			push.color = glm::vec4(obj.color, obj.pointLight->lightIntensity);
-			push.radius = obj.transform.scale[0].x;
+			push.positions = glm::vec4(transformComp.translation[0],1.f);
+			push.color = pointLightComp.color;
+			push.radius = transformComp.scale[0].x;
 		
 			vkCmdPushConstants(
 				frameInfo.commandBuffer,
@@ -118,7 +121,7 @@ namespace bagel {
 		}
 	}
 
-	void PointLightSystem::createPipelineLayout(VkDescriptorSetLayout globalSetLayout)
+	void PointLightSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
 	{
 		VkPushConstantRange pushConstantRange{};
 		// This flag indicates that we want this pushconstantdata to be accessible in both vertex and fragment shaders
@@ -127,14 +130,12 @@ namespace bagel {
 		pushConstantRange.offset = 0;
 		pushConstantRange.size = sizeof(PointLightPushConstant);
 
-		std::vector<VkDescriptorSetLayout> descriptorSetLayout{ globalSetLayout };
-
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
 		//desciptor set layout information
-		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayout.size());
-		pipelineLayoutInfo.pSetLayouts = descriptorSetLayout.data();
+		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
+		pipelineLayoutInfo.pSetLayouts = setLayouts.data();
 
 		pipelineLayoutInfo.pushConstantRangeCount = 1;
 		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;

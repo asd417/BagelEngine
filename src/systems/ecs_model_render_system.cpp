@@ -58,7 +58,7 @@ namespace bagel {
 		vkDestroyPipelineLayout(bglDevice.device(), pipelineLayout, nullptr);
 	}
 	
-	void ModelRenderSystem::renderEntities(entt::registry& registry, FrameInfo& frameInfo)
+	void ModelRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
 		bglPipeline->bind(frameInfo.commandBuffer);
 		//uint32_t ints[1] = {static_cast<uint32_t>(sizeof(frameInfo.globalDescriptorSets[1])) };
@@ -71,7 +71,7 @@ namespace bagel {
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
 
-		auto view = registry.view<TransformComponent, ModelDescriptionComponent, TextureComponent>();
+		auto view = frameInfo.registry.view<TransformComponent, ModelDescriptionComponent, TextureComponent>();
 		for (auto [entity, transformComp, modelDescComp, textureComp] : view.each()) {
 			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
 			VkDeviceSize offsets[] = { 0 };

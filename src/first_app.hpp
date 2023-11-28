@@ -37,11 +37,6 @@ namespace bagel {
 		void loadECSObjects();
 		entt::registry& getRegistry() { return registry; }
 	private:
-		void loadGameObjects();
-		std::unique_ptr<BGLTexture> createTextureImage(std::string filepath);
-
-		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-
 		BGLWindow bglWindow{ WIDTH, HEIGHT, "Hello" };
 		BGLDevice bglDevice{ bglWindow };
 		BGLRenderer bglRenderer{ bglWindow,bglDevice };
@@ -51,9 +46,6 @@ namespace bagel {
 		//It is critical to define variables that require bglDevice below this line as variables below will get destroyed first
 
 		std::unique_ptr<BGLBindlessDescriptorManager> descriptorManager;
-
 		entt::registry registry;
-		BGLGameObject::Map gameObjects;
 	};
-	
 }

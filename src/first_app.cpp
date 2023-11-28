@@ -68,17 +68,15 @@ namespace bagel {
 	}
 	void FirstApp::run()
 	{	
-		//Create UBO buffers by the number of MAX_FRAMES_IN_FLIGHT. 3 for triple buffering
-		std::vector<std::unique_ptr<BGLBuffer>> uboBuffers(BGLSwapChain::MAX_FRAMES_IN_FLIGHT);
-		for (int i = 0; i < uboBuffers.size(); i++) {
-			uboBuffers[i] = std::make_unique<BGLBuffer>(
-				bglDevice,
-				sizeof(GlobalUBO),
-				1,
-				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-			uboBuffers[i]->map();
-		}
+		//Create UBO buffer. Single for bindless design
+		std::unique_ptr<BGLBuffer> uboBuffers;
+		uboBuffers = std::make_unique<BGLBuffer>(
+			bglDevice,
+			sizeof(GlobalUBO),
+			1,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		uboBuffers->map();
 
 
 #ifndef BINDLESS
@@ -110,10 +108,10 @@ namespace bagel {
 		}
 #endif
 
-		for (int i = 0; i < uboBuffers.size(); i++) {
-			VkDescriptorBufferInfo bufferInfo = uboBuffers[i]->descriptorInfo();
-			descriptorManager->storeUBO(bufferInfo);
-		}
+
+		VkDescriptorBufferInfo bufferInfo = uboBuffers->descriptorInfo();
+		descriptorManager->storeUBO(bufferInfo);
+		
 		loadECSObjects();
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { descriptorManager->getDescriptorSetLayout() };
 
@@ -122,15 +120,10 @@ namespace bagel {
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts };
 
-		//SimpleRenderSystem simpleRenderSystem{ 
-		//	bglDevice, 
-		//	bglRenderer.getSwapChainRenderPass(), 
-		//	pipelineDescriptorSetLayouts };
-
-		//PointLightSystem pointLightSystem{
-		//	bglDevice,
-		//	bglRenderer.getSwapChainRenderPass(),
-		//	textureBuilder->getDescriptorSetLayout() };
+		PointLightSystem pointLightSystem{
+			bglDevice,
+			bglRenderer.getSwapChainRenderPass(),
+			pipelineDescriptorSetLayouts };
 
 		BGLCamera camera{};
 		float zrot = 1.0f;
@@ -162,16 +155,12 @@ namespace bagel {
 
 			//bglRenderer.beginFrame returns nullptr if the swapchain needs to be recreated
 			if (auto commandBuffer = bglRenderer.beginFrame()) {
-
-				int frameIndex = bglRenderer.getFrameIndex();
-				//std::cout << "Current Frame Index: " << frameIndex << "\n";
 				FrameInfo frameInfo{
-					frameIndex,
 					frameTime,
 					commandBuffer,
 					camera,
 					descriptorManager->getDescriptorSet(),
-					gameObjects
+					registry
 				};
 
 				//Update
@@ -180,20 +169,18 @@ namespace bagel {
 				ubo.viewMatrix = camera.getView();
 				ubo.inverseViewMatrix = camera.getInverseView();
 
-				//pointLightSystem.update(frameInfo, ubo);
+				pointLightSystem.update(frameInfo, ubo);
 
-				uboBuffers[frameIndex]->writeToBuffer(&ubo);
-				uboBuffers[frameIndex]->flush();
+				uboBuffers->writeToBuffer(&ubo);
+				uboBuffers->flush();
 
 				//Render
 				bglRenderer.beginSwapChainRenderPass(commandBuffer);
 
-				//this means all the objects in simpleRenderSystem will be rendered before the objects in pointlight system
-				//always render solid objects before rendering transparency
-				//simpleRenderSystem.renderGameObjects(frameInfo);
-				modelRenderSystem.renderEntities(registry,frameInfo);
-				//simpleRenderSystem.renderGameObjects(frameInfo);
-				//pointLightSystem.render(frameInfo);
+				//always render solid objects before rendering transparent objects
+
+				modelRenderSystem.renderEntities(frameInfo);
+				pointLightSystem.render(frameInfo);
 
 				bglRenderer.endSwapChainRenderPass(commandBuffer);
 				bglRenderer.endFrame();
@@ -217,8 +204,8 @@ namespace bagel {
 			const auto entity = registry.create();
 			auto& tfc = registry.emplace<bagel::TransformComponent>(entity, 2.0f*i, 2.0f * i, 2.0f * i);
 			
-			for (auto ii = 1u; ii < 10u; ++ii) {
-				tfc.addTransform({ 2.0f * i, 2.0f * i - 1.0f * ii, 2.0f * i });
+			for (auto ii = 1u; ii < 2u; ++ii) {
+				tfc.addTransform({ 2.0f * i, 2.0f * i - 1.0f * ii, 2.0f * i }, {-0.05f,-0.05f,-0.05f});
 			}
 
 			auto& mdc = registry.emplace<bagel::ModelDescriptionComponent>(entity, bglDevice);
@@ -242,74 +229,15 @@ namespace bagel {
 			 {1.f, 1.f, 1.f}
 		};
 		for (int i = 0; i < lightColors.size(); i++) {
-			//auto pointLight = BGLGameObject::makePointLight(2.f);
 			auto rotateLight = glm::rotate(
 				glm::mat4(1.0f),
 				(i * glm::two_pi<float>() / lightColors.size()),
 				{ 0.f,-1.f,0.f }); //axis of rotation
-			//const auto entity = registry.create();
-			//registry.emplace<bagel::TransformComponent>(entity, (rotateLight * glm::vec4(glm::vec3{ 3.f,-2.0f,0.0f }, 1.0f)) + glm::vec4(0.f, 0.f, 3.0f, 1.0f));
-			//registry.emplace<bagel::PointLightComponent>(entity);
-
-			//pointLight.color = lightColors[i];
+			const auto entity = registry.create();
+			registry.emplace<bagel::TransformComponent>(entity, (rotateLight * glm::vec4(glm::vec3{ 3.f,-2.0f,0.0f }, 1.0f)) + glm::vec4(0.f, 0.f, 3.0f, 1.0f));
+			auto& light = registry.emplace<bagel::PointLightComponent>(entity);
+			light.color = glm::vec4(lightColors[i],4.0f);
 		}
-	}
-
-	void FirstApp::loadGameObjects()
-	{
-		std::shared_ptr<BGLModel> rocketLauncherModel = 
-			BGLModel::createModelFromFile(bglDevice, "../models/rocketlauncher.obj", "../materials/models/c_rocketlauncher.ktx", modelSetLayout, *globalPool);
-		auto rocketLauncher = BGLGameObject::createGameObject();
-		rocketLauncher.model = rocketLauncherModel;
-		TransformComponent tr1{};
-		tr1.translation = { { 0.0f,0.0f,4.5f } };
-		tr1.scale = { { -0.2f,-0.2f,0.2f } };
-		TransformComponent tr2{};
-		tr2.translation = { { 2.0f,4.0f,4.5f } };
-		tr2.scale = { { -0.12f,-1.2f,0.2f} };
-
-		gameObjects.emplace(rocketLauncher.getId(),std::move(rocketLauncher));
-
-		std::shared_ptr<BGLModel> floorModel = BGLModel::createModelFromFile(bglDevice, "../models/floor.obj", "../materials/texture.ktx", modelSetLayout, *globalPool);
-		auto floor = BGLGameObject::createGameObject();
-		floor.model = floorModel;
-		TransformComponent tr3{};
-		tr3.translation = { { 0.0f,2.0f,4.5f } };
-		tr3.scale = { { 10.f,1.f,10.f } };
-		//floor.addTransformComponent(tr3);
-		gameObjects.emplace(floor.getId(), std::move(floor));
-		std::vector<glm::vec3> lightColors{
-			 {1.f, .1f, .1f},
-			 {.1f, .1f, 1.f},
-			 {.1f, 1.f, .1f},
-			 {1.f, 1.f, .1f},
-			 {.1f, 1.f, 1.f},
-			 {1.f, 1.f, 1.f}
-		};
-		for (int i = 0; i < lightColors.size(); i++) {
-			auto pointLight = BGLGameObject::makePointLight(2.f);
-
-			auto rotateLight = glm::rotate(
-				glm::mat4(1.0f),
-				(i * glm::two_pi<float>() / lightColors.size()),
-				{ 0.f,-1.f,0.f }); //axis of rotation
-			pointLight.transform.translation[0] = (rotateLight * glm::vec4(glm::vec3{ 3.f,-2.0f,0.0f }, 1.0f)) + glm::vec4(0.f, 0.f, 3.0f, 1.0f);
-			pointLight.color = lightColors[i];
-			gameObjects.emplace(pointLight.getId(), std::move(pointLight));
-		}
-	}
-
-	uint32_t FirstApp::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-		VkPhysicalDeviceMemoryProperties memProperties;
-		vkGetPhysicalDeviceMemoryProperties(bglDevice.getPhysicalDevice(), &memProperties);
-
-		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-			if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-				return i;
-			}
-		}
-
-		throw std::runtime_error("failed to find suitable memory type!");
 	}
 }
 

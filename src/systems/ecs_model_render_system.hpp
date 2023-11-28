@@ -25,7 +25,7 @@ namespace bagel {
 
 		ModelRenderSystem(const ModelRenderSystem&) = delete;
 		ModelRenderSystem& operator=(const ModelRenderSystem&) = delete;
-		void renderEntities(entt::registry& registry, FrameInfo& frameInfo);
+		void renderEntities(FrameInfo& frameInfo);
 
 	private:
 		void createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts);

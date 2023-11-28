@@ -17,7 +17,7 @@ namespace bagel {
 	class PointLightSystem {
 	public:
 
-		PointLightSystem(BGLDevice& device, VkRenderPass renderPass, VkDescriptorSetLayout globalSetLayout);
+		PointLightSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts);
 		~PointLightSystem();
 
 		PointLightSystem(const PointLightSystem&) = delete;
@@ -27,7 +27,7 @@ namespace bagel {
 		void render(FrameInfo& frameInfo);
 
 	private:
-		void createPipelineLayout(VkDescriptorSetLayout globalSetLayout);
+		void createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts);
 		void createPipeline(VkRenderPass renderPass);
 
 		BGLDevice& bglDevice;

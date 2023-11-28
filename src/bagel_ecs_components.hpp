@@ -46,7 +46,7 @@ namespace bagel {
 		}
 	};
 	struct PointLightComponent {
-		float lightIntensity = 1.0f;
+		glm::vec4 color = { 1.0f,1.0f,1.0f,1.0f }; //4th is strength
 	};
 	struct ModelDescriptionComponent {
 		std::string modelName = "";
@@ -94,8 +94,5 @@ namespace bagel {
 		~TextureComponent();
 		VkDescriptorImageInfo getDescriptorImageInfo() const { return { sampler , view , image_layout }; }
 	};
-	struct DrawIndirectComponent {
-		std::unique_ptr<BGLBuffer> buffer = nullptr;
 
-	};
 }

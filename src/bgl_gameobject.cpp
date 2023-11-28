@@ -7,7 +7,7 @@ namespace bagel {
         obj.color = color;
         obj.transform.scale[0].x = radius;
         obj.pointLight = std::make_unique<PointLightComponent>();
-        obj.pointLight->lightIntensity = intensity;
+        obj.pointLight->color = glm::vec4(color,intensity);
         return obj;
     }
 }

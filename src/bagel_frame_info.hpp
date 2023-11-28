@@ -4,7 +4,7 @@
 #include "bgl_gameobject.hpp"
 
 #include <vulkan/vulkan.h>
-
+#include "entt.hpp"
 #define MAX_LIGHTS 10
 
 namespace bagel {
@@ -14,12 +14,11 @@ namespace bagel {
 		glm::vec4 color{}; // w intensity
 	};
 	struct FrameInfo {
-		int frameIndex;
 		float frameTime;
 		VkCommandBuffer commandBuffer;
 		BGLCamera& camera;
 		VkDescriptorSet globalDescriptorSets;
-		BGLGameObject::Map& gameObjects;
+		entt::registry& registry;
 	};
 	struct GlobalUBO {
 		glm::mat4 projectionMatrix{ 1.f };
