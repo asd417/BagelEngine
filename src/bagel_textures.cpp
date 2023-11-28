@@ -480,17 +480,6 @@ namespace bagel {
 		}
 	}
 
-#ifndef BINDLESS
-	TextureComponentBuilder::TextureComponentBuilder(
-		BGLDevice& _bglDevice,
-		BGLDescriptorPool& _globalPool,
-		BGLDescriptorSetLayout& _modelSetLayout)
-		: bglDevice{ _bglDevice },
-		globalPool{ _globalPool },
-		modelSetLayout{ _modelSetLayout }
-	{
-	}
-#else
 	TextureComponentBuilder::TextureComponentBuilder(
 		BGLDevice& _bglDevice,
 		BGLDescriptorPool& _globalPool,
@@ -498,17 +487,26 @@ namespace bagel {
 		: bglDevice{ _bglDevice },
 		globalPool{ _globalPool },
 		descriptorManager{ _descriptorManager }
-	{
-	}
-#endif
+	{}
 
 	TextureComponentBuilder::~TextureComponentBuilder()
-	{
-		
-	}
+	{}
 
 	void TextureComponentBuilder::buildComponent(const char* filePath, VkFormat imageFormat)
 	{
+#define MEMORY_SAVE
+#ifdef MEMORY_SAVE
+		std::string filenameStr(filePath);
+		if (lastBoundTextureName == filenameStr)
+		{
+			//Don't bind again. Just use the last bound texturehandle
+			targetComponent->textureHandle = descriptorManager.getLastTextureHandle();
+			lastBoundTextureName = filenameStr;
+			std::cout << filenameStr << " same as the last bound texture. Skipping memory allocation\n";
+			return;
+		}
+		lastBoundTextureName = filenameStr;
+#endif
 		assert(targetComponent != nullptr && "No targetComponent set for TextureComponentBuilder");
 		loadKTXImageInStagingBuffer(filePath, imageFormat);
 		generateImageCreateInfo(imageFormat);

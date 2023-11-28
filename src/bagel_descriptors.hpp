@@ -116,6 +116,11 @@ namespace bagel {
         void storeUBO(VkDescriptorBufferInfo bufferInfo);
         uint32_t storeBuffer(BGLBuffer& buffer);
         uint32_t storeTexture(VkImageView imageView, VkSampler sampler);
+
+        //Can use these functions to store handle if the last bound resource is the same as one being bound;
+        uint32_t getLastBufferHandle() { return textures.size() - 1; };
+        uint32_t getLastTextureHandle() { return textures.size() - 1; };
+
         VkDescriptorSetLayout getDescriptorSetLayout() const { return bindlessSetLayout; }
         VkDescriptorSet getDescriptorSet() const { return bindlessDescriptorSet; }
     private:

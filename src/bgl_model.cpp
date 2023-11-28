@@ -54,6 +54,7 @@ namespace bagel {
 		std::unique_ptr<BGLDescriptorSetLayout>& modelSetLayout,
 		BGLDescriptorPool& globalPool)
 	{
+		throw("BGLModel will be deprecated");
 		Builder<uint32_t> builder{};
 		builder.loadModel(filepath, 0);
 		std::cout << "Loading Model: " << filepath << "\n";

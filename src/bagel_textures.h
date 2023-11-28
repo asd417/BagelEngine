@@ -38,8 +38,6 @@ namespace bagel {
 		VkFormat imageFormat;
 		std::vector<VkBufferImageCopy> buffer_copy_regions{};
 
-		//bool load_image_from_file(BGLDevice& bglDevice, const char* file, BGLTexture& texture);
-		//bool load_image_from_file2(BGLDevice& bglDevice, const char* file, BGLTexture& texture);
 	};
 
 	void populateBufferCopyRegion(std::vector<VkBufferImageCopy>& buffer_copy_regions, ktxTexture* ktx_texture, uint32_t mip_levels);
@@ -57,17 +55,12 @@ namespace bagel {
 	class TextureComponentBuilder
 	{
 	public:
-#ifndef BINDLESS
-		TextureComponentBuilder(
-			BGLDevice& _bglDevice, 
-			BGLDescriptorPool& _globalPool,
-			BGLDescriptorSetLayout& _modelSetLayout);
-#else
+
 		TextureComponentBuilder(
 			BGLDevice& _bglDevice,
 			BGLDescriptorPool& _globalPool,
 			BGLBindlessDescriptorManager& descriptorManager);
-#endif
+
 		~TextureComponentBuilder();
 		void setBuildTarget(TextureComponent* _tC) { targetComponent = _tC; }
 		void buildComponent(const char* filePath, VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB);
@@ -86,6 +79,8 @@ namespace bagel {
 		uint32_t height = 0;
 		uint32_t mipLvl = 0;
 
+		std::string lastBoundTextureName = "";
+
 		ktx_size_t   ktxTextureSize = 0;
 
 		VkImageSubresourceRange subresRange{};
@@ -99,13 +94,7 @@ namespace bagel {
 		BGLDevice& bglDevice;
 		BGLDescriptorPool& globalPool;
 		TextureComponent* targetComponent = nullptr;
-#ifndef BINDLESS
-		BGLDescriptorSetLayout& modelSetLayout;
-#else 
+
 		BGLBindlessDescriptorManager& descriptorManager;
-		//std::vector<VkImageView> textures{};
-		//VkDescriptorSetLayout bindlessSetLayout = nullptr;
-		//VkDescriptorSet bindlessDescriptorSet = nullptr;
-#endif
 	};
 }
