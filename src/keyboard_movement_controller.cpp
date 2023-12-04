@@ -33,7 +33,7 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 	if (glm::dot(moveDir, moveDir) > std::numeric_limits<float>::epsilon()) {
 		gameObject.transform.translation[transformIndex] += moveSpeed * dt * glm::normalize(moveDir);
 		updated = true;
-		std::cout << gameObject.transform.translation[transformIndex].x << " " << gameObject.transform.translation[transformIndex].y << " " << gameObject.transform.translation[transformIndex].z << "\n";
+		//std::cout << gameObject.transform.translation[transformIndex].x << " " << gameObject.transform.translation[transformIndex].y << " " << gameObject.transform.translation[transformIndex].z << "\n";
 	}
 	return updated;
 }

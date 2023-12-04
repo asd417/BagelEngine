@@ -40,8 +40,7 @@ namespace bagel {
 		// if set true while using strip topology, we can insert a special index (0xFFFF or 0xFFFFFFFF) into the index buffer 
 		// to break up the strip and start a new one
 		configInfo.inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
-
-		
+		//configInfo.inputAssemblyInfo.
 		//VkPipelineViewportStateCreateInfo viewportInfo{};
 		// Combine the viewport and the scissor into a 'viewport state create info'
 		configInfo.viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;

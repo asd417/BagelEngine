@@ -479,9 +479,9 @@ namespace bagel {
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
         if (vkCreateBuffer(device_, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create vertex buffer!");
+            throw std::runtime_error("failed to create buffer!");
         }
-        std::cout << "Created Buffer of size " << size << "\n";
+        //std::cout << "Created Buffer of size " << size << "\n";
         VkMemoryRequirements memRequirements;
         vkGetBufferMemoryRequirements(device_, buffer, &memRequirements);
 
@@ -489,7 +489,7 @@ namespace bagel {
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-        std::cout << "Allocating memory of size " << memRequirements.size << "\n";
+        //std::cout << "Allocating memory of size " << memRequirements.size << "\n";
         if (vkAllocateMemory(device_, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
             throw std::runtime_error("Failed to allocate buffer!");
         }
@@ -657,4 +657,4 @@ namespace bagel {
         vkResetFences(device_, 1, &_uploadContext._uploadFence);
     }
 
-}  // namespace lve
+}

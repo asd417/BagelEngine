@@ -70,6 +70,8 @@ namespace bagel {
         BGLDescriptorPool(const BGLDescriptorPool&) = delete;
         BGLDescriptorPool& operator=(const BGLDescriptorPool&) = delete;
 
+        VkDescriptorPool getDescriptorPool() const { return descriptorPool; };
+
         bool allocateDescriptor(
             const VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet& descriptor) const;
 

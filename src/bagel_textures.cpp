@@ -535,6 +535,8 @@ namespace bagel {
 		VK_CHECK(vkCreateImageView(bglDevice.device(), &imageViewCreateInfo, nullptr, &targetComponent->view));
 		
 		targetComponent->textureHandle = descriptorManager.storeTexture(targetComponent->view, targetComponent->sampler);
+		delete stagingBuffer;
+		buffCpyRegions.clear();
 	}
 
 	void TextureComponentBuilder::loadKTXImageInStagingBuffer(const char* filePath, VkFormat format)
@@ -555,7 +557,8 @@ namespace bagel {
 			ktx_size_t offset;
 			KTX_error_code    result = ktxTexture_GetImageOffset(ktx_texture, i, 0, 0, &offset);
 		}
-		stagingBuffer = std::make_unique<BGLBuffer>(
+
+		stagingBuffer = new BGLBuffer(
 			bglDevice,
 			1,
 			static_cast<uint32_t>(ktxTextureSize),

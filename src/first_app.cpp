@@ -10,17 +10,23 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+//#include "imgui.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_vulkan.h"
 
 #include "bagel_frame_info.hpp"
 #include "bagel_buffer.hpp"
+#include "bagel_imgui.h"
 #include "bgl_camera.hpp"
 #include "bagel_ecs_components.hpp"
 #include "keyboard_movement_controller.hpp"
 #include "entt.hpp"
 
+#define IMGUI
 #define GLOBAL_DESCRIPTOR_COUNT 1000
 #define BINDLESS
 #define MAX_MODEL_COUNT 10
+#define USE_ABS_PATH
 //#define SHOW_FPS
 
 namespace bagel {
@@ -45,6 +51,15 @@ namespace bagel {
 	//this means r and g from the memory will be assigned to blank memory, causing those value to be unread
 	//to fix this, align the vec3 variable to the multiple of 16 bytes with alignas(16)
 
+	static void check_vk_result(VkResult err)
+	{
+		if (err == 0)
+			return;
+		fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
+		if (err < 0)
+			abort();
+	}
+
 	FirstApp::FirstApp()
 	{
 		
@@ -56,18 +71,28 @@ namespace bagel {
 			.build();
 		descriptorManager = std::make_unique<BGLBindlessDescriptorManager>(bglDevice, *globalPool);
 		descriptorManager->createBindlessDescriptorSet(GLOBAL_DESCRIPTOR_COUNT);
-
-		std::cout << "Finished Creating Global Pool" << "\n";
-		std::cout << "MAX_MODEL_COUNT is set to " << MAX_MODEL_COUNT << ". Be aware when loading too many models." << "\n";
-
+		std::cout << "Finished Creating Global Pool\n";
 		registry = entt::registry{};
-		std::cout << "Creating Entity Registry" << "\n";
+		std::cout << "Creating Entity Registry\n";
+#ifdef IMGUI
+		std::cout << "Initializing IMGUI\n";
+		init_imgui();
+
+#endif
 	}
+
 	FirstApp::~FirstApp()
 	{
+#ifdef IMGUI
+		//add the destroy the imgui created structures
+		vkDestroyDescriptorPool(bglDevice.device(), imguiPool, nullptr);
+		ImGui_ImplVulkan_Shutdown();
+#endif
 	}
 	void FirstApp::run()
 	{	
+		ImGuiIO& imguiIO = ImGui::GetIO();
+
 		//Create UBO buffer. Single for bindless design
 		std::unique_ptr<BGLBuffer> uboBuffers;
 		uboBuffers = std::make_unique<BGLBuffer>(
@@ -77,37 +102,6 @@ namespace bagel {
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 		uboBuffers->map();
-
-
-#ifndef BINDLESS
-
-		// Global Descriptor Set Layout
-		auto globalSetLayout = BGLDescriptorSetLayout::Builder(bglDevice)
-			.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
-			.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_ALL_GRAPHICS, GLOBAL_SET_IMAGE_COUNT)
-			.build();
-		// Model Descriptor Set Layout
-		modelSetLayout = BGLDescriptorSetLayout::Builder(bglDevice)
-			.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1) //Diffuse texture
-			.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1) // 
-			.build();
-
-		std::unique_ptr<BGLTexture> texture1 = createTextureImage("../materials/texture.ktx");
-		VkDescriptorImageInfo imageInfo1 = texture1->getDescriptorImageInfo();
-		std::array<VkDescriptorImageInfo, 1> imageInfos = { imageInfo1 };
-
-		std::vector<VkDescriptorSet> globalDescriptorSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT);
-		for (int i = 0; i < globalDescriptorSets.size(); i++) {
-			std::cout << "Binding descriptor set for frame index: " << i << "\n";
-			
-			VkDescriptorBufferInfo bufferInfo = uboBuffers[i]->descriptorInfo();
-			BGLDescriptorWriter(*globalSetLayout, *globalPool)
-				.writeBuffer(0, &bufferInfo)
-				/*.writeImages(1, imageInfos.data(), imageInfos.size())*/
-				.build(globalDescriptorSets[i]);
-		}
-#endif
-
 
 		VkDescriptorBufferInfo bufferInfo = uboBuffers->descriptorInfo();
 		descriptorManager->storeUBO(bufferInfo);
@@ -126,8 +120,6 @@ namespace bagel {
 			pipelineDescriptorSetLayouts };
 
 		BGLCamera camera{};
-		float zrot = 1.0f;
-		int dir = 1;
 		auto currentTime = std::chrono::high_resolution_clock::now();
 
 		auto viewerObject = BGLGameObject::createGameObject();
@@ -141,18 +133,32 @@ namespace bagel {
 
 			//Event call function can block therefore we measure the newtime after
 			glfwPollEvents();
-
+			
 			auto newTime = std::chrono::high_resolution_clock::now();
 			float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
 			currentTime = newTime;
 
-			cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
-			
+			if (!imguiIO.WantCaptureKeyboard) {
+				cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
+			}
+
 			camera.setViewYXZ(viewerObject.transform.translation[0], viewerObject.transform.rotation[0]);
 
 			float aspect = bglRenderer.getAspectRatio();
 			camera.setPerspectiveProjection(glm::radians(70.0f), aspect, 0.1f, 30.0f);
 
+#ifdef IMGUI
+			//imgui new frame
+			ImGui_ImplVulkan_NewFrame();
+			ImGui_ImplGlfw_NewFrame();
+			ImGui::NewFrame();
+
+			//imgui commands
+			//ImGui::ShowDemoWindow();
+			static ConsoleApp console;
+			console.Draw("Console", nullptr);
+			ImGui::Render();
+#endif
 			//bglRenderer.beginFrame returns nullptr if the swapchain needs to be recreated
 			if (auto commandBuffer = bglRenderer.beginFrame()) {
 				FrameInfo frameInfo{
@@ -181,9 +187,13 @@ namespace bagel {
 
 				modelRenderSystem.renderEntities(frameInfo);
 				pointLightSystem.render(frameInfo);
-
+#ifdef IMGUI
+				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+#endif
+				
 				bglRenderer.endSwapChainRenderPass(commandBuffer);
 				bglRenderer.endFrame();
+
 				auto stop = std::chrono::high_resolution_clock::now();
 				auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 #ifdef SHOW_FPS:
@@ -200,23 +210,46 @@ namespace bagel {
 
 		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
 
-		for (auto i = 1u; i < 5u; ++i) {
-			const auto entity = registry.create();
-			auto& tfc = registry.emplace<bagel::TransformComponent>(entity, 2.0f*i, 2.0f * i, 2.0f * i);
-			
-			for (auto ii = 1u; ii < 2u; ++ii) {
-				tfc.addTransform({ 2.0f * i, 2.0f * i - 1.0f * ii, 2.0f * i }, {-0.05f,-0.05f,-0.05f});
-			}
+		
+		const auto e1 = registry.create();
+		auto& tfc = registry.emplace<bagel::TransformComponent>(e1);
 
-			auto& mdc = registry.emplace<bagel::ModelDescriptionComponent>(entity, bglDevice);
-			auto& tc = registry.emplace<bagel::TextureComponent>(entity, bglDevice);
+		tfc.setTransform(0, { 2.0f * 1, 2.0f * 1, 2.0f * 1 }, {-1.0f,-1.0f, -1.0f});
+		auto& mdc = registry.emplace<bagel::ModelDescriptionComponent>(e1, bglDevice);
+		auto& tc = registry.emplace<bagel::TextureComponent>(e1, bglDevice);
 
-			modelBuilder->setBuildTarget(&mdc);
-			modelBuilder->buildComponent("../models/rocketlauncher.obj");
+#ifndef USE_ABS_PATH
+		modelBuilder->setBuildTarget(&mdc);
+		modelBuilder->buildComponent("../models/flatfaces.obj");
+		textureBuilder->setBuildTarget(&tc);
+		textureBuilder->buildComponent("../materials/models/c_rocketlauncher.ktx");
+#else
+		modelBuilder->setBuildTarget(&mdc);
+		modelBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/models/flatfaces.obj");
 
-			textureBuilder->setBuildTarget(&tc);
-			textureBuilder->buildComponent("../materials/models/c_rocketlauncher.ktx");
-		}
+		textureBuilder->setBuildTarget(&tc);
+		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/c_rocketlauncher.ktx");
+#endif
+		std::cout << "Creating entity 2\n";
+		const auto e2 = registry.create();
+		auto& tfc2 = registry.emplace<bagel::TransformComponent>(e2);
+		tfc2.setTransform(0, { 2.0f * 2.5f, 2.0f * 1, 2.0f * 1 }, { 1.0f, 1.0f, 1.0f });
+
+		auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2, bglDevice);
+		auto& tc2 = registry.emplace<bagel::TextureComponent>(e2, bglDevice);
+#ifndef USE_ABS_PATH 
+		modelBuilder->setBuildTarget(&mdc2);
+		modelBuilder->buildComponent("../models/axis.obj");
+		textureBuilder->setBuildTarget(&tc2);
+		textureBuilder->buildComponent("../materials/models/axis.ktx");
+#else
+		//Loading axis.ktx as first texture does not cause crash but loading it second does.
+		modelBuilder->setBuildTarget(&mdc2);
+		modelBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/models/axis.obj");
+		textureBuilder->setBuildTarget(&tc2);
+		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/axis.ktx");
+#endif
+
 		delete modelBuilder;
 		delete textureBuilder;
 
@@ -238,6 +271,55 @@ namespace bagel {
 			auto& light = registry.emplace<bagel::PointLightComponent>(entity);
 			light.color = glm::vec4(lightColors[i],4.0f);
 		}
+	}
+
+	void FirstApp::init_imgui()
+	{
+		//1: create descriptor pool for IMGUI
+		// the size of the pool is very oversize, but it's copied from imgui demo itself.
+		VkDescriptorPoolSize pool_sizes[] =
+		{
+			{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+			{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+		};
+
+		VkDescriptorPoolCreateInfo pool_info = {};
+		pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+		pool_info.maxSets = 1000;
+		pool_info.poolSizeCount = std::size(pool_sizes);
+		pool_info.pPoolSizes = pool_sizes;
+		
+		VK_CHECK(vkCreateDescriptorPool(bglDevice.device(), &pool_info, nullptr, &imguiPool));
+
+		ImGui::CreateContext();
+		ImGui_ImplGlfw_InitForVulkan(bglWindow.getGLFWWindow(), true);
+
+		//this initializes imgui for Vulkan
+		ImGui_ImplVulkan_InitInfo init_info = {};
+		init_info.Instance = bglDevice.getInstance();
+		init_info.PhysicalDevice = bglDevice.getPhysicalDevice();
+		init_info.Device = bglDevice.device();
+		init_info.Queue = bglDevice.graphicsQueue();
+		init_info.DescriptorPool = imguiPool;
+		init_info.MinImageCount = 3;
+		init_info.ImageCount = 3;
+		init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+		ImGui_ImplVulkan_Init(&init_info, bglRenderer.getSwapChainRenderPass());
+
+		//execute a gpu command to upload imgui font textures
+		ImGui_ImplVulkan_CreateFontsTexture();
+		//clear font textures from cpu data. Done automatically now
 	}
 }
 

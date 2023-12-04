@@ -68,8 +68,12 @@ endif()
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 file(GLOB_RECURSE SOURCES_HPP ${PROJECT_SOURCE_DIR}/src/*.hpp)
 file(GLOB_RECURSE SOURCES_H ${PROJECT_SOURCE_DIR}/src/*.h)
+file(GLOB IMGUI_SRC_H ${IMGUI}/*.h)
+file(GLOB IMGUI_SRC ${IMGUI}/*.cpp)
+file(GLOB IMGUI_BCKEND_vk ${IMGUI}/backends/imgui_impl_vulkan.*)
+file(GLOB IMGUI_BCKEND_glfw ${IMGUI}/backends/imgui_impl_glfw.*)
 
-add_executable(${PROJECT_NAME} ${SOURCES} ${SOURCES_HPP} ${SOURCES_H})
+add_executable(${PROJECT_NAME} ${SOURCES} ${SOURCES_HPP} ${SOURCES_H} ${IMGUI_SRC} ${IMGUI_BCKEND_vk} ${IMGUI_BCKEND_glfw})
 
  
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
@@ -97,6 +101,7 @@ if (WIN32)
     ${KTX}
     ${STB}
     ${ENTT}
+    ${IMGUI}
     )
  
   target_link_directories(${PROJECT_NAME} PUBLIC

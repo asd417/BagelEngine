@@ -90,7 +90,7 @@ namespace bagel {
 		VkSamplerCreateInfo samplerCreateInfo{};
 		VkImageViewCreateInfo imageViewCreateInfo{};
 
-		std::unique_ptr<BGLBuffer> stagingBuffer;
+		BGLBuffer* stagingBuffer;
 		BGLDevice& bglDevice;
 		BGLDescriptorPool& globalPool;
 		TextureComponent* targetComponent = nullptr;

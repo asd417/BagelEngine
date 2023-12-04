@@ -83,12 +83,8 @@ namespace bagel {
 					ECSPushConstantData push{};
 					push.modelMatrix = transformComp.mat4(i);
 					push.normalMatrix = transformComp.normalMatrix(i);
-#ifdef BINDLESS
 					push.textureHandle = textureComp.textureHandle;
-					std::cout << "handle pos: " << textureComp.textureHandle << "\n";
-#else 
-					push.textureHandle = 0;
-#endif
+
 					vkCmdPushConstants(
 						frameInfo.commandBuffer,
 						pipelineLayout,
@@ -98,24 +94,24 @@ namespace bagel {
 						&push);
 					vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, 1, 0, 0, 0);
 				}
-			}
-			for (int i = 0; i < transformComp.translation.size(); i++) {
-				ECSPushConstantData push{};
-				push.modelMatrix = transformComp.mat4(i);
-				push.normalMatrix = transformComp.normalMatrix(i);
-				push.textureHandle = textureComp.textureHandle;
+			} else {
+				for (int i = 0; i < transformComp.translation.size(); i++) {
+					ECSPushConstantData push{};
+					push.modelMatrix = transformComp.mat4(i);
+					push.normalMatrix = transformComp.normalMatrix(i);
+					push.textureHandle = textureComp.textureHandle;
 
-				vkCmdPushConstants(
-					frameInfo.commandBuffer,
-					pipelineLayout,
-					VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-					0,
-					sizeof(ECSPushConstantData),
-					&push);
-				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, 0, 0);
+					vkCmdPushConstants(
+						frameInfo.commandBuffer,
+						pipelineLayout,
+						VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+						0,
+						sizeof(ECSPushConstantData),
+						&push);
+					vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, 0, 0);
+				}
 			}
 		}
-
 	}
 
 	void ModelRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
@@ -153,11 +149,20 @@ namespace bagel {
 		BGLPipeline::defaultPipelineConfigInfo(pipelineConfig);
 		pipelineConfig.renderPass = renderPass;
 		pipelineConfig.pipelineLayout = pipelineLayout;
+#define USE_ABS_PATH
+#ifndef USE_ABS_PATH
 		bglPipeline = std::make_unique<BGLPipeline>(
 			bglDevice,
 			"../shaders/simple_shader.vert.spv",
 			"../shaders/simple_shader.frag.spv",
 			pipelineConfig);
+#else
+		bglPipeline = std::make_unique<BGLPipeline>(
+			bglDevice,
+			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/simple_shader.vert.spv",
+			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/simple_shader.frag.spv",
+			pipelineConfig);
+#endif
 	}
 }
 

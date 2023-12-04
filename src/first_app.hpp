@@ -19,6 +19,17 @@
 #include <vector>
 
 
+#define VK_CHECK(x)                                                     \
+	do                                                                  \
+	{                                                                   \
+		VkResult err = x;                                               \
+		if (err)                                                        \
+		{                                                               \
+			std::cout <<"Detected Vulkan error: " << err << std::endl;  \
+			abort();                                                    \
+		}                                                               \
+	} while (0)
+
 
 namespace bagel {
 	class FirstApp {
@@ -37,7 +48,7 @@ namespace bagel {
 		void loadECSObjects();
 		entt::registry& getRegistry() { return registry; }
 	private:
-		BGLWindow bglWindow{ WIDTH, HEIGHT, "Hello" };
+		BGLWindow bglWindow{ WIDTH, HEIGHT, "Bagel Engine" };
 		BGLDevice bglDevice{ bglWindow };
 		BGLRenderer bglRenderer{ bglWindow,bglDevice };
 
@@ -47,5 +58,9 @@ namespace bagel {
 
 		std::unique_ptr<BGLBindlessDescriptorManager> descriptorManager;
 		entt::registry registry;
+
+		//ImGUI
+		void init_imgui();
+		VkDescriptorPool imguiPool;
 	};
 }

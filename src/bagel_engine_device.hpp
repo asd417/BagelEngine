@@ -45,6 +45,7 @@ namespace bagel {
         BGLDevice(BGLDevice &&) = delete;
         BGLDevice &operator=(BGLDevice &&) = delete;
 
+        VkInstance getInstance() const { return instance; }
         VkCommandPool getCommandPool() const { return commandPool; }
         VkPhysicalDevice getPhysicalDevice() const { return physicalDevice; }
         VkDevice device() const { return device_; }

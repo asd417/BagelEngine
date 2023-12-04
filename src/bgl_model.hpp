@@ -13,7 +13,10 @@
 
 #include <memory>
 #include <vector>
+#include <tuple>
+#include <ostream>
 namespace bagel {
+
 	// The purpose of this class is to be able to take vertex data on cpu, allocate memory and copy it over to gpu device
 	class BGLModel {
 	public:
@@ -26,6 +29,29 @@ namespace bagel {
 
 			static std::vector<VkVertexInputBindingDescription> getBindingDescriptions();
 			static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
+
+			bool Vertex::operator=(const Vertex& other) const {
+				return std::tie(
+					position.x,position.y,position.z,
+					normal.x,normal.y,normal.z) 
+					== std::tie(other.position.x, other.position.y, other.position.z,
+						other.normal.x, other.normal.y, other.normal.z);
+			}
+			bool Vertex::operator<(const Vertex& other) const {
+				return std::tie(
+					position.x, position.y, position.z,
+					normal.x, normal.y, normal.z)
+					< std::tie(other.position.x, other.position.y, other.position.z,
+						other.normal.x, other.normal.y, other.normal.z);
+			}
+			bool Vertex::operator>(const Vertex& other) const {
+				return std::tie(
+					position.x, position.y, position.z,
+					normal.x, normal.y, normal.z)
+					> std::tie(other.position.x, other.position.y, other.position.z,
+						other.normal.x, other.normal.y, other.normal.z);
+			}
+
 		};
 		
 		template<typename T>
@@ -92,6 +118,8 @@ namespace bagel {
 
 	private:
 		void loadModel(const std::string& filename);
+		void printVertexArray();
+		void printIndexArray();
 		void createVertexBuffer();
 		void createIndexBuffer();
 

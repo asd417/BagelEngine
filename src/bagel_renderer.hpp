@@ -33,8 +33,10 @@ namespace bagel {
 			return commandBuffers[currentFrameIndex];
 		}
 
+		size_t getSwapChainImageCount() const { return bglSwapChain->imageCount(); }
 		VkRenderPass getSwapChainRenderPass() const { return bglSwapChain->getRenderPass(); }
 		float getAspectRatio() const { return bglSwapChain->extentAspectRatio(); }
+
 		int getFrameIndex() const {
 			assert(isFrameStarted && "Cannot get frame index when frame not in progress");
 			return currentFrameIndex;

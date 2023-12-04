@@ -145,11 +145,21 @@ namespace bagel {
 		BGLPipeline::enableAlphaBlending(pipelineConfig);
 		pipelineConfig.renderPass = renderPass;
 		pipelineConfig.pipelineLayout = pipelineLayout;
+
+#define USE_ABS_PATH
+#ifndef USE_ABS_PATH
 		bglPipeline = std::make_unique<BGLPipeline>(
 			bglDevice,
 			"../shaders/point_light.vert.spv",
 			"../shaders/point_light.frag.spv",
 			pipelineConfig);
+#else
+		bglPipeline = std::make_unique<BGLPipeline>(
+			bglDevice,
+			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/point_light.vert.spv",
+			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/point_light.frag.spv",
+			pipelineConfig);
+#endif
 	}
 }
 
