@@ -3,7 +3,7 @@ set(GLM_PATH            C:/Users/locti/OneDrive/Documents/VisualStudioProjects/V
 set(KTX                 C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/include)
 set(KTX_LIB             C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug)
 set(STB                 C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/stb)
-set(ENTT                C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/entt-3.12.2/single_include/entt)
+set(ENTT                C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/entt/single_include/entt)
 set(VULKAN_SDK_PATH     C:/VulkanSDK/1.3.261.1)
 set(IMGUI               C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/imgui)
 # Set MINGW_PATH if using mingwBuild.bat and not VisualStudio20XX

@@ -135,6 +135,9 @@
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\simple_render_system.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_imgui.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -142,9 +145,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\backends\imgui_impl_glfw.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\bagel_imgui.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
