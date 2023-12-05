@@ -16,16 +16,13 @@
 
 #include "bagel_frame_info.hpp"
 #include "bagel_buffer.hpp"
-#include "bagel_imgui.h"
+
 #include "bgl_camera.hpp"
 #include "bagel_ecs_components.hpp"
 #include "keyboard_movement_controller.hpp"
 #include "entt.hpp"
 
-#define IMGUI
 #define GLOBAL_DESCRIPTOR_COUNT 1000
-#define BINDLESS
-#define MAX_MODEL_COUNT 10
 #define USE_ABS_PATH
 //#define SHOW_FPS
 
@@ -51,13 +48,13 @@ namespace bagel {
 	//this means r and g from the memory will be assigned to blank memory, causing those value to be unread
 	//to fix this, align the vec3 variable to the multiple of 16 bytes with alignas(16)
 
-	static void check_vk_result(VkResult err)
-	{
-		if (err == 0)
-			return;
-		fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
-		if (err < 0)
-			abort();
+	//Console Callbacks
+	//The console will call Addlog() with the returned char*
+	char* ToggleFly(void* ptr) {
+		FirstApp* app = static_cast<FirstApp*>(ptr);
+		app->freeFly = !app->freeFly;
+		if (app->freeFly) return "Free fly acivated";
+		else return "Free fly deacivated";
 	}
 
 	FirstApp::FirstApp()
@@ -74,21 +71,18 @@ namespace bagel {
 		std::cout << "Finished Creating Global Pool\n";
 		registry = entt::registry{};
 		std::cout << "Creating Entity Registry\n";
-#ifdef IMGUI
+
 		std::cout << "Initializing IMGUI\n";
 		init_imgui();
-
-#endif
 	}
 
 	FirstApp::~FirstApp()
 	{
-#ifdef IMGUI
 		//add the destroy the imgui created structures
-		vkDestroyDescriptorPool(bglDevice.device(), imguiPool, nullptr);
 		ImGui_ImplVulkan_Shutdown();
-#endif
+		vkDestroyDescriptorPool(bglDevice.device(), imguiPool, nullptr);
 	}
+
 	void FirstApp::run()
 	{	
 		ImGuiIO& imguiIO = ImGui::GetIO();
@@ -125,6 +119,9 @@ namespace bagel {
 		auto viewerObject = BGLGameObject::createGameObject();
 		//viewerObject.createDefaultTransform();
 		KeyboardMovementController cameraController{};
+		
+		console.AddCommand("FREEFLY", this, ToggleFly);
+
 		// Game loop
 		while (!bglWindow.shouldClose())
 		{
@@ -138,16 +135,13 @@ namespace bagel {
 			float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
 			currentTime = newTime;
 
-			if (!imguiIO.WantCaptureKeyboard) {
-				cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
-			}
+			if(freeFly) cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
 
 			camera.setViewYXZ(viewerObject.transform.translation[0], viewerObject.transform.rotation[0]);
 
 			float aspect = bglRenderer.getAspectRatio();
 			camera.setPerspectiveProjection(glm::radians(70.0f), aspect, 0.1f, 30.0f);
 
-#ifdef IMGUI
 			//imgui new frame
 			ImGui_ImplVulkan_NewFrame();
 			ImGui_ImplGlfw_NewFrame();
@@ -155,10 +149,10 @@ namespace bagel {
 
 			//imgui commands
 			//ImGui::ShowDemoWindow();
-			static ConsoleApp console;
 			console.Draw("Console", nullptr);
+			
 			ImGui::Render();
-#endif
+
 			//bglRenderer.beginFrame returns nullptr if the swapchain needs to be recreated
 			if (auto commandBuffer = bglRenderer.beginFrame()) {
 				FrameInfo frameInfo{
@@ -187,9 +181,8 @@ namespace bagel {
 
 				modelRenderSystem.renderEntities(frameInfo);
 				pointLightSystem.render(frameInfo);
-#ifdef IMGUI
+
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
-#endif
 				
 				bglRenderer.endSwapChainRenderPass(commandBuffer);
 				bglRenderer.endFrame();
@@ -237,6 +230,7 @@ namespace bagel {
 
 		auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2, bglDevice);
 		auto& tc2 = registry.emplace<bagel::TextureComponent>(e2, bglDevice);
+
 #ifndef USE_ABS_PATH 
 		modelBuilder->setBuildTarget(&mdc2);
 		modelBuilder->buildComponent("../models/axis.obj");
@@ -249,7 +243,6 @@ namespace bagel {
 		textureBuilder->setBuildTarget(&tc2);
 		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/axis.ktx");
 #endif
-
 		delete modelBuilder;
 		delete textureBuilder;
 

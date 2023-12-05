@@ -7,7 +7,15 @@
 #include <stdio.h>          // vsnprintf, sscanf, printf
 #include <stdlib.h>         // NULL, malloc, free, atoi
 #include <stdint.h>         // intptr_t
+#include <map>
+#include <functional>
+
 namespace bagel {
+
+    char* ClearConsole(void* ptr);
+    char* HelpCommand(void* ptr);
+    char* HistoryCommand(void* ptr);
+
     struct ConsoleApp
     {
         char                  InputBuf[256];
@@ -19,6 +27,9 @@ namespace bagel {
         bool                  AutoScroll;
         bool                  ScrollToBottom;
 
+        bool testToggle = false;
+
+        std::map<const char*, std::pair<void*, std::function<char*(void*)>>> callbackMap;
 
         ConsoleApp()
         {
@@ -28,10 +39,9 @@ namespace bagel {
             HistoryPos = -1;
 
             // "CLASSIFY" is here to provide the test case where "C"+[tab] completes to "CL" and display multiple matches.
-            Commands.push_back("HELP");
-            Commands.push_back("HISTORY");
-            Commands.push_back("CLEAR");
-            Commands.push_back("CLASSIFY");
+            AddCommand("CLEAR", this, ClearConsole);
+            AddCommand("HELP", this, HelpCommand);
+            AddCommand("HISTORY", this, HistoryCommand);
             AutoScroll = true;
             ScrollToBottom = false;
             AddLog("Welcome to Dear ImGui!");
@@ -44,10 +54,15 @@ namespace bagel {
         }
 
         // Portable helpers
-        static int   Stricmp(const char* s1, const char* s2) { int d; while ((d = toupper(*s2) - toupper(*s1)) == 0 && *s1) { s1++; s2++; } return d; }
+        static int   stringCompare(const char* s1, const char* s2) { int d; while ((d = toupper(*s2) - toupper(*s1)) == 0 && *s1) { s1++; s2++; } return d; }
         static int   Strnicmp(const char* s1, const char* s2, int n) { int d = 0; while (n > 0 && (d = toupper(*s2) - toupper(*s1)) == 0 && *s1) { s1++; s2++; n--; } return d; }
         static char* Strdup(const char* s) { IM_ASSERT(s); size_t len = strlen(s) + 1; void* buf = malloc(len); IM_ASSERT(buf); return (char*)memcpy(buf, (const void*)s, len); }
         static void  Strtrim(char* s) { char* str_end = s + strlen(s); while (str_end > s && str_end[-1] == ' ') str_end--; *str_end = 0; }
+
+        void AddCommand(const char* name, void* obj, std::function<char*(void*)> callback) {
+            Commands.push_back(name);
+            callbackMap.emplace(name, std::pair{ obj, callback});
+        }
 
         void ClearLog()
         {
@@ -91,12 +106,21 @@ namespace bagel {
                 "This example implements a console with basic coloring, completion (TAB key) and history (Up/Down keys). A more elaborate "
                 "implementation may want to store entries along with extra data such as timestamp, emitter, etc.");
             ImGui::TextWrapped("Enter 'HELP' for help.");
+            ImGui::TextWrapped("Press 'TAB' for auto-complete.");
 
             // TODO: display items starting from the bottom
-
             if (ImGui::SmallButton("Add Debug Text")) { AddLog("%d some text", Items.Size); AddLog("some more text"); AddLog("display very important message here!"); }
             ImGui::SameLine();
-            if (ImGui::SmallButton("Add Debug Error")) { AddLog("[error] something went wrong"); }
+            if (ImGui::SmallButton("Add Button")) {
+                testToggle = !testToggle;
+            }
+            if (testToggle) {
+                ImGui::SameLine();
+                ImGui::SmallButton("More button??");
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Add Debug Error")) AddLog("[error] something went wrong"); 
+            
             ImGui::SameLine();
             if (ImGui::SmallButton("Clear")) { ClearLog(); }
             ImGui::SameLine();
@@ -158,8 +182,7 @@ namespace bagel {
                     ImGui::LogToClipboard();
                 for (const char* item : Items)
                 {
-                    if (!Filter.PassFilter(item))
-                        continue;
+                    if (!Filter.PassFilter(item)) continue;
 
                     // Normally you would store more information in your item than just a string.
                     // (e.g. make Items[] an array of structure, store color/type etc.)
@@ -202,9 +225,7 @@ namespace bagel {
 
             // Auto-focus on window apparition
             ImGui::SetItemDefaultFocus();
-            if (reclaim_focus)
-                ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
-
+            if (reclaim_focus) ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
             ImGui::End();
         }
 
@@ -216,7 +237,7 @@ namespace bagel {
             // This isn't trying to be smart or optimal.
             HistoryPos = -1;
             for (int i = History.Size - 1; i >= 0; i--)
-                if (Stricmp(History[i], command_line) == 0)
+                if (stringCompare(History[i], command_line) == 0)
                 {
                     free(History[i]);
                     History.erase(History.begin() + i);
@@ -225,26 +246,18 @@ namespace bagel {
             History.push_back(Strdup(command_line));
 
             // Process command
-            if (Stricmp(command_line, "CLEAR") == 0)
+            //Loop through callbackMap to check against all commands
+            bool ran = false;
+            for (auto it = callbackMap.begin(); it != callbackMap.end();it++)
             {
-                ClearLog();
+                if (stringCompare(command_line, it->first) == 0) {
+                    //Find and call callback function
+                    AddLog((it->second.second)(it->second.first));
+                    ran = true;
+                    break;
+                }
             }
-            else if (Stricmp(command_line, "HELP") == 0)
-            {
-                AddLog("Commands:");
-                for (int i = 0; i < Commands.Size; i++)
-                    AddLog("- %s", Commands[i]);
-            }
-            else if (Stricmp(command_line, "HISTORY") == 0)
-            {
-                int first = History.Size - 10;
-                for (int i = first > 0 ? first : 0; i < History.Size; i++)
-                    AddLog("%3d: %s\n", i, History[i]);
-            }
-            else
-            {
-                AddLog("Unknown command: '%s'\n", command_line);
-            }
+            if(!ran) AddLog("Unknown command: '%s'\n", command_line);
 
             // On command input, we scroll to bottom even if AutoScroll==false
             ScrollToBottom = true;
@@ -257,15 +270,14 @@ namespace bagel {
             return console->TextEditCallback(data);
         }
 
-        int     TextEditCallback(ImGuiInputTextCallbackData* data)
+        int TextEditCallback(ImGuiInputTextCallbackData* data)
         {
             //AddLog("cursor: %d, selection: %d-%d", data->CursorPos, data->SelectionStart, data->SelectionEnd);
             switch (data->EventFlag)
             {
+            // Example of TEXT COMPLETION
             case ImGuiInputTextFlags_CallbackCompletion:
             {
-                // Example of TEXT COMPLETION
-
                 // Locate beginning of current word
                 const char* word_end = data->Buf + data->CursorPos;
                 const char* word_start = word_end;
@@ -322,10 +334,8 @@ namespace bagel {
 
                     // List matches
                     AddLog("Possible matches:\n");
-                    for (int i = 0; i < candidates.Size; i++)
-                        AddLog("- %s\n", candidates[i]);
+                    for (int i = 0; i < candidates.Size; i++) AddLog("- %s\n", candidates[i]);
                 }
-
                 break;
             }
             case ImGuiInputTextFlags_CallbackHistory:
@@ -342,8 +352,7 @@ namespace bagel {
                 else if (data->EventKey == ImGuiKey_DownArrow)
                 {
                     if (HistoryPos != -1)
-                        if (++HistoryPos >= History.Size)
-                            HistoryPos = -1;
+                        if (++HistoryPos >= History.Size) HistoryPos = -1;
                 }
 
                 // A better implementation would preserve the data on the current input line along with cursor position.

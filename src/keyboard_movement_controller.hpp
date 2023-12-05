@@ -21,7 +21,6 @@ namespace bagel {
 
 		bool moveInPlaneXZ(GLFWwindow* window, float dt, BGLGameObject& gameObject, uint32_t transformIndex);
 
-
 		KeyMappings keys{};
 		float moveSpeed{ 3.0f };
 		float lookSpeed{ 1.5f };

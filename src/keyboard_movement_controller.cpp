@@ -1,8 +1,11 @@
 #include "keyboard_movement_controller.hpp"
 #include <limits>
+#include "imgui.h"
 
 bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float dt, BGLGameObject& gameObject, uint32_t transformIndex)
 {
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantCaptureKeyboard) return false;
 	bool updated = false;
 	glm::vec3 rotate{ 0 };
 	if (glfwGetKey(window, keys.lookRight) == GLFW_PRESS) rotate.y += 1.0f;

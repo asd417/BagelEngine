@@ -14,6 +14,7 @@
 #include "bgl_gameobject.hpp"
 #include "bgl_model.hpp"
 #include "bagel_textures.h"
+#include "bagel_imgui.h"
 
 #include <memory>
 #include <vector>
@@ -47,6 +48,11 @@ namespace bagel {
 		void run();
 		void loadECSObjects();
 		entt::registry& getRegistry() { return registry; }
+
+		bool freeFly = false;
+
+		ConsoleApp console{};
+
 	private:
 		BGLWindow bglWindow{ WIDTH, HEIGHT, "Bagel Engine" };
 		BGLDevice bglDevice{ bglWindow };

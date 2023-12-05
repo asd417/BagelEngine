@@ -79,6 +79,9 @@
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\backends\imgui_impl_glfw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="bagel_imgui.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_bindless.hpp">
