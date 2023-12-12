@@ -246,12 +246,12 @@ namespace bagel {
             History.push_back(Strdup(command_line));
 
             // Process command
-            //Loop through callbackMap to check against all commands
+            // Loop through callbackMap to check against all commands
             bool ran = false;
             for (auto it = callbackMap.begin(); it != callbackMap.end();it++)
             {
                 if (stringCompare(command_line, it->first) == 0) {
-                    //Find and call callback function
+                    //Find and call callback function. It will only run the first command that fits
                     AddLog((it->second.second)(it->second.first));
                     ran = true;
                     break;

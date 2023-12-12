@@ -17,10 +17,10 @@
 #include <vector>
 
 namespace bagel {
+
 	class ModelRenderSystem {
 	public:
-
-		ModelRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts);
+		ModelRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts, std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager);
 		~ModelRenderSystem();
 
 		ModelRenderSystem(const ModelRenderSystem&) = delete;
@@ -35,7 +35,8 @@ namespace bagel {
 
 		std::unique_ptr<BGLPipeline> bglPipeline;
 		VkPipelineLayout pipelineLayout;
-
+		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
+		std::unique_ptr <BGLBuffer> objDataBuffer;
 	};
 
 }

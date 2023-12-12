@@ -1,5 +1,38 @@
 #include "bagel_ecs_components.hpp"
+
+#include "bagel_buffer.hpp"
+#include <memory>
+#define MAX_TRANSFORM_ARRAYSIZE 100000
+
 namespace bagel {
+    struct OBJDataBufferUnit {
+        glm::mat4 modelMatrix{ 1.0f };
+        glm::mat4 normalMatrix{ 1.0f };
+    };
+
+    DataBufferComponent::DataBufferComponent(BGLDevice& device, BGLBindlessDescriptorManager& descriptorManager) : bglDevice{ device }
+    {
+        objDataBuffer = std::make_unique<BGLBuffer>(
+            bglDevice,
+            sizeof(OBJDataBufferUnit),
+            MAX_TRANSFORM_ARRAYSIZE,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+        objDataBuffer->map();
+        bufferHandle = descriptorManager.storeBuffer(objDataBuffer->descriptorInfo());
+    }
+
+    DataBufferComponent::~DataBufferComponent()
+    {
+        objDataBuffer->unmap();
+    }
+
+    void DataBufferComponent::writeToBuffer(void* data, size_t size, size_t offset)
+    {
+        objDataBuffer->writeToBuffer(data, size, offset);
+        objDataBuffer->flush();
+    }
+
     glm::mat4 TransformComponent::mat4(uint32_t index)
     {
         const float c3 = glm::cos(rotation[index].z);
@@ -56,6 +89,18 @@ namespace bagel {
                 invScale.z * (-s2),
                 invScale.z * (c1 * c2),
             } };
+    }
+    void TransformComponent::ToBufferComponent(DataBufferComponent& bufferComponent)
+    {
+        for (int i = 0; i < translation.size(); i++) {
+            OBJDataBufferUnit objData{};
+            objData.modelMatrix = mat4(i);
+            objData.normalMatrix = normalMatrix(i);
+
+            bufferComponent.writeToBuffer(&objData, sizeof(objData), i * sizeof(OBJDataBufferUnit));
+        }
+        bufferHandle = bufferComponent.getBufferHandle();
+        usingBuffer = true;
     }
     TextureComponent::TextureComponent(BGLDevice& device) : bglDevice{device}
     {

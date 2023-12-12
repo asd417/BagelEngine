@@ -1,6 +1,7 @@
 #version 450
 
 #extension GL_KHR_vulkan_glsl : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
@@ -13,6 +14,7 @@ layout(location=0) out vec3 fragPosWorld;
 layout(location=1) out vec3 fragNormalWorld;
 layout(location=2) out vec2 fragUV;
 layout(location=3) out int fragIndex;
+layout(location=4) out int isInstancedTransform;
 
 struct PointLight {
 	vec4 position; // ignore w
@@ -28,21 +30,41 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
 	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
 	int numLights;
 } ubo;
+
+struct ObjectData{
+	mat4 modelMatrix;
+	mat4 normalMatrix;
+};
+layout (set = 0, binding = 1) readonly buffer objTransform {
+	ObjectData objects[];
+} objTransformArray[];
+
 layout (set = 0, binding = 2) uniform sampler2D GlobalUBOColor;
 
-layout(push_constant) uniform Push { 
+layout(push_constant) uniform Push {
 	mat4 modelMatrix;
 	mat4 normalMatrix;
 	uint textureHandle;
+	uint BufferedTransformHandle;
+	uint UsesBufferedTransform;
 } push;
 
 //Executed once per vertex
 void main() {
+	vec4 positionWorld;
 	//Converts vertex position to world position
-	vec4 positionWorld = push.modelMatrix * vec4(position,1.0);
-	//Converts vertex position to screen space
-	gl_Position = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
-	fragNormalWorld = normalize(mat3(push.normalMatrix) * normal);
+	if(push.UsesBufferedTransform != 0){
+		positionWorld = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].modelMatrix * vec4(position,1.0);
+		//Converts vertex position to screen space
+		gl_Position = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
+		fragNormalWorld = normalize(mat3(objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].normalMatrix) * normal);
+		isInstancedTransform = 1;
+	} else {
+		positionWorld = push.modelMatrix * vec4(position,1.0);
+		gl_Position = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
+		fragNormalWorld = normalize(mat3(push.normalMatrix) * normal);
+		isInstancedTransform = 0;
+	}
 	fragPosWorld = positionWorld.xyz;
 	fragUV = uv;
 	fragIndex = texture_index;

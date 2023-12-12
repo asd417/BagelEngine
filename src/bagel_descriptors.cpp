@@ -24,7 +24,6 @@
 namespace bagel {
 
     // *************** Descriptor Set Layout Builder *********************
-
     //Checks if the binding at the specified index hasnt already been a
     BGLDescriptorSetLayout::Builder& BGLDescriptorSetLayout::Builder::addBinding(
         uint32_t binding,
@@ -314,10 +313,10 @@ namespace bagel {
         vkUpdateDescriptorSets(bglDevice.device(), 1, &write, 0, nullptr);
     }
 
-    uint32_t BGLBindlessDescriptorManager::storeBuffer(BGLBuffer& buffer)
+    uint32_t BGLBindlessDescriptorManager::storeBuffer(VkDescriptorBufferInfo bufferInfo)
     {
         size_t newHandle = buffers.size();
-        buffers.push_back(buffer.getBuffer());
+        buffers.push_back(bufferInfo);
 
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -327,7 +326,8 @@ namespace bagel {
 
         // Write one buffer that is being added
         write.descriptorCount = 1;
-        write.pBufferInfo = &buffer.descriptorInfo();
+        write.pBufferInfo = &bufferInfo;
+        write.dstArrayElement = newHandle;
 
         vkUpdateDescriptorSets(bglDevice.device(), 1, &write, 0, nullptr);
         return newHandle;

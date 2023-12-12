@@ -8,12 +8,14 @@ layout(location=1) in vec3 fragNormalWorld;
 layout(location=2) in vec2 fragUV;
 layout(location=3) flat in int fragIndex;
 
+
 layout(location=0) out vec4 outColor;
 
 struct PointLight {
 	vec4 position; // ignore w
 	vec4 color; // w intensity
 };
+
 const float gamma = 2.2;
 const float PI = 3.1415926538;
 const int MAX_LIGHTS = 10; //Must match value in bagel_frame_info.hpp
@@ -26,13 +28,23 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
 	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
 	int numLights;
 } ubo;
+
+struct ObjectData{
+	mat4 modelMatrix;
+	mat4 normalMatrix;
+};
+layout (set = 0, binding = 1) readonly buffer objTransform {
+	ObjectData objects[];
+};
+
 layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
 //layout (set = 1, binding = 0) uniform sampler2D samplerModelColor;
 
-layout(push_constant) uniform Push { 
+layout(push_constant) uniform Push {
 	mat4 modelMatrix;
 	mat4 normalMatrix;
 	uint textureHandle;
+	bool useInstancedTransform;
 } push;
 
 //Normal distribution function

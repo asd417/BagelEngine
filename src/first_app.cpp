@@ -59,7 +59,6 @@ namespace bagel {
 
 	FirstApp::FirstApp()
 	{
-		
 		globalPool = BGLDescriptorPool::Builder(bglDevice)
 			.setMaxSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT + GLOBAL_DESCRIPTOR_COUNT)
 			.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1)
@@ -106,7 +105,8 @@ namespace bagel {
 		ModelRenderSystem modelRenderSystem{
 			bglDevice,
 			bglRenderer.getSwapChainRenderPass(),
-			pipelineDescriptorSetLayouts };
+			pipelineDescriptorSetLayouts,
+			descriptorManager};
 
 		PointLightSystem pointLightSystem{
 			bglDevice,
@@ -203,14 +203,16 @@ namespace bagel {
 
 		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
 
-		
 		const auto e1 = registry.create();
 		auto& tfc = registry.emplace<bagel::TransformComponent>(e1);
-
-		tfc.setTransform(0, { 2.0f * 1, 2.0f * 1, 2.0f * 1 }, {-1.0f,-1.0f, -1.0f});
 		auto& mdc = registry.emplace<bagel::ModelDescriptionComponent>(e1, bglDevice);
 		auto& tc = registry.emplace<bagel::TextureComponent>(e1, bglDevice);
+		auto& bufferE1Comp = registry.emplace<bagel::DataBufferComponent>(e1, bglDevice, *descriptorManager);
 
+		//tfc.setTransform(0, { 2.0f * 1, 2.0f * 1, 2.0f * 1 }, {-1.0f,-1.0f, -1.0f});
+		for (int i = 0; i < 1000; i++) tfc.addTransform({ -2.0f + 1.0f * i, 5.0f , 4.0f }, { 1.0f, 1.0f, 1.0f });
+		tfc.ToBufferComponent(bufferE1Comp);
+		std::cout << "tfc bufferhandle: " << bufferE1Comp.getBufferHandle() << "\n";
 #ifndef USE_ABS_PATH
 		modelBuilder->setBuildTarget(&mdc);
 		modelBuilder->buildComponent("../models/flatfaces.obj");
@@ -223,10 +225,16 @@ namespace bagel {
 		textureBuilder->setBuildTarget(&tc);
 		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/c_rocketlauncher.ktx");
 #endif
-		std::cout << "Creating entity 2\n";
+		std::cout << "Creating entity 2\n"; 
 		const auto e2 = registry.create();
 		auto& tfc2 = registry.emplace<bagel::TransformComponent>(e2);
-		tfc2.setTransform(0, { 2.0f * 2.5f, 2.0f * 1, 2.0f * 1 }, { 1.0f, 1.0f, 1.0f });
+		auto& bufferComp = registry.emplace<bagel::DataBufferComponent>(e2, bglDevice, *descriptorManager);
+		tfc2.setTransform(0, { -5.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f });
+
+		for (int i = 0; i < 1000; i++) tfc2.addTransform({ -5.0f + 1.0f * i, 2.0f , 0.0f}, { 1.0f, 1.0f, 1.0f });
+
+		tfc2.ToBufferComponent(bufferComp);
+		std::cout << "tfc2 bufferhandle: " << bufferComp.getBufferHandle() << "\n";
 
 		auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2, bglDevice);
 		auto& tc2 = registry.emplace<bagel::TextureComponent>(e2, bglDevice);

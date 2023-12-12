@@ -12,9 +12,10 @@
 #include <glm/glm.hpp>
 #define BINDLESS
 
+#define MAX_TRANSFORM_ARRAYSIZE 1000
+#define BUFFER_COMP_TEST
+
 namespace bagel {
-
-
 	// PushConstantData is a performant and simple way to send data to vertex and fragment shader
 	// It is typically faster than descriptor sets for frequently updated data
 	// 
@@ -46,22 +47,41 @@ namespace bagel {
 		glm::mat4 modelMatrix{ 1.0f };
 		glm::mat4 normalMatrix{ 1.0f };
 		uint32_t textureHandle;
+		uint32_t BufferedTransformHandle = 0;
+		uint32_t UsesBufferedTransform = 0;
 	};
 
-	ModelRenderSystem::ModelRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts) : bglDevice{device}
+	struct OBJDataBufferUnit {
+		glm::mat4 modelMatrix{ 1.0f };
+		glm::mat4 normalMatrix{ 1.0f };
+	};
+
+	ModelRenderSystem::ModelRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts, std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager) : bglDevice{ device }, descriptorManager{ _descriptorManager }
 	{
+#ifndef BUFFER_COMP_TEST
+		objDataBuffer = std::make_unique<BGLBuffer>(
+			bglDevice,
+			sizeof(OBJDataBufferUnit),
+			MAX_TRANSFORM_ARRAYSIZE,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		objDataBuffer->map();
+		descriptorManager->storeBuffer(objDataBuffer->descriptorInfo());
+#endif
 		createPipelineLayout(setLayouts);
 		createPipeline(renderPass);
 	}
 	ModelRenderSystem::~ModelRenderSystem()
 	{
 		vkDestroyPipelineLayout(bglDevice.device(), pipelineLayout, nullptr);
+#ifndef BUFFER_COMP_TEST
+		objDataBuffer->unmap();
+#endif
 	}
 	
 	void ModelRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
 		bglPipeline->bind(frameInfo.commandBuffer);
-		//uint32_t ints[1] = {static_cast<uint32_t>(sizeof(frameInfo.globalDescriptorSets[1])) };
 		vkCmdBindDescriptorSets(
 			frameInfo.commandBuffer,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -73,43 +93,45 @@ namespace bagel {
 
 		auto view = frameInfo.registry.view<TransformComponent, ModelDescriptionComponent, TextureComponent>();
 		for (auto [entity, transformComp, modelDescComp, textureComp] : view.each()) {
+
 			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
 
+			ECSPushConstantData push{};
+			push.textureHandle = textureComp.textureHandle;
+			push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
+			push.BufferedTransformHandle = transformComp.bufferHandle;
+			//std::cout << "push.useInstancedTransform is " << push.useInstancedTransform << "\n";
+			if (!transformComp.useBuffer()) {
+				push.modelMatrix = transformComp.mat4(0);
+				push.normalMatrix = transformComp.normalMatrix(0);
+			}
+
+			vkCmdPushConstants(
+				frameInfo.commandBuffer,
+				pipelineLayout,
+				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+				0,
+				sizeof(ECSPushConstantData),
+				&push);
+
+#ifndef BUFFER_COMP_TEST
+			for (int i = 0; i < transformComp.translation.size(); i++) {
+				OBJDataBufferUnit objData{};
+				objData.modelMatrix = transformComp.mat4(i);
+				objData.normalMatrix = transformComp.normalMatrix(i);
+
+				objDataBuffer->writeToBuffer(&objData, sizeof(objData), i * sizeof(OBJDataBufferUnit));
+			}
+			objDataBuffer->flush();
+#endif
+			
 			if (modelDescComp.hasIndexBuffer) {
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				for (int i = 0; i < transformComp.translation.size(); i++) {
-					ECSPushConstantData push{};
-					push.modelMatrix = transformComp.mat4(i);
-					push.normalMatrix = transformComp.normalMatrix(i);
-					push.textureHandle = textureComp.textureHandle;
-
-					vkCmdPushConstants(
-						frameInfo.commandBuffer,
-						pipelineLayout,
-						VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-						0,
-						sizeof(ECSPushConstantData),
-						&push);
-					vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, 1, 0, 0, 0);
-				}
+				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.translation.size(), 0, 0, 0);
 			} else {
-				for (int i = 0; i < transformComp.translation.size(); i++) {
-					ECSPushConstantData push{};
-					push.modelMatrix = transformComp.mat4(i);
-					push.normalMatrix = transformComp.normalMatrix(i);
-					push.textureHandle = textureComp.textureHandle;
-
-					vkCmdPushConstants(
-						frameInfo.commandBuffer,
-						pipelineLayout,
-						VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-						0,
-						sizeof(ECSPushConstantData),
-						&push);
-					vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, 0, 0);
-				}
+				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.translation.size(), 0, 0);
 			}
 		}
 	}

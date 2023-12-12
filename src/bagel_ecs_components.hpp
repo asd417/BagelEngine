@@ -4,7 +4,11 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <exception>
+
 #include "bagel_engine_device.hpp"
+#include "bagel_descriptors.hpp"
+
 //#include "bagel_textures.h"
 
 // GLM functions will expect radian angles for all its functions
@@ -15,15 +19,37 @@
 #define BINDLESS
 
 namespace bagel {
-	struct TransformComponent {
+
+	struct DataBufferComponent {
+		std::unique_ptr<BGLBuffer> objDataBuffer;
+		BGLDevice& bglDevice;
+		uint32_t bufferHandle;
+		DataBufferComponent(BGLDevice& device, BGLBindlessDescriptorManager& descriptorManager);
+		~DataBufferComponent();
+		void writeToBuffer(void* data, size_t size, size_t offset);
+		uint32_t getBufferHandle() const { return bufferHandle; }
+	};
+
+	struct BufferableComponent {
+		virtual void ToBufferComponent(const DataBufferComponent&) {
+			throw std::exception("Not Implemented");
+		};
+	};
+
+	struct TransformComponent : BufferableComponent {
 		std::vector<glm::vec3> translation{ {0.f,0.f,0.f} };
 		std::vector<glm::vec3> scale{ {-0.1f,-0.1f,-0.1f} };
 		std::vector<glm::vec3> rotation{ {0.f,0.f,0.f} };
 		glm::mat4 mat4(uint32_t index);
 		glm::mat3 normalMatrix(uint32_t index);
+		// If using buffer, bufferHandle will store the buffer handle index
+		uint32_t bufferHandle = 0;
+		bool usingBuffer = false;
 		TransformComponent() {}
 		TransformComponent(float x, float y, float z) { translation = { {x,y,z} }; }
 		TransformComponent(glm::vec4 loc) { translation[0] = loc; }
+		bool useBuffer() const { return usingBuffer; }
+
 		void addTransform(glm::vec3 _translation, glm::vec3 _scale = { -0.1f,-0.1f,-0.1f }, glm::vec3 _rotation = { 0.f,0.f,0.f })
 		{
 			translation.push_back(_translation);
@@ -44,6 +70,7 @@ namespace bagel {
 			scale = { {-0.1f,-0.1f,-0.1f} };
 			rotation = { {0.f,0.f,0.f} };
 		}
+		void ToBufferComponent(DataBufferComponent& bufferComponent);
 	};
 	struct PointLightComponent {
 		glm::vec4 color = { 1.0f,1.0f,1.0f,1.0f }; //4th is strength

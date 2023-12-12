@@ -116,7 +116,7 @@ namespace bagel {
         void createBindlessDescriptorSet(uint32_t descriptorCount);
 
         void storeUBO(VkDescriptorBufferInfo bufferInfo);
-        uint32_t storeBuffer(BGLBuffer& buffer);
+        uint32_t storeBuffer(VkDescriptorBufferInfo bufferInfo);
         uint32_t storeTexture(VkImageView imageView, VkSampler sampler);
 
         //Can use these functions to store handle if the last bound resource is the same as one being bound;
@@ -128,7 +128,7 @@ namespace bagel {
     private:
         BGLDevice& bglDevice;
         BGLDescriptorPool& globalPool;
-        std::vector<VkBuffer> buffers{};
+        std::vector<VkDescriptorBufferInfo> buffers{};
         std::vector<VkImageView> textures{};
         VkDescriptorSetLayout bindlessSetLayout = nullptr;
         VkDescriptorSet bindlessDescriptorSet = nullptr;
