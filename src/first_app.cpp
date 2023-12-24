@@ -1,5 +1,6 @@
 #include "first_app.hpp"
 
+// STL includes
 #include <iostream>
 #include <stdexcept>
 #include <array>
@@ -7,6 +8,8 @@
 #include <chrono>
 #include <vector>
 
+
+#include "entt.hpp"
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -16,15 +19,21 @@
 
 #include "bagel_frame_info.hpp"
 #include "bagel_buffer.hpp"
-
 #include "bgl_camera.hpp"
 #include "bagel_ecs_components.hpp"
+#include "bagel_jolt/bagel_jolt.hpp"
 #include "keyboard_movement_controller.hpp"
-#include "entt.hpp"
+
+#include "bagel_console_commands.hpp"
 
 #define GLOBAL_DESCRIPTOR_COUNT 1000
 #define USE_ABS_PATH
-//#define SHOW_FPS
+#define SHOW_FPS
+
+//#define INSTANCERENDERTEST
+//#define PHYSICSTEST
+
+
 
 namespace bagel {
 	// PushConstantData is a performant and simple way to send data to vertex and fragment shader
@@ -48,14 +57,6 @@ namespace bagel {
 	//this means r and g from the memory will be assigned to blank memory, causing those value to be unread
 	//to fix this, align the vec3 variable to the multiple of 16 bytes with alignas(16)
 
-	//Console Callbacks
-	//The console will call Addlog() with the returned char*
-	char* ToggleFly(void* ptr) {
-		FirstApp* app = static_cast<FirstApp*>(ptr);
-		app->freeFly = !app->freeFly;
-		if (app->freeFly) return "Free fly acivated";
-		else return "Free fly deacivated";
-	}
 
 	FirstApp::FirstApp()
 	{
@@ -72,7 +73,9 @@ namespace bagel {
 		std::cout << "Creating Entity Registry\n";
 
 		std::cout << "Initializing IMGUI\n";
-		init_imgui();
+		initImgui();
+		std::cout << "Initializing Jolt Physics Engine\n";
+		initJolt();
 	}
 
 	FirstApp::~FirstApp()
@@ -84,8 +87,6 @@ namespace bagel {
 
 	void FirstApp::run()
 	{	
-		ImGuiIO& imguiIO = ImGui::GetIO();
-
 		//Create UBO buffer. Single for bindless design
 		std::unique_ptr<BGLBuffer> uboBuffers;
 		uboBuffers = std::make_unique<BGLBuffer>(
@@ -99,7 +100,6 @@ namespace bagel {
 		VkDescriptorBufferInfo bufferInfo = uboBuffers->descriptorInfo();
 		descriptorManager->storeUBO(bufferInfo);
 		
-		loadECSObjects();
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { descriptorManager->getDescriptorSetLayout() };
 
 		ModelRenderSystem modelRenderSystem{
@@ -108,20 +108,30 @@ namespace bagel {
 			pipelineDescriptorSetLayouts,
 			descriptorManager};
 
+		WireframeRenderSystem wireframeRenderSystem{
+			bglDevice,
+			bglRenderer.getSwapChainRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager };
+
 		PointLightSystem pointLightSystem{
 			bglDevice,
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts };
 
 		BGLCamera camera{};
-		auto currentTime = std::chrono::high_resolution_clock::now();
 
 		auto viewerObject = BGLGameObject::createGameObject();
-		//viewerObject.createDefaultTransform();
 		KeyboardMovementController cameraController{};
 		
-		console.AddCommand("FREEFLY", this, ToggleFly);
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		std::chrono::microseconds prevFrameTime;
+		float dt = 1.0f / 3000.0f;
 
+		initCommand();
+
+		loadECSObjects();
+		
 		// Game loop
 		while (!bglWindow.shouldClose())
 		{
@@ -137,23 +147,29 @@ namespace bagel {
 
 			if(freeFly) cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
 
-			camera.setViewYXZ(viewerObject.transform.translation[0], viewerObject.transform.rotation[0]);
+			camera.setViewYXZ(viewerObject.transform.translation, viewerObject.transform.rotation);
 
 			float aspect = bglRenderer.getAspectRatio();
-			camera.setPerspectiveProjection(glm::radians(70.0f), aspect, 0.1f, 30.0f);
+			camera.setPerspectiveProjection(glm::radians(100.0f), aspect, 0.1f, 300.0f);
 
-			//imgui new frame
+			// Physics
+			if (runPhys) {
+				BGLJolt::GetInstance()->Step(dt, 3);
+				BGLJolt::GetInstance()->ApplyPhysicsTransform();
+			}
+
+			// Render
+			// imgui new frame
 			ImGui_ImplVulkan_NewFrame();
 			ImGui_ImplGlfw_NewFrame();
 			ImGui::NewFrame();
 
-			//imgui commands
-			//ImGui::ShowDemoWindow();
+			//imgui draw commands
 			console.Draw("Console", nullptr);
 			
 			ImGui::Render();
-
-			//bglRenderer.beginFrame returns nullptr if the swapchain needs to be recreated
+			
+			// bglRenderer.beginFrame returns nullptr if the swapchain needs to be recreated
 			if (auto commandBuffer = bglRenderer.beginFrame()) {
 				FrameInfo frameInfo{
 					frameTime,
@@ -165,9 +181,7 @@ namespace bagel {
 
 				//Update
 				GlobalUBO ubo{};
-				ubo.projectionMatrix = camera.getProjection();
-				ubo.viewMatrix = camera.getView();
-				ubo.inverseViewMatrix = camera.getInverseView();
+				ubo.updateCameraInfo(camera.getProjection(), camera.getView(), camera.getInverseView());
 
 				pointLightSystem.update(frameInfo, ubo);
 
@@ -179,6 +193,7 @@ namespace bagel {
 
 				//always render solid objects before rendering transparent objects
 
+				//wireframeRenderSystem.renderEntities(frameInfo);
 				modelRenderSystem.renderEntities(frameInfo);
 				pointLightSystem.render(frameInfo);
 
@@ -188,11 +203,13 @@ namespace bagel {
 				bglRenderer.endFrame();
 
 				auto stop = std::chrono::high_resolution_clock::now();
-				auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-#ifdef SHOW_FPS:
-				std::cout << (long long)1000000/duration.count() << "fps\n";
-#endif
+				prevFrameTime = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+				dt = frameTime;
 			}
+#ifdef SHOW_FPS: 
+				//std::cout << 1.0f / frameTime << "fps\n";
+				std::cout << (long long)1000000/ prevFrameTime.count() << "fps\n";
+#endif
 		}
 		//CPU will block until all gpu operations are complete
 		vkDeviceWaitIdle(bglDevice.device());
@@ -203,8 +220,9 @@ namespace bagel {
 
 		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
 
+#ifdef INSTANCERENDERTEST
 		const auto e1 = registry.create();
-		auto& tfc = registry.emplace<bagel::TransformComponent>(e1);
+		auto& tfc = registry.emplace<bagel::TransformArrayComponent>(e1);
 		auto& mdc = registry.emplace<bagel::ModelDescriptionComponent>(e1, bglDevice);
 		auto& tc = registry.emplace<bagel::TextureComponent>(e1, bglDevice);
 		auto& bufferE1Comp = registry.emplace<bagel::DataBufferComponent>(e1, bglDevice, *descriptorManager);
@@ -221,13 +239,12 @@ namespace bagel {
 #else
 		modelBuilder->setBuildTarget(&mdc);
 		modelBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/models/flatfaces.obj");
-
 		textureBuilder->setBuildTarget(&tc);
 		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/c_rocketlauncher.ktx");
 #endif
 		std::cout << "Creating entity 2\n"; 
 		const auto e2 = registry.create();
-		auto& tfc2 = registry.emplace<bagel::TransformComponent>(e2);
+		auto& tfc2 = registry.emplace<bagel::TransformArrayComponent>(e2);
 		auto& bufferComp = registry.emplace<bagel::DataBufferComponent>(e2, bglDevice, *descriptorManager);
 		tfc2.setTransform(0, { -5.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f });
 
@@ -238,6 +255,13 @@ namespace bagel {
 
 		auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2, bglDevice);
 		auto& tc2 = registry.emplace<bagel::TextureComponent>(e2, bglDevice);
+
+		//Physics Component Test
+		auto& phys = registry.emplace<bagel::PhysicsComponent>(e2);
+		auto& sphere = registry.emplace<bagel::SphereColliderComponent>(e2);
+		phys.colliderTypeFlag |= Physics::ColliderFlag::SPHERE;
+		sphere.radius[0] = 1.0f;
+		sphere.radius[1] = 2.0f;
 
 #ifndef USE_ABS_PATH 
 		modelBuilder->setBuildTarget(&mdc2);
@@ -251,6 +275,43 @@ namespace bagel {
 		textureBuilder->setBuildTarget(&tc2);
 		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/axis.ktx");
 #endif
+		
+#endif
+		const auto e1 = registry.create();
+		auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
+		auto& mdc1 = registry.emplace<bagel::ModelDescriptionComponent>(e1, bglDevice);
+		auto& tc1 = registry.emplace<bagel::TextureComponent>(e1, bglDevice);
+		BGLJolt::GetInstance()->AddSphere(e1, 0.3f,{0,0,0},{0,0,0},false,Layers::MOVING);
+		
+		const auto e2 = registry.create();
+		auto& tfc2 = registry.emplace<bagel::TransformComponent>(e2);
+		auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2, bglDevice);
+		auto& tc2 = registry.emplace<bagel::TextureComponent>(e2, bglDevice);
+		tfc2.setTranslation({ 0.1f, 3.0f, 0.0f });
+		BGLJolt::GetInstance()->AddSphere(e2, 0.3f, { -0.1f,3.0f,0 }, { 0,0,0 }, true, Layers::MOVING);
+
+
+#ifndef USE_ABS_PATH 
+		modelBuilder->setBuildTarget(&mdc1);
+		modelBuilder->buildComponent("../models/axis.obj");
+		textureBuilder->setBuildTarget(&tc1);
+		textureBuilder->buildComponent("../materials/models/axis.ktx");
+		modelBuilder->setBuildTarget(&mdc2);
+		modelBuilder->buildComponent("../models/axis.obj");
+		textureBuilder->setBuildTarget(&tc2);
+		textureBuilder->buildComponent("../materials/models/axis.ktx");
+#else
+		//Loading same object twice somehow causes error on app close. Check this
+		modelBuilder->setBuildTarget(&mdc1);
+		modelBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/models/rocketlauncher.obj");
+		textureBuilder->setBuildTarget(&tc1);
+		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/rocketlauncher.ktx");
+		modelBuilder->setBuildTarget(&mdc2);
+		modelBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/models/rocketlauncher.obj");
+		textureBuilder->setBuildTarget(&tc2);
+		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/rocketlauncher.ktx");
+#endif
+		
 		delete modelBuilder;
 		delete textureBuilder;
 
@@ -274,7 +335,27 @@ namespace bagel {
 		}
 	}
 
-	void FirstApp::init_imgui()
+	void FirstApp::resetScene() {
+
+	}
+
+	void FirstApp::initRenderSystems() {
+
+	}
+
+	void FirstApp::initCommand()
+	{
+		console.AddCommand("FREEFLY", this, ConsoleCommand::ToggleFly);
+		console.AddCommand("TOGGLEPHYSICS", this, ConsoleCommand::TogglePhys);
+		console.AddCommand("RESETSCENE", this, ConsoleCommand::ResetScene);
+	}
+
+	void FirstApp::initJolt()
+	{
+		BGLJolt::Initialize(registry);
+	}
+
+	void FirstApp::initImgui()
 	{
 		//1: create descriptor pool for IMGUI
 		// the size of the pool is very oversize, but it's copied from imgui demo itself.
@@ -322,5 +403,6 @@ namespace bagel {
 		ImGui_ImplVulkan_CreateFontsTexture();
 		//clear font textures from cpu data. Done automatically now
 	}
+
 }
 

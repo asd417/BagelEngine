@@ -19,6 +19,12 @@
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_swap_chain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_imgui.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_jolt\bagel_jolt.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_pipeline.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -49,13 +55,16 @@
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\ecs_model_render_system.cpp">
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\physics\bagel_physics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\point_light_render_system.cpp">
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\ecs_model_render_system.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\simple_render_system.cpp">
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\point_light_render_system.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\simple_render_system.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imgui.cpp">
@@ -79,7 +88,7 @@
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\backends\imgui_impl_glfw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\bagel_imgui.cpp">
+    <ClCompile Include="..\src\render_systems\wireframe_render_system.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -103,6 +112,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_frame_info.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_jolt\bagel_jolt.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_pipeline.hpp">
@@ -129,13 +141,13 @@
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\keyboard_movement_controller.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\ecs_model_render_system.hpp">
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\ecs_model_render_system.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\point_light_render_system.hpp">
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\point_light_render_system.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\systems\simple_render_system.hpp">
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\simple_render_system.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_imgui.h">
@@ -144,10 +156,19 @@
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\physics\bagel_physics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\backends\imgui_impl_vulkan.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\backends\imgui_impl_glfw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\render_systems\wireframe_render_system.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\bagel_console_commands.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

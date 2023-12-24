@@ -7,7 +7,6 @@ set(CMAKE_SUPPRESS_REGENERATION true)
  
 set(NAME BagelEngine)
 
-
 message(STATUS "using ${CMAKE_GENERATOR}")
 if (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
     if (NOT MINGW_PATH) 
@@ -17,6 +16,7 @@ if (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
     set(CMAKE_C_COMPILER ${MINGW_PATH}/bin/gcc.exe)
     set(CMAKE_CXX_COMPILER  ${MINGW_PATH}/bin/g++.exe)
 endif()
+
  
 project(${NAME} VERSION 0.00.1)
  
@@ -59,12 +59,6 @@ endif()
  
 include_directories(Dependencies)
  
-# If TINYOBJ_PATH not specified in .env.cmake, try fetching from git repo
-if (NOT TINYOBJ_PATH)
-  message(STATUS "TINYOBJ_PATH not specified in .env.cmake, using Dependencies/tinyobjloader")
-  set(TINYOBJ_PATH Dependencies/tinyobjloader)
-endif()
- 
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 file(GLOB_RECURSE SOURCES_HPP ${PROJECT_SOURCE_DIR}/src/*.hpp)
 file(GLOB_RECURSE SOURCES_H ${PROJECT_SOURCE_DIR}/src/*.h)
@@ -74,23 +68,13 @@ file(GLOB IMGUI_BCKEND_vk ${IMGUI}/backends/imgui_impl_vulkan.*)
 file(GLOB IMGUI_BCKEND_glfw ${IMGUI}/backends/imgui_impl_glfw.*)
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${SOURCES_HPP} ${SOURCES_H} ${IMGUI_SRC} ${IMGUI_BCKEND_vk} ${IMGUI_BCKEND_glfw})
-
  
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
  
 set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
- 
+
 if (WIN32)
   message(STATUS "CREATING BUILD FOR WINDOWS")
- 
-  if (USE_MINGW)
-    target_include_directories(${PROJECT_NAME} PUBLIC
-      ${MINGW_PATH}/include
-    )
-    target_link_directories(${PROJECT_NAME} PUBLIC
-      ${MINGW_PATH}/lib
-    )
-  endif()
  
   target_include_directories(${PROJECT_NAME} PUBLIC
     ${PROJECT_SOURCE_DIR}/src
@@ -102,23 +86,28 @@ if (WIN32)
     ${STB}
     ${ENTT}
     ${IMGUI}
+    ${JOLT}
     )
+	
+  target_include_directories(${PROJECT_NAME} PUBLIC ${JoltPhysics_SOURCE_DIR}/..)
  
   target_link_directories(${PROJECT_NAME} PUBLIC
     ${Vulkan_LIBRARIES}
     ${GLFW_LIB}
     ${KTX_LIB}
+    ${JOLT_LIB}
   )
  
-  target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1 ktx)
-elseif (UNIX)
-    message(STATUS "CREATING BUILD FOR UNIX")
-    target_include_directories(${PROJECT_NAME} PUBLIC
-      ${PROJECT_SOURCE_DIR}/src
-      ${TINYOBJ_PATH}
-    )
-    target_link_libraries(${PROJECT_NAME} glfw ${Vulkan_LIBRARIES})
+  target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1 ktx Jolt)
+
 endif()
+
+
+target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:_DEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER>")
+target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:NDEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER>")
+
+target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
+target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
  
 ############## Build SHADERS #######################
  

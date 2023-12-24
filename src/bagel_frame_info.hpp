@@ -28,5 +28,10 @@ namespace bagel {
 		glm::vec4 ambientLightColor{ 1.f,1.f,1.f,0.01f };
 		PointLight pointLights[MAX_LIGHTS];
 		int numLights;
+		void updateCameraInfo(glm::mat4 projMat, glm::mat4 viewMat, glm::mat4 inverseViewMat) {
+			projectionMatrix = projMat;
+			viewMatrix = viewMat;
+			inverseViewMatrix = inverseViewMat;
+		}
 	};
 }

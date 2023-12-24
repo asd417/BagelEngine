@@ -300,7 +300,6 @@ namespace bagel {
 		//printIndexArray();
 	}
 
-
 	void ModelDescriptionComponentBuilder::printVertexArray() {
 		std::cout << "[ ";
 		for (auto i : vertices) {
@@ -374,6 +373,29 @@ namespace bagel {
 		vkDestroyBuffer(bglDevice.device(), stagingBuffer, nullptr);
 		vkFreeMemory(bglDevice.device(), stagingMemory, nullptr);
 		mapped = nullptr;
+	}
+
+	GeneratedWireframeComponentBuilder::GeneratedWireframeComponentBuilder(BGLDevice& _device) : bglDevice{_device}, ModelDescriptionComponentBuilder(_device)
+	{
+	}
+
+	void GeneratedWireframeComponentBuilder::printVertexArray()
+	{
+		ModelDescriptionComponentBuilder::printVertexArray();
+	}
+
+	void GeneratedWireframeComponentBuilder::printIndexArray()
+	{
+		ModelDescriptionComponentBuilder::printIndexArray();
+	}
+
+	void GeneratedWireframeComponentBuilder::createVertexBuffer()
+	{
+		ModelDescriptionComponentBuilder::createVertexBuffer();
+	}
+	void GeneratedWireframeComponentBuilder::createIndexBuffer()
+	{
+		ModelDescriptionComponentBuilder::createIndexBuffer();
 	}
 
 }

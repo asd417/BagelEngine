@@ -1,4 +1,4 @@
-#include "ecs_model_render_system.hpp"
+#include "wireframe_render_system.hpp"
 #include "../bagel_ecs_components.hpp"
 
 #include <stdexcept>
@@ -10,10 +10,6 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
-#define BINDLESS
-
-#define MAX_TRANSFORM_ARRAYSIZE 1000
-#define BUFFER_COMP_TEST
 
 namespace bagel {
 	// PushConstantData is a performant and simple way to send data to vertex and fragment shader
@@ -56,30 +52,29 @@ namespace bagel {
 		glm::mat4 normalMatrix{ 1.0f };
 	};
 
-	ModelRenderSystem::ModelRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts, std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager) : bglDevice{ device }, descriptorManager{ _descriptorManager }
+	void sendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push);
+	//void sendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push)
+	//{
+	//	vkCmdPushConstants(
+	//		cmdBuffer,
+	//		pipelineLayout,
+	//		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+	//		0,
+	//		sizeof(ECSPushConstantData),
+	//		&push);
+	//}
+
+	WireframeRenderSystem::WireframeRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts, std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager) : bglDevice{ device }, descriptorManager{ _descriptorManager }
 	{
-#ifndef BUFFER_COMP_TEST
-		objDataBuffer = std::make_unique<BGLBuffer>(
-			bglDevice,
-			sizeof(OBJDataBufferUnit),
-			MAX_TRANSFORM_ARRAYSIZE,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-		objDataBuffer->map();
-		descriptorManager->storeBuffer(objDataBuffer->descriptorInfo());
-#endif
 		createPipelineLayout(setLayouts);
 		createPipeline(renderPass);
 	}
-	ModelRenderSystem::~ModelRenderSystem()
+	WireframeRenderSystem::~WireframeRenderSystem()
 	{
 		vkDestroyPipelineLayout(bglDevice.device(), pipelineLayout, nullptr);
-#ifndef BUFFER_COMP_TEST
-		objDataBuffer->unmap();
-#endif
 	}
 	
-	void ModelRenderSystem::renderEntities(FrameInfo& frameInfo)
+	void WireframeRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
 		bglPipeline->bind(frameInfo.commandBuffer);
 		vkCmdBindDescriptorSets(
@@ -91,8 +86,31 @@ namespace bagel {
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
 
-		auto view = frameInfo.registry.view<TransformComponent, ModelDescriptionComponent, TextureComponent>();
-		for (auto [entity, transformComp, modelDescComp, textureComp] : view.each()) {
+		auto transformCompView = frameInfo.registry.view<TransformComponent, ModelDescriptionComponent, TextureComponent>();
+		for (auto [entity, transformComp, modelDescComp, textureComp] : transformCompView.each()) {
+
+			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
+			VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
+
+			ECSPushConstantData push{};
+			push.textureHandle = textureComp.textureHandle;
+			push.UsesBufferedTransform = 0;
+			push.modelMatrix = transformComp.mat4YPosFlip();
+			push.normalMatrix = transformComp.normalMatrix();
+
+			sendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+
+			if (modelDescComp.hasIndexBuffer) {
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, 1, 0, 0, 0);
+			} else {
+				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, 0, 0);
+			}
+		}
+
+		auto instancedRenderView = frameInfo.registry.view<TransformArrayComponent, ModelDescriptionComponent, TextureComponent>();
+		for (auto [entity, transformComp, modelDescComp, textureComp] : instancedRenderView.each()) {
 
 			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
@@ -102,41 +120,25 @@ namespace bagel {
 			push.textureHandle = textureComp.textureHandle;
 			push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
 			push.BufferedTransformHandle = transformComp.bufferHandle;
-			//std::cout << "push.useInstancedTransform is " << push.useInstancedTransform << "\n";
+
 			if (!transformComp.useBuffer()) {
-				push.modelMatrix = transformComp.mat4(0);
+				push.modelMatrix = transformComp.mat4YPosFlip(0);
 				push.normalMatrix = transformComp.normalMatrix(0);
 			}
 
-			vkCmdPushConstants(
-				frameInfo.commandBuffer,
-				pipelineLayout,
-				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-				0,
-				sizeof(ECSPushConstantData),
-				&push);
+			sendPushConstantData(frameInfo.commandBuffer, pipelineLayout,push);
 
-#ifndef BUFFER_COMP_TEST
-			for (int i = 0; i < transformComp.translation.size(); i++) {
-				OBJDataBufferUnit objData{};
-				objData.modelMatrix = transformComp.mat4(i);
-				objData.normalMatrix = transformComp.normalMatrix(i);
-
-				objDataBuffer->writeToBuffer(&objData, sizeof(objData), i * sizeof(OBJDataBufferUnit));
-			}
-			objDataBuffer->flush();
-#endif
-			
 			if (modelDescComp.hasIndexBuffer) {
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.translation.size(), 0, 0, 0);
-			} else {
+			}
+			else {
 				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.translation.size(), 0, 0);
 			}
 		}
 	}
 
-	void ModelRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
+	void WireframeRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
 	{
 		VkPushConstantRange pushConstantRange{};
 		// This flag indicates that we want this pushconstantdata to be accessible in both vertex and fragment shaders
@@ -162,29 +164,33 @@ namespace bagel {
 			throw std::runtime_error("failed to create pipeline layout");
 		}
 	}
-	void ModelRenderSystem::createPipeline(VkRenderPass renderPass)
+	void WireframeRenderSystem::createPipeline(VkRenderPass renderPass)
 	{
 		//assert(bglSwapChain != nullptr && "Cannot create pipeline before swapchain");
 		assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		PipelineConfigInfo pipelineConfig{};
 		BGLPipeline::defaultPipelineConfigInfo(pipelineConfig);
+		pipelineConfig.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
+		pipelineConfig.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
+		pipelineConfig.rasterizationInfo.lineWidth = 1.0f;
 		pipelineConfig.renderPass = renderPass;
 		pipelineConfig.pipelineLayout = pipelineLayout;
 #define USE_ABS_PATH
 #ifndef USE_ABS_PATH
 		bglPipeline = std::make_unique<BGLPipeline>(
 			bglDevice,
-			"../shaders/simple_shader.vert.spv",
-			"../shaders/simple_shader.frag.spv",
+			"../shaders/wireframe_shader.vert.spv",
+			"../shaders/wireframe_shader.frag.spv",
 			pipelineConfig);
 #else
 		bglPipeline = std::make_unique<BGLPipeline>(
 			bglDevice,
-			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/simple_shader.vert.spv",
-			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/simple_shader.frag.spv",
+			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv",
+			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv",
 			pipelineConfig);
 #endif
 	}
+	
 }
 

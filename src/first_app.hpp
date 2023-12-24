@@ -7,14 +7,20 @@
 #include "bagel_engine_device.hpp"
 #include "bagel_renderer.hpp"
 
-#include "systems/simple_render_system.hpp"
-#include "systems/point_light_render_system.hpp"
-#include "systems/ecs_model_render_system.hpp"
+#include "render_systems/simple_render_system.hpp"
+#include "render_systems/point_light_render_system.hpp"
+#include "render_systems/ecs_model_render_system.hpp"
+#include "render_systems/wireframe_render_system.hpp"
+
+#ifdef PHYSTEST
+#include "physics/bagel_physics.h"
+#endif
 
 #include "bgl_gameobject.hpp"
 #include "bgl_model.hpp"
 #include "bagel_textures.h"
 #include "bagel_imgui.h"
+#include "physics/bagel_physics.h"
 
 #include <memory>
 #include <vector>
@@ -39,6 +45,7 @@ namespace bagel {
 		static constexpr int WIDTH = 800;
 		static constexpr int HEIGHT = 800;
 		
+
 		FirstApp();
 		~FirstApp();
 
@@ -47,10 +54,13 @@ namespace bagel {
 
 		void run();
 		void loadECSObjects();
+		void resetScene();
 		entt::registry& getRegistry() { return registry; }
+		//Physics::PhysicsSystem& getPhysicsSystem() { return physicsSystem; }
 
-		bool freeFly = false;
-
+		//Command variables
+		bool freeFly = true;
+		bool runPhys = false;
 		ConsoleApp console{};
 
 	private:
@@ -65,8 +75,11 @@ namespace bagel {
 		std::unique_ptr<BGLBindlessDescriptorManager> descriptorManager;
 		entt::registry registry;
 
-		//ImGUI
-		void init_imgui();
+		void initRenderSystems();
+		void initCommand();
+		//External System inits
+		void initJolt();
+		void initImgui();
 		VkDescriptorPool imguiPool;
 	};
 }

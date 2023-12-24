@@ -52,7 +52,7 @@ layout(push_constant) uniform Push {
 //Executed once per vertex
 void main() {
 	vec4 positionWorld;
-	vec3 graphicsPos = vec3(-position.x,position.y,position.z);
+	vec3 graphicsPos = vec3(position.x,-position.y, position.z);
 	//Converts vertex position to world position
 	if(push.UsesBufferedTransform != 0){
 		mat4 modelMatrix = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].modelMatrix;

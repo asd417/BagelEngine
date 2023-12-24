@@ -115,15 +115,33 @@ namespace bagel {
 		ModelDescriptionComponentBuilder(BGLDevice& _device);
 		void setBuildTarget(ModelDescriptionComponent* _tC) { targetComponent = _tC; }
 		void buildComponent(const std::string& filename);
-
-	private:
 		void loadModel(const std::string& filename);
 		void printVertexArray();
 		void printIndexArray();
 		void createVertexBuffer();
 		void createIndexBuffer();
 
+	private:
 		ModelDescriptionComponent* targetComponent = nullptr;
+		BGLDevice& bglDevice;
+
+		std::vector<BGLModel::Vertex> vertices{};
+		std::vector<uint32_t> indices{};
+	};
+
+	class GeneratedWireframeComponentBuilder : ModelDescriptionComponentBuilder {
+	public:
+		GeneratedWireframeComponentBuilder(BGLDevice& _device);
+		void setBuildTarget(GeneratedWireframeComponent* _tC) { targetComponent = _tC; }
+		void buildComponent(const std::string& filename);
+		void loadModel(const std::string& filename);
+		void printVertexArray();
+		void printIndexArray();
+		void createVertexBuffer();
+		void createIndexBuffer();
+
+	private:
+		GeneratedWireframeComponent* targetComponent = nullptr;
 		BGLDevice& bglDevice;
 
 		std::vector<BGLModel::Vertex> vertices{};

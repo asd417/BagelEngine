@@ -503,6 +503,7 @@ namespace bagel {
 			targetComponent->textureHandle = descriptorManager.getLastTextureHandle();
 			lastBoundTextureName = filenameStr;
 			std::cout << filenameStr << " same as the last bound texture. Skipping memory allocation\n";
+			targetComponent->duplicate = true;
 			return;
 		}
 		lastBoundTextureName = filenameStr;

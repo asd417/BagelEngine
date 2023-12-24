@@ -5,5 +5,6 @@ git clone https://github.com/nothings/stb.git
 git clone https://github.com/ocornut/imgui.git
 git clone https://github.com/skypjack/entt.git
 git clone https://github.com/KhronosGroup/KTX-Software.git
+git clone https://github.com/jrouwe/JoltPhysics.git
 
 cd ..
