@@ -1,5 +1,8 @@
 #include "bagel_renderer.hpp"
 
+// vulkan headers
+#include <vulkan/vulkan.h>
+
 #include <stdexcept>
 #include <array>
 #include <iostream>
@@ -122,7 +125,7 @@ namespace bagel {
 			glfwWaitEvents();
 		}
 		//Wait for current swapchain to no longer be used
-		vkDeviceWaitIdle(bglDevice.device());
+		vkDeviceWaitIdle(BGLDevice::device());
 		if (bglSwapChain == nullptr) {
 			bglSwapChain = std::make_unique<BGLSwapChain>(bglDevice, extent);
 		}
@@ -151,7 +154,7 @@ namespace bagel {
 		allocInfo.commandPool = bglDevice.getCommandPool();
 		allocInfo.commandBufferCount = static_cast<uint32_t> (commandBuffers.size());
 
-		if (vkAllocateCommandBuffers(bglDevice.device(), &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+		if (vkAllocateCommandBuffers(BGLDevice::device(), &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to Allocate Command Buffers");
 		}
 	}
@@ -159,7 +162,7 @@ namespace bagel {
 	void BGLRenderer::freeCommandBuffers()
 	{
 		vkFreeCommandBuffers(
-			bglDevice.device(),
+			BGLDevice::device(),
 			bglDevice.getCommandPool(),
 			static_cast<uint32_t>(commandBuffers.size()),
 			commandBuffers.data());

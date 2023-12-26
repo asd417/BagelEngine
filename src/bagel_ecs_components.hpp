@@ -26,53 +26,54 @@
 namespace bagel {
 	struct DataBufferComponent {
 		std::unique_ptr<BGLBuffer> objDataBuffer;
-		BGLDevice& bglDevice;
 		uint32_t bufferHandle;
-		DataBufferComponent(BGLDevice& device, BGLBindlessDescriptorManager& descriptorManager);
+
+		DataBufferComponent(BGLDevice& device, BGLBindlessDescriptorManager& descriptorManager, uint32_t bufferUnitsize);
 		~DataBufferComponent();
 		void writeToBuffer(void* data, size_t size, size_t offset);
 		uint32_t getBufferHandle() const { return bufferHandle; }
 	};
 
-	struct BufferableComponent {
-		virtual void ToBufferComponent(const DataBufferComponent&) {
-			throw std::exception("Not Implemented");
-		};
-	};
 	struct TransformComponent {
-		glm::vec3 translation = {0.0f,0.0f,0.0f};
-		glm::vec3 scale = { -0.1f,-0.1f,-0.1f };
-		glm::vec3 rotation = { 0.f,0.f,0.f };
-
 		TransformComponent() = default;
 		TransformComponent(float x, float y, float z) { translation = { x,y,z }; }
 		TransformComponent(glm::vec4 pos) { translation = glm::vec3(pos); }
-		glm::mat4 mat4();
-		glm::mat4 mat4YPosFlip();
-		glm::mat3 normalMatrix();
-		void setTranslation(glm::vec3 _translation)
-		{
-			translation = _translation;
-		}
-		void setScale(glm::vec3 _scale)
-		{
-			translation = _scale;
-		}
-		void setRotation(glm::vec3 _rotation)
-		{
-			rotation = _rotation;
-		}
+		glm::mat4	mat4();
+		glm::mat3	normalMatrix();
+
+		glm::vec3	getTranslation() const;
+		void		setTranslation(glm::vec3 _translation);
+		glm::vec3	getScale() const { return scale; }
+		void		setScale(glm::vec3 _scale);
+		glm::vec3	getRotation() const { return rotation; }
+		void		setRotation(glm::vec3 _rotation);
+
+		glm::vec3	getLocalTranslation() const;
+		void		setLocalTranslation(glm::vec3 _translation);
+		glm::vec3	getLocalScale() const { return localScale; }
+		void		setLocalScale(glm::vec3 _scale);
+		glm::vec3	getLocalRotation() const { return localRotation; }
+		void		setLocalRotation(glm::vec3 _rotation);
+
+		//Internally, y cooridnate is flipped.
+	private:
+		glm::vec3 translation = { 0.0f,0.0f,0.0f };
+		glm::vec3 scale = { 0.1f, 0.1f, 0.1f };
+		glm::vec3 rotation = { 0.f,0.f,0.f };
+
+		glm::vec3 localTranslation = { 0.0f,0.0f,0.0f };
+		glm::vec3 localScale = { 1.0f, 1.0f, 1.0f };
+		glm::vec3 localRotation = { 0.f,0.f,0.f };
 	};
 
-	struct TransformArrayComponent : BufferableComponent {
-		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> translation;
-		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> scale;
-		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> rotation;
-
+	struct TransformArrayComponent {
+		struct TransformBufferUnit {
+			glm::mat4 modelMatrix{ 1.0f };
+			glm::mat4 normalMatrix{ 1.0f };
+		};
 		//TransformComponent will by default hold 1 transform value
 		uint32_t maxIndex = 1;
 		glm::mat4 mat4(uint32_t index = 0);
-		glm::mat4 mat4YPosFlip(uint32_t index = 0);
 		glm::mat3 normalMatrix(uint32_t index = 0);
 
 		// If using buffer, bufferHandle will store the buffer handle index
@@ -87,6 +88,7 @@ namespace bagel {
 		void addTransform(glm::vec3 _translation, glm::vec3 _scale = { -0.1f,-0.1f,-0.1f }, glm::vec3 _rotation = { 0.f,0.f,0.f })
 		{
 			if (maxIndex < MAX_TRANSFORM_PER_ENT) {
+				_translation.y *= -1;
 				translation[maxIndex] = _translation;
 				scale[maxIndex] = _scale;
 				rotation[maxIndex] = _rotation;
@@ -97,6 +99,7 @@ namespace bagel {
 		void setTransform(uint32_t index, glm::vec3 _translation, glm::vec3 _scale = { -0.1f,-0.1f,-0.1f }, glm::vec3 _rotation = { 0.f,0.f,0.f })
 		{
 			if (index < MAX_TRANSFORM_PER_ENT) {
+				_translation.y *= -1;
 				translation[index] = _translation;
 				scale[index] = _scale;
 				rotation[index] = _rotation;
@@ -113,12 +116,23 @@ namespace bagel {
 			maxIndex = n > maxIndex ? 0 : maxIndex - n;
 		}
 		void ToBufferComponent(DataBufferComponent& bufferComponent);
+
+	private:
+		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> translation;
+		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> scale;
+		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> rotation;
 	};
 	struct PointLightComponent {
 		glm::vec4 color = { 1.0f,1.0f,1.0f,1.0f }; //4th is strength
 		float radius = 1.0f;
 	};
 	struct ModelDescriptionComponent {
+		enum TextureCompositeFlag {
+			DIFFUSE =	0b0000'0001,
+			EMISSION =	0b0000'0010,
+			NORMAL =	0b0000'0100,
+			ROUGHMETAL= 0b0000'1000
+		};
 		std::string modelName = "";
 
 		VkBuffer vertexBuffer = nullptr;
@@ -130,18 +144,16 @@ namespace bagel {
 		VkDeviceMemory indexMemory = nullptr;
 		uint32_t indexCount = 0;
 
-		bool mapped = false;
+		uint8_t textureMapFlag;
 		
-		BGLDevice& bglDevice;
-
-		ModelDescriptionComponent(BGLDevice& device) : bglDevice{ device } {};
+		ModelDescriptionComponent() = default;
 		~ModelDescriptionComponent() {
 			std::cout << "Destroying Model Description Component" << "\n";
-			if(vertexBuffer != nullptr) vkDestroyBuffer(bglDevice.device(), vertexBuffer, nullptr);
-			if (vertexMemory != nullptr) vkFreeMemory(bglDevice.device(), vertexMemory, nullptr);
+			if(vertexBuffer != nullptr) vkDestroyBuffer(BGLDevice::device(), vertexBuffer, nullptr);
+			if (vertexMemory != nullptr) vkFreeMemory(BGLDevice::device(), vertexMemory, nullptr);
 			if (hasIndexBuffer) {
-				if (indexBuffer != nullptr) vkDestroyBuffer(bglDevice.device(), indexBuffer, nullptr);
-				if (indexMemory != nullptr) vkFreeMemory(bglDevice.device(), indexMemory, nullptr);
+				if (indexBuffer != nullptr) vkDestroyBuffer(BGLDevice::device(), indexBuffer, nullptr);
+				if (indexMemory != nullptr) vkFreeMemory(BGLDevice::device(), indexMemory, nullptr);
 			}
 		};
 	};
@@ -157,19 +169,18 @@ namespace bagel {
 
 		bool mapped = false;
 
-		BGLDevice& bglDevice;
-
-		GeneratedWireframeComponent(BGLDevice& device) : bglDevice{ device } {};
+		GeneratedWireframeComponent() = default;
 		~GeneratedWireframeComponent() {
 			std::cout << "Destroying Model Description Component" << "\n";
-			if (vertexBuffer != nullptr) vkDestroyBuffer(bglDevice.device(), vertexBuffer, nullptr);
-			if (vertexMemory != nullptr) vkFreeMemory(bglDevice.device(), vertexMemory, nullptr);
+			if (vertexBuffer != nullptr) vkDestroyBuffer(BGLDevice::device(), vertexBuffer, nullptr);
+			if (vertexMemory != nullptr) vkFreeMemory(BGLDevice::device(), vertexMemory, nullptr);
 			if (hasIndexBuffer) {
-				if (indexBuffer != nullptr) vkDestroyBuffer(bglDevice.device(), indexBuffer, nullptr);
-				if (indexMemory != nullptr) vkFreeMemory(bglDevice.device(), indexMemory, nullptr);
+				if (indexBuffer != nullptr) vkDestroyBuffer(BGLDevice::device(), indexBuffer, nullptr);
+				if (indexMemory != nullptr) vkFreeMemory(BGLDevice::device(), indexMemory, nullptr);
 			}
 		};
 	};
+
 	struct TextureComponent {
 		VkSampler      sampler;
 		VkImage        image;
@@ -181,11 +192,15 @@ namespace bagel {
 		uint32_t textureHandle;
 		bool duplicate = false;
 
-		BGLDevice& bglDevice;
-		TextureComponent(BGLDevice& device);
+		TextureComponent() = default;
 		~TextureComponent();
 		VkDescriptorImageInfo getDescriptorImageInfo() const { return { sampler , view , image_layout }; }
 	};
+
+	struct DiffuseTextureComponent : TextureComponent {};
+	struct EmissionTextureComponent : TextureComponent {};
+	struct NormalTextureComponent : TextureComponent {};
+	struct RoughnessMetalTextureComponent : TextureComponent {};
 
 #define MAXPHYSICSBODYCOUNT 64
 	//All physics related calculations are done inside jolt system. This component is a container for the pointeres to the bodies.

@@ -222,12 +222,12 @@ namespace bagel {
 		void ApplyPhysicsTransform();
 		void AddSphere(entt::entity ent, float radius, glm::vec3 pos, glm::vec3 rot, bool isDynamic, bool activate, JPH::ObjectLayer layer = Layers::MOVING);
 		void AddBox(entt::entity ent, glm::vec3 halfExtent, glm::vec3 pos, glm::vec3 rot, bool isDynamic, bool activate, JPH::ObjectLayer layer = Layers::MOVING);
+		void ChangeSimulationTimescale(float _s) { simTimeScale = _s; }
 	private:
 		BGLJolt(entt::registry& _registry);
 		~BGLJolt();
 		//Singleton Pattern
 		static BGLJolt* instance;
-
 		entt::registry& registry;
 
 		// We need a job system that will execute physics jobs on multiple threads. Typically
@@ -285,9 +285,6 @@ namespace bagel {
 		// Registering one is entirely optional.
 		MyContactListener contact_listener;
 
-		// We simulate the physics world in discrete time steps. 60 Hz is a good rate to update the physics system.
-		const float cDeltaTime = 1.0f / 60.0f;
-
+		float simTimeScale = 0.2f;
 	};
-
 }

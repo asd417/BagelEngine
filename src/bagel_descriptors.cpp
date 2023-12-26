@@ -18,6 +18,9 @@
 #include <stdexcept>
 #include <array>
 
+// vulkan headers
+#include <vulkan/vulkan.h>
+
 #define GLOBAL_DESCRIPTOR_COUNT 1000
 #define BINDLESS
 
@@ -71,7 +74,7 @@ namespace bagel {
 
         std::cout << "Creating DescriptorSetLayout with size " << descriptorSetLayoutInfo.bindingCount << "\n";
         if (vkCreateDescriptorSetLayout(
-            bglDevice.device(),
+            BGLDevice::device(),
             &descriptorSetLayoutInfo,
             nullptr,
             &descriptorSetLayout) != VK_SUCCESS) {
@@ -80,7 +83,7 @@ namespace bagel {
     }
 
     BGLDescriptorSetLayout::~BGLDescriptorSetLayout() {
-        vkDestroyDescriptorSetLayout(bglDevice.device(), descriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(BGLDevice::device(), descriptorSetLayout, nullptr);
     }
 
     // *************** Descriptor Pool Builder *********************
@@ -128,14 +131,14 @@ namespace bagel {
             std::cout << "  descriptorCount: " << p.descriptorCount << "\n";
         }
 
-        if (vkCreateDescriptorPool(bglDevice.device(), &descriptorPoolInfo, nullptr, &descriptorPool) !=
+        if (vkCreateDescriptorPool(BGLDevice::device(), &descriptorPoolInfo, nullptr, &descriptorPool) !=
             VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool!");
         }
     }
 
     BGLDescriptorPool::~BGLDescriptorPool() {
-        vkDestroyDescriptorPool(bglDevice.device(), descriptorPool, nullptr);
+        vkDestroyDescriptorPool(BGLDevice::device(), descriptorPool, nullptr);
     }
 
     bool BGLDescriptorPool::allocateDescriptor(
@@ -157,7 +160,7 @@ namespace bagel {
 
         // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
         // a new pool whenever an old pool fills up. But this is beyond our current scope
-        VK_CHECK(vkAllocateDescriptorSets(bglDevice.device(), &allocInfo, &descriptor));
+        VK_CHECK(vkAllocateDescriptorSets(BGLDevice::device(), &allocInfo, &descriptor));
         /*if ( != VK_SUCCESS) {
             return false;
         }*/
@@ -166,14 +169,14 @@ namespace bagel {
 
     void BGLDescriptorPool::freeDescriptors(std::vector<VkDescriptorSet>& descriptors) const {
         vkFreeDescriptorSets(
-            bglDevice.device(),
+            BGLDevice::device(),
             descriptorPool,
             static_cast<uint32_t>(descriptors.size()),
             descriptors.data());
     }
 
     void BGLDescriptorPool::resetPool() {
-        vkResetDescriptorPool(bglDevice.device(), descriptorPool, 0);
+        vkResetDescriptorPool(BGLDevice::device(), descriptorPool, 0);
     }
 
     // *************** Descriptor Writer *********************
@@ -237,7 +240,7 @@ namespace bagel {
         for (auto& write : writes) {
             write.dstSet = set;
         }
-        vkUpdateDescriptorSets(pool.bglDevice.device(), writes.size(), writes.data(), 0, nullptr);
+        vkUpdateDescriptorSets(BGLDevice::device(), writes.size(), writes.data(), 0, nullptr);
     }
 
     // *************** BGLBindlessDescriptorManager *********************
@@ -248,7 +251,7 @@ namespace bagel {
 
     BGLBindlessDescriptorManager::~BGLBindlessDescriptorManager()
     {
-        vkDestroyDescriptorSetLayout(bglDevice.device(), bindlessSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(BGLDevice::device(), bindlessSetLayout, nullptr);
     }
 
     void BGLBindlessDescriptorManager::createBindlessDescriptorSet(uint32_t descriptorCount)
@@ -291,7 +294,7 @@ namespace bagel {
         createInfo.pNext = &bindingFlags;
 
         // Create layout
-        VK_CHECK(vkCreateDescriptorSetLayout(bglDevice.device(), &createInfo, nullptr, &bindlessSetLayout));
+        VK_CHECK(vkCreateDescriptorSetLayout(BGLDevice::device(), &createInfo, nullptr, &bindlessSetLayout));
         globalPool.allocateDescriptor(bindlessSetLayout, bindlessDescriptorSet);
     }
 
@@ -310,7 +313,7 @@ namespace bagel {
         write.dstBinding = UniformBinding;
         write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
-        vkUpdateDescriptorSets(bglDevice.device(), 1, &write, 0, nullptr);
+        vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
     }
 
     uint32_t BGLBindlessDescriptorManager::storeBuffer(VkDescriptorBufferInfo bufferInfo)
@@ -329,7 +332,7 @@ namespace bagel {
         write.pBufferInfo = &bufferInfo;
         write.dstArrayElement = newHandle;
 
-        vkUpdateDescriptorSets(bglDevice.device(), 1, &write, 0, nullptr);
+        vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
         return newHandle;
     }
 
@@ -355,7 +358,7 @@ namespace bagel {
         write.dstArrayElement = newHandle;
         write.pImageInfo = &imageInfo;
 
-        vkUpdateDescriptorSets(bglDevice.device(), 1, &write, 0, nullptr);
+        vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
         return newHandle;
     }
 

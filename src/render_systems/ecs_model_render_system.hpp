@@ -2,14 +2,13 @@
 
 #include <glm/gtc/constants.hpp>
 
-#include "../bagel_engine_device.hpp"
+
 #include "../bagel_pipeline.hpp"
 
 #include "../bagel_frame_info.hpp"
 #include "../bgl_camera.hpp"
 #include "../bgl_gameobject.hpp"
 #include "../bgl_model.hpp"
-
 
 #include "entt.hpp"
 

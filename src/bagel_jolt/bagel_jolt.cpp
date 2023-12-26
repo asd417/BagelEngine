@@ -73,7 +73,7 @@ namespace bagel {
 			// If you take larger steps than 1 / 60th of a second you need to do multiple collision steps in order to keep the simulation stable. Do 1 collision step per 1 / 60th of a second (round up).
 			const int cCollisionSteps = 1;
 			// Step the world
-			physicsSystem.Update(dt, cCollisionSteps, &tempAllocator, &job_system);
+			physicsSystem.Update(dt * simTimeScale, cCollisionSteps, &tempAllocator, &job_system);
 		}
 	}
 

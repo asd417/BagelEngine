@@ -53,7 +53,7 @@ namespace bagel {
 		FirstApp& operator=(const FirstApp&) = delete;
 
 		void run();
-		void loadECSObjects();
+		entt::entity loadECSObjects();
 		void resetScene();
 		entt::registry& getRegistry() { return registry; }
 		//Physics::PhysicsSystem& getPhysicsSystem() { return physicsSystem; }

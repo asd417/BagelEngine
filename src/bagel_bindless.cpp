@@ -1,4 +1,8 @@
 #include "bagel_bindless.hpp"
+
+// vulkan headers
+#include <vulkan/vulkan.h>
+
 #include <array>
 
 #define PER_BINDING_DESCRIPTORS 1000
@@ -7,7 +11,7 @@ namespace bagel {
 
     BindlessParams::~BindlessParams()
     {
-        vkDestroyDescriptorPool(bglDevice.device(), mDescriptorPool, nullptr);
+        vkDestroyDescriptorPool(BGLDevice::device(), mDescriptorPool, nullptr);
     }
 
     template<class TData>
@@ -57,7 +61,7 @@ namespace bagel {
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         createInfo.bindingCount = 1;
         createInfo.pBindings = &binding;
-        vkCreateDescriptorSetLayout(bglDevice.device(), &createInfo, nullptr, &mLayout);
+        vkCreateDescriptorSetLayout(BGLDevice::device(), &createInfo, nullptr, &mLayout);
 
         // Get maximum size of a single range
         uint32_t maxRangeSize = 0;
@@ -72,7 +76,7 @@ namespace bagel {
         allocateInfo.descriptorPool = descriptorPool;
         allocateInfo.pSetLayouts = &mLayout;
         allocateInfo.descriptorSetCount = 1;
-        vkAllocateDescriptorSets(bglDevice.device(), &allocateInfo, &mDescriptorSet);
+        vkAllocateDescriptorSets(BGLDevice::device(), &allocateInfo, &mDescriptorSet);
 
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = mBuffer;
@@ -86,7 +90,7 @@ namespace bagel {
         write.descriptorCount = 1;
         write.dstArrayElement = 0;
         write.pBufferInfo = &bufferInfo;
-        vkUpdateDescriptorSets(bglDevice.device(), 1, &write, 0, nullptr);
+        vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
     }
 
 
@@ -110,7 +114,7 @@ namespace bagel {
         write.dstArrayElement = newHandle;
         write.pImageInfo = &imageInfo;
 
-        vkUpdateDescriptorSets(bglDevice.device(), 1, &write, 0, nullptr);
+        vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
         return static_cast<TextureHandle>(newHandle);
     }
 
@@ -146,7 +150,7 @@ namespace bagel {
             writes.at(index).descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         }
 
-        vkUpdateDescriptorSets(bglDevice.device(), index, writes.data(), 0, nullptr);
+        vkUpdateDescriptorSets(BGLDevice::device(), index, writes.data(), 0, nullptr);
 
         return static_cast<BufferHandle>(newHandle);
     }
@@ -166,7 +170,7 @@ namespace bagel {
         poolInfo.maxSets = 1;
         poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
         
-        vkCreateDescriptorPool(bglDevice.device(), &poolInfo, nullptr, &mDescriptorPool);
+        vkCreateDescriptorPool(BGLDevice::device(), &poolInfo, nullptr, &mDescriptorPool);
     }
 
     void BindlessParams::createBindlessDescriptorSet()
@@ -210,7 +214,7 @@ namespace bagel {
         createInfo.pNext = &bindingFlags;
 
         // Create layout
-        vkCreateDescriptorSetLayout(bglDevice.device(), &createInfo, nullptr, &mLayout);
+        vkCreateDescriptorSetLayout(BGLDevice::device(), &createInfo, nullptr, &mLayout);
     }
 
     void BindlessParams::allocateDescriptorSet() {
@@ -225,6 +229,6 @@ namespace bagel {
 
         // Create descriptor
         VkDescriptorSet bindlessDescriptorSet = VK_NULL_HANDLE;
-        vkAllocateDescriptorSets(bglDevice.device(), &allocateInfo, &bindlessDescriptorSet);
+        vkAllocateDescriptorSets(BGLDevice::device(), &allocateInfo, &bindlessDescriptorSet);
     }
 }

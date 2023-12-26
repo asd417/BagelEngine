@@ -1,9 +1,16 @@
 #include "bgl_model.hpp"
+
+// vulkan headers
+#include <vulkan/vulkan.h>
+
 #include <cassert>
 #include <cstring>
 #include <iostream>
 #include <array>
 #include <map>
+
+#include "bagel_engine_device.hpp"
+
 //lib
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
@@ -328,7 +335,7 @@ namespace bagel {
 		void* mapped;
 		//bufferSize = vertexSize * targetComponent->vertexCount;
 		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
-		vkMapMemory(bglDevice.device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
+		vkMapMemory(BGLDevice::device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
 		//Write Vertex data to stagingBuffer
 		assert(mapped && "Cannot copy to unmapped buffer");
 		memcpy(mapped, (void*)vertices.data(), bufferSize);
@@ -339,9 +346,9 @@ namespace bagel {
 		bglDevice.copyBuffer(stagingBuffer, targetComponent->vertexBuffer, bufferSize);
 
 		// Finished Mapping device staging buffer to device vertex buffer. Destroy staging buffer.
-		vkUnmapMemory(bglDevice.device(), stagingMemory);
-		vkDestroyBuffer(bglDevice.device(), stagingBuffer, nullptr);
-		vkFreeMemory(bglDevice.device(), stagingMemory, nullptr);
+		vkUnmapMemory(BGLDevice::device(), stagingMemory);
+		vkDestroyBuffer(BGLDevice::device(), stagingBuffer, nullptr);
+		vkFreeMemory(BGLDevice::device(), stagingMemory, nullptr);
 		mapped = nullptr;
 	}
 
@@ -358,7 +365,7 @@ namespace bagel {
 		void* mapped;
 		//bufferSize = indexSize * targetComponent->indexCount;
 		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
-		vkMapMemory(bglDevice.device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
+		vkMapMemory(BGLDevice::device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
 		//Write Index data to stagingBuffer
 		assert(mapped && "Cannot copy to unmapped buffer");
 		memcpy(mapped, (void*)indices.data(), bufferSize);
@@ -369,14 +376,19 @@ namespace bagel {
 		bglDevice.copyBuffer(stagingBuffer, targetComponent->indexBuffer, bufferSize);
 
 		// Finished Mapping device staging buffer to device index buffer due to VK_BUFFER_USAGE_TRANSFER_DST_BIT. Destroy staging buffer.
-		vkUnmapMemory(bglDevice.device(), stagingMemory);
-		vkDestroyBuffer(bglDevice.device(), stagingBuffer, nullptr);
-		vkFreeMemory(bglDevice.device(), stagingMemory, nullptr);
+		vkUnmapMemory(BGLDevice::device(), stagingMemory);
+		vkDestroyBuffer(BGLDevice::device(), stagingBuffer, nullptr);
+		vkFreeMemory(BGLDevice::device(), stagingMemory, nullptr);
 		mapped = nullptr;
 	}
 
 	GeneratedWireframeComponentBuilder::GeneratedWireframeComponentBuilder(BGLDevice& _device) : bglDevice{_device}, ModelDescriptionComponentBuilder(_device)
 	{
+	}
+
+	void GeneratedWireframeComponentBuilder::buildComponent(const std::string& filename)
+	{
+		ModelDescriptionComponentBuilder::buildComponent(filename);
 	}
 
 	void GeneratedWireframeComponentBuilder::printVertexArray()

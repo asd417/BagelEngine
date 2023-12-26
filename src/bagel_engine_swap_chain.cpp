@@ -1,5 +1,7 @@
 #include "bagel_engine_swap_chain.hpp"
 
+// vulkan headers
+#include <vulkan/vulkan.h>
 // std
 #include <array>
 #include <cstdlib>
@@ -25,45 +27,45 @@ namespace bagel {
 
     BGLSwapChain::~BGLSwapChain() {
         for (auto imageView : swapChainImageViews) {
-            vkDestroyImageView(device.device(), imageView, nullptr);
+            vkDestroyImageView(BGLDevice::device(), imageView, nullptr);
         }
         swapChainImageViews.clear();
 
         if (swapChain != nullptr) {
-            vkDestroySwapchainKHR(device.device(), swapChain, nullptr);
+            vkDestroySwapchainKHR(BGLDevice::device(), swapChain, nullptr);
             swapChain = nullptr;
         }
 
         for (int i = 0; i < depthImages.size(); i++) {
-            vkDestroyImageView(device.device(), depthImageViews[i], nullptr);
-            vkDestroyImage(device.device(), depthImages[i], nullptr);
-            vkFreeMemory(device.device(), depthImageMemorys[i], nullptr);
+            vkDestroyImageView(BGLDevice::device(), depthImageViews[i], nullptr);
+            vkDestroyImage(BGLDevice::device(), depthImages[i], nullptr);
+            vkFreeMemory(BGLDevice::device(), depthImageMemorys[i], nullptr);
         }
 
         for (auto framebuffer : swapChainFramebuffers) {
-            vkDestroyFramebuffer(device.device(), framebuffer, nullptr);
+            vkDestroyFramebuffer(BGLDevice::device(), framebuffer, nullptr);
         }
 
-        vkDestroyRenderPass(device.device(), renderPass, nullptr);
+        vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
 
       // cleanup synchronization objects
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroySemaphore(device.device(), renderFinishedSemaphores[i], nullptr);
-            vkDestroySemaphore(device.device(), imageAvailableSemaphores[i], nullptr);
-            vkDestroyFence(device.device(), inFlightFences[i], nullptr);
+            vkDestroySemaphore(BGLDevice::device(), renderFinishedSemaphores[i], nullptr);
+            vkDestroySemaphore(BGLDevice::device(), imageAvailableSemaphores[i], nullptr);
+            vkDestroyFence(BGLDevice::device(), inFlightFences[i], nullptr);
         }
     }
 
     VkResult BGLSwapChain::acquireNextImage(uint32_t *imageIndex) {
         vkWaitForFences(
-            device.device(),
+            BGLDevice::device(),
             1,
             &inFlightFences[currentFrame],
             VK_TRUE,
             std::numeric_limits<uint64_t>::max());
 
         VkResult result = vkAcquireNextImageKHR(
-            device.device(),
+            BGLDevice::device(),
             swapChain,
             std::numeric_limits<uint64_t>::max(),
             imageAvailableSemaphores[currentFrame],  // must be a not signaled semaphore
@@ -76,7 +78,7 @@ namespace bagel {
     VkResult BGLSwapChain::submitCommandBuffers(
         const VkCommandBuffer *buffers, uint32_t *imageIndex) {
         if (imagesInFlight[*imageIndex] != VK_NULL_HANDLE) {
-            vkWaitForFences(device.device(), 1, &imagesInFlight[*imageIndex], VK_TRUE, UINT64_MAX);
+            vkWaitForFences(BGLDevice::device(), 1, &imagesInFlight[*imageIndex], VK_TRUE, UINT64_MAX);
         }
         imagesInFlight[*imageIndex] = inFlightFences[currentFrame];
 
@@ -96,7 +98,7 @@ namespace bagel {
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        vkResetFences(device.device(), 1, &inFlightFences[currentFrame]);
+        vkResetFences(BGLDevice::device(), 1, &inFlightFences[currentFrame]);
         if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]) !=
             VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
@@ -176,7 +178,7 @@ namespace bagel {
 
         createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : oldSwapChain->swapChain;
 
-        if (vkCreateSwapchainKHR(device.device(), &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
+        if (vkCreateSwapchainKHR(BGLDevice::device(), &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
         throw std::runtime_error("failed to create swap chain!");
         }
 
@@ -184,9 +186,9 @@ namespace bagel {
         // allowed to create a swap chain with more. That's why we'll first query the final number of
         // images with vkGetSwapchainImagesKHR, then resize the container and finally call it again to
         // retrieve the handles.
-        vkGetSwapchainImagesKHR(device.device(), swapChain, &imageCount, nullptr);
+        vkGetSwapchainImagesKHR(BGLDevice::device(), swapChain, &imageCount, nullptr);
         swapChainImages.resize(imageCount);
-        vkGetSwapchainImagesKHR(device.device(), swapChain, &imageCount, swapChainImages.data());
+        vkGetSwapchainImagesKHR(BGLDevice::device(), swapChain, &imageCount, swapChainImages.data());
 
         swapChainImageFormat = surfaceFormat.format;
         swapChainExtent = extent;
@@ -206,7 +208,7 @@ namespace bagel {
             viewInfo.subresourceRange.baseArrayLayer = 0;
             viewInfo.subresourceRange.layerCount = 1;
 
-            if (vkCreateImageView(device.device(), &viewInfo, nullptr, &swapChainImageViews[i]) !=
+            if (vkCreateImageView(BGLDevice::device(), &viewInfo, nullptr, &swapChainImageViews[i]) !=
                 VK_SUCCESS) {
                 throw std::runtime_error("failed to create texture image view!");
             }
@@ -269,7 +271,7 @@ namespace bagel {
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
-        if (vkCreateRenderPass(device.device(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+        if (vkCreateRenderPass(BGLDevice::device(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
         }
     }
@@ -290,7 +292,7 @@ namespace bagel {
             framebufferInfo.layers = 1;
 
             if (vkCreateFramebuffer(
-                    device.device(),
+                    BGLDevice::device(),
                     &framebufferInfo,
                     nullptr,
                     &swapChainFramebuffers[i]) != VK_SUCCESS) {
@@ -342,7 +344,7 @@ namespace bagel {
             viewInfo.subresourceRange.baseArrayLayer = 0;
             viewInfo.subresourceRange.layerCount = 1;
 
-            if (vkCreateImageView(device.device(), &viewInfo, nullptr, &depthImageViews[i]) != VK_SUCCESS) {
+            if (vkCreateImageView(BGLDevice::device(), &viewInfo, nullptr, &depthImageViews[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create texture image view!");
             }
         }
@@ -362,11 +364,11 @@ namespace bagel {
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            if (vkCreateSemaphore(device.device(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) !=
+            if (vkCreateSemaphore(BGLDevice::device(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) !=
                     VK_SUCCESS ||
-                vkCreateSemaphore(device.device(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) !=
+                vkCreateSemaphore(BGLDevice::device(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) !=
                     VK_SUCCESS ||
-                vkCreateFence(device.device(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+                vkCreateFence(BGLDevice::device(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create synchronization objects for a frame!");
             }
         }

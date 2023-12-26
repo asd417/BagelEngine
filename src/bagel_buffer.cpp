@@ -7,6 +7,9 @@
 
 #include "bagel_buffer.hpp"
 
+ // vulkan headers
+#include <vulkan/vulkan.h>
+
  // std
 #include <cassert>
 #include <cstring>
@@ -50,8 +53,8 @@ namespace bagel {
 
     BGLBuffer::~BGLBuffer() {
         unmap();
-        vkDestroyBuffer(bglDevice.device(), buffer, nullptr);
-        vkFreeMemory(bglDevice.device(), memory, nullptr);
+        vkDestroyBuffer(BGLDevice::device(), buffer, nullptr);
+        vkFreeMemory(BGLDevice::device(), memory, nullptr);
     }
 
     /**
@@ -65,7 +68,7 @@ namespace bagel {
      */
     VkResult BGLBuffer::map(VkDeviceSize size, VkDeviceSize offset) {
         assert(buffer && memory && "Called map on buffer before create");
-        return vkMapMemory(bglDevice.device(), memory, offset, size, 0, &mapped);
+        return vkMapMemory(BGLDevice::device(), memory, offset, size, 0, &mapped);
     }
 
     /**
@@ -75,7 +78,7 @@ namespace bagel {
      */
     void BGLBuffer::unmap() {
         if (mapped) {
-            vkUnmapMemory(bglDevice.device(), memory);
+            vkUnmapMemory(BGLDevice::device(), memory);
             mapped = nullptr;
         }
     }
@@ -119,7 +122,7 @@ namespace bagel {
         mappedRange.memory = memory;
         mappedRange.offset = offset;
         mappedRange.size = size;
-        return vkFlushMappedMemoryRanges(bglDevice.device(), 1, &mappedRange);
+        return vkFlushMappedMemoryRanges(BGLDevice::device(), 1, &mappedRange);
     }
 
     /**
@@ -139,7 +142,7 @@ namespace bagel {
         mappedRange.memory = memory;
         mappedRange.offset = offset;
         mappedRange.size = size;
-        return vkInvalidateMappedMemoryRanges(bglDevice.device(), 1, &mappedRange);
+        return vkInvalidateMappedMemoryRanges(BGLDevice::device(), 1, &mappedRange);
     }
 
     /**

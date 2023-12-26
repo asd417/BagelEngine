@@ -1,6 +1,9 @@
 #include "wireframe_render_system.hpp"
 #include "../bagel_ecs_components.hpp"
 
+// vulkan headers
+#include <vulkan/vulkan.h>
+
 #include <stdexcept>
 #include <array>
 
@@ -71,7 +74,7 @@ namespace bagel {
 	}
 	WireframeRenderSystem::~WireframeRenderSystem()
 	{
-		vkDestroyPipelineLayout(bglDevice.device(), pipelineLayout, nullptr);
+		vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
 	}
 	
 	void WireframeRenderSystem::renderEntities(FrameInfo& frameInfo)
@@ -96,7 +99,7 @@ namespace bagel {
 			ECSPushConstantData push{};
 			push.textureHandle = textureComp.textureHandle;
 			push.UsesBufferedTransform = 0;
-			push.modelMatrix = transformComp.mat4YPosFlip();
+			push.modelMatrix = transformComp.mat4();
 			push.normalMatrix = transformComp.normalMatrix();
 
 			sendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
@@ -122,7 +125,7 @@ namespace bagel {
 			push.BufferedTransformHandle = transformComp.bufferHandle;
 
 			if (!transformComp.useBuffer()) {
-				push.modelMatrix = transformComp.mat4YPosFlip(0);
+				push.modelMatrix = transformComp.mat4(0);
 				push.normalMatrix = transformComp.normalMatrix(0);
 			}
 
@@ -130,10 +133,10 @@ namespace bagel {
 
 			if (modelDescComp.hasIndexBuffer) {
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.translation.size(), 0, 0, 0);
+				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.maxIndex, 0, 0, 0);
 			}
 			else {
-				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.translation.size(), 0, 0);
+				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.maxIndex, 0, 0);
 			}
 		}
 	}
@@ -159,7 +162,7 @@ namespace bagel {
 		pipelineLayoutInfo.pushConstantRangeCount = 1;
 		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-		if (vkCreatePipelineLayout(bglDevice.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+		if (vkCreatePipelineLayout(BGLDevice::device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create pipeline layout");
 		}

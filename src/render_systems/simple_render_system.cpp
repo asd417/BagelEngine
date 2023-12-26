@@ -1,4 +1,8 @@
 #include "simple_render_system.hpp"
+#include "../bagel_ecs_components.hpp"
+
+// vulkan headers
+#include <vulkan/vulkan.h>
 
 #include <stdexcept>
 #include <array>
@@ -49,7 +53,7 @@ namespace bagel {
 	}
 	SimpleRenderSystem::~SimpleRenderSystem()
 	{
-		vkDestroyPipelineLayout(bglDevice.device(), pipelineLayout, nullptr);
+		vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
 	}
 	
 	void SimpleRenderSystem::renderGameObjects(FrameInfo& frameInfo)
@@ -87,7 +91,7 @@ namespace bagel {
 		pipelineLayoutInfo.pushConstantRangeCount = 1;
 		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-		if (vkCreatePipelineLayout(bglDevice.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+		if (vkCreatePipelineLayout(BGLDevice::device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create pipeline layout");
 		}

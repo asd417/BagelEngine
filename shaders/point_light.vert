@@ -48,6 +48,8 @@ void main(){
 	vec3 cameraUpWorld = {ubo.viewMatrix[0][1],ubo.viewMatrix[1][1],ubo.viewMatrix[2][1]};
 
 	vec3 positionWorld = push.position.xyz + push.radius * fragOffset.x * cameraRightWorld + push.radius * fragOffset.y * cameraUpWorld;
-	gl_Position = ubo.projectionMatrix * ubo.viewMatrix * vec4(positionWorld,1.0);
+	vec4 pos = ubo.projectionMatrix * ubo.viewMatrix * vec4(positionWorld,1.0);
+	//pos.y = pos.y * -1;
+	gl_Position = pos;
 
 }

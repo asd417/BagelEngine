@@ -1,5 +1,8 @@
 #include "first_app.hpp"
 
+// vulkan headers
+#include <vulkan/vulkan.h>
+
 // STL includes
 #include <iostream>
 #include <stdexcept>
@@ -7,7 +10,6 @@
 #include <iostream>
 #include <chrono>
 #include <vector>
-
 
 #include "entt.hpp"
 #define GLM_FORCE_RADIANS
@@ -29,11 +31,10 @@
 #define GLOBAL_DESCRIPTOR_COUNT 1000
 #define USE_ABS_PATH
 #define SHOW_FPS
+#define ENGINEPATH "C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine"
 
 //#define INSTANCERENDERTEST
 //#define PHYSICSTEST
-
-
 
 namespace bagel {
 	// PushConstantData is a performant and simple way to send data to vertex and fragment shader
@@ -57,6 +58,9 @@ namespace bagel {
 	//this means r and g from the memory will be assigned to blank memory, causing those value to be unread
 	//to fix this, align the vec3 variable to the multiple of 16 bytes with alignas(16)
 
+	std::string enginePath(std::string path) {
+		return (ENGINEPATH + path);
+	}
 
 	FirstApp::FirstApp()
 	{
@@ -69,11 +73,13 @@ namespace bagel {
 		descriptorManager = std::make_unique<BGLBindlessDescriptorManager>(bglDevice, *globalPool);
 		descriptorManager->createBindlessDescriptorSet(GLOBAL_DESCRIPTOR_COUNT);
 		std::cout << "Finished Creating Global Pool\n";
+
+		std::cout << "Initializing ENTT Registry\n";
 		registry = entt::registry{};
-		std::cout << "Creating Entity Registry\n";
 
 		std::cout << "Initializing IMGUI\n";
 		initImgui();
+
 		std::cout << "Initializing Jolt Physics Engine\n";
 		initJolt();
 	}
@@ -82,7 +88,7 @@ namespace bagel {
 	{
 		//add the destroy the imgui created structures
 		ImGui_ImplVulkan_Shutdown();
-		vkDestroyDescriptorPool(bglDevice.device(), imguiPool, nullptr);
+		vkDestroyDescriptorPool(BGLDevice::device(), imguiPool, nullptr);
 	}
 
 	void FirstApp::run()
@@ -126,11 +132,12 @@ namespace bagel {
 		
 		auto currentTime = std::chrono::high_resolution_clock::now();
 		std::chrono::microseconds prevFrameTime;
-		float dt = 1.0f / 3000.0f;
 
+		// Create Console Commands
 		initCommand();
 
-		loadECSObjects();
+		bool moveF = true;
+		entt::entity moved = loadECSObjects();
 		
 		// Game loop
 		while (!bglWindow.shouldClose())
@@ -147,16 +154,34 @@ namespace bagel {
 
 			if(freeFly) cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
 
-			camera.setViewYXZ(viewerObject.transform.translation, viewerObject.transform.rotation);
+			camera.setViewYXZ(viewerObject.transform.getTranslation(), viewerObject.transform.getRotation());
 
 			float aspect = bglRenderer.getAspectRatio();
 			camera.setPerspectiveProjection(glm::radians(100.0f), aspect, 0.1f, 300.0f);
 
 			// Physics
 			if (runPhys) {
-				BGLJolt::GetInstance()->Step(dt, 3);
+				BGLJolt::GetInstance()->Step(frameTime, 3);
 				BGLJolt::GetInstance()->ApplyPhysicsTransform();
 			}
+
+			auto& tfc = registry.get<TransformComponent>(moved);
+			glm::vec3 pos = tfc.getTranslation();
+			if (pos.x >= 0.5f) {
+				moveF = false;
+			} else if (pos.x <= 0.0f) {
+				moveF = true;
+			}
+
+			if (moveF) {
+				pos.x = pos.x + 0.001;
+
+			}
+			else {
+				pos.x = pos.x - 0.001;
+			}
+			tfc.setTranslation(pos);
+			
 
 			// Render
 			// imgui new frame
@@ -182,19 +207,19 @@ namespace bagel {
 				//Update
 				GlobalUBO ubo{};
 				ubo.updateCameraInfo(camera.getProjection(), camera.getView(), camera.getInverseView());
-
 				pointLightSystem.update(frameInfo, ubo);
 
+				//Apply UBO changes to buffer
 				uboBuffers->writeToBuffer(&ubo);
 				uboBuffers->flush();
+
 
 				//Render
 				bglRenderer.beginSwapChainRenderPass(commandBuffer);
 
 				//always render solid objects before rendering transparent objects
-
-				//wireframeRenderSystem.renderEntities(frameInfo);
 				modelRenderSystem.renderEntities(frameInfo);
+				//wireframeRenderSystem.renderEntities(frameInfo);
 				pointLightSystem.render(frameInfo);
 
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
@@ -204,7 +229,6 @@ namespace bagel {
 
 				auto stop = std::chrono::high_resolution_clock::now();
 				prevFrameTime = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-				dt = frameTime;
 			}
 #ifdef SHOW_FPS: 
 				//std::cout << 1.0f / frameTime << "fps\n";
@@ -212,105 +236,89 @@ namespace bagel {
 #endif
 		}
 		//CPU will block until all gpu operations are complete
-		vkDeviceWaitIdle(bglDevice.device());
+		vkDeviceWaitIdle(BGLDevice::device());
 	}
 
-	void FirstApp::loadECSObjects() {
+	entt::entity FirstApp::loadECSObjects() {
 		auto modelBuilder = new ModelDescriptionComponentBuilder(bglDevice);
-
 		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
 
 #ifdef INSTANCERENDERTEST
-		const auto e1 = registry.create();
-		auto& tfc = registry.emplace<bagel::TransformArrayComponent>(e1);
-		auto& mdc = registry.emplace<bagel::ModelDescriptionComponent>(e1, bglDevice);
-		auto& tc = registry.emplace<bagel::TextureComponent>(e1, bglDevice);
-		auto& bufferE1Comp = registry.emplace<bagel::DataBufferComponent>(e1, bglDevice, *descriptorManager);
+		{
+			const auto e11 = registry.create();
+			auto& tfc = registry.emplace<bagel::TransformArrayComponent>(e11);
+			auto& mdc = registry.emplace<bagel::ModelDescriptionComponent>(e11);
+			auto& tc = registry.emplace<bagel::TextureComponent>(e11);
+			auto& bufferE1Comp = registry.emplace<bagel::DataBufferComponent>(e11, bglDevice, *descriptorManager, sizeof(TransformArrayComponent::TransformBufferUnit));
 
-		//tfc.setTransform(0, { 2.0f * 1, 2.0f * 1, 2.0f * 1 }, {-1.0f,-1.0f, -1.0f});
-		for (int i = 0; i < 1000; i++) tfc.addTransform({ -2.0f + 1.0f * i, 5.0f , 4.0f }, { 1.0f, 1.0f, 1.0f });
-		tfc.ToBufferComponent(bufferE1Comp);
-		std::cout << "tfc bufferhandle: " << bufferE1Comp.getBufferHandle() << "\n";
-#ifndef USE_ABS_PATH
-		modelBuilder->setBuildTarget(&mdc);
-		modelBuilder->buildComponent("../models/flatfaces.obj");
-		textureBuilder->setBuildTarget(&tc);
-		textureBuilder->buildComponent("../materials/models/c_rocketlauncher.ktx");
-#else
-		modelBuilder->setBuildTarget(&mdc);
-		modelBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/models/flatfaces.obj");
-		textureBuilder->setBuildTarget(&tc);
-		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/c_rocketlauncher.ktx");
+			for (int i = 0; i < 1000; i++) tfc.addTransform({ -2.0f + 1.0f * i, 5.0f , 4.0f }, { 1.0f, 1.0f, 1.0f });
+			tfc.ToBufferComponent(bufferE1Comp);
+			
+			modelBuilder->setBuildTarget(&mdc);
+			modelBuilder->buildComponent(enginePath("/models/flatfaces.obj"));
+			textureBuilder->setBuildTarget(&tc);
+			textureBuilder->buildComponent(enginePath("/materials/models/rocketlauncher.ktx"));
+
+			std::cout << "Creating entity 2\n"; 
+			const auto e2 = registry.create();
+			auto& tfc2 = registry.emplace<bagel::TransformArrayComponent>(e2);
+			auto& bufferComp = registry.emplace<bagel::DataBufferComponent>(e2, bglDevice, *descriptorManager, sizeof(TransformArrayComponent::TransformBufferUnit));
+			tfc2.setTransform(0, { -5.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f });
+
+			for (int i = 0; i < 1000; i++) tfc2.addTransform({ -5.0f + 1.0f * i, 2.0f , 0.0f}, { 1.0f, 1.0f, 1.0f });
+
+			tfc2.ToBufferComponent(bufferComp);
+			std::cout << "tfc2 bufferhandle: " << bufferComp.getBufferHandle() << "\n";
+
+			auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2);
+			auto& tc2 = registry.emplace<bagel::TextureComponent>(e2);
+
+			//Loading axis.ktx as first texture does not cause crash but loading it second does.
+			modelBuilder->setBuildTarget(&mdc2);
+			modelBuilder->buildComponent(enginePath("/models/axis.obj"));
+			textureBuilder->setBuildTarget(&tc2);
+			textureBuilder->buildComponent(enginePath("/materials/models/axis.ktx"));
+		}
 #endif
-		std::cout << "Creating entity 2\n"; 
-		const auto e2 = registry.create();
-		auto& tfc2 = registry.emplace<bagel::TransformArrayComponent>(e2);
-		auto& bufferComp = registry.emplace<bagel::DataBufferComponent>(e2, bglDevice, *descriptorManager);
-		tfc2.setTransform(0, { -5.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f });
-
-		for (int i = 0; i < 1000; i++) tfc2.addTransform({ -5.0f + 1.0f * i, 2.0f , 0.0f}, { 1.0f, 1.0f, 1.0f });
-
-		tfc2.ToBufferComponent(bufferComp);
-		std::cout << "tfc2 bufferhandle: " << bufferComp.getBufferHandle() << "\n";
-
-		auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2, bglDevice);
-		auto& tc2 = registry.emplace<bagel::TextureComponent>(e2, bglDevice);
-
-		//Physics Component Test
-		auto& phys = registry.emplace<bagel::PhysicsComponent>(e2);
-		auto& sphere = registry.emplace<bagel::SphereColliderComponent>(e2);
-		phys.colliderTypeFlag |= Physics::ColliderFlag::SPHERE;
-		sphere.radius[0] = 1.0f;
-		sphere.radius[1] = 2.0f;
-
-#ifndef USE_ABS_PATH 
-		modelBuilder->setBuildTarget(&mdc2);
-		modelBuilder->buildComponent("../models/axis.obj");
-		textureBuilder->setBuildTarget(&tc2);
-		textureBuilder->buildComponent("../materials/models/axis.ktx");
-#else
-		//Loading axis.ktx as first texture does not cause crash but loading it second does.
-		modelBuilder->setBuildTarget(&mdc2);
-		modelBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/models/axis.obj");
-		textureBuilder->setBuildTarget(&tc2);
-		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/axis.ktx");
-#endif
+		{
+			const auto e1 = registry.create();
+			auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
+			auto& mdc1 = registry.emplace<bagel::ModelDescriptionComponent>(e1);
+			auto& tc1 = registry.emplace<bagel::DiffuseTextureComponent>(e1);
+			BGLJolt::GetInstance()->AddSphere(e1, 0.5f,{0,0,0},{0,0,0},false,Layers::MOVING);
 		
-#endif
-		const auto e1 = registry.create();
-		auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
-		auto& mdc1 = registry.emplace<bagel::ModelDescriptionComponent>(e1, bglDevice);
-		auto& tc1 = registry.emplace<bagel::TextureComponent>(e1, bglDevice);
-		BGLJolt::GetInstance()->AddSphere(e1, 0.3f,{0,0,0},{0,0,0},false,Layers::MOVING);
+			const auto e2 = registry.create();
+			auto& tfc2 = registry.emplace<bagel::TransformComponent>(e2);
+			auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2);
+			auto& tc2 = registry.emplace<bagel::DiffuseTextureComponent>(e2);
+			tfc2.setTranslation({ 0.1f, 3.0f, 0.0f });
+			//tfc2.setRotation({ 0.f,0.f,glm::pi<float>()});
+			BGLJolt::GetInstance()->AddSphere(e2, 0.5f, tfc2.getTranslation(), tfc2.getRotation(), true, Layers::MOVING);
+
+			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
+			mdc2.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
+
+			modelBuilder->setBuildTarget(&mdc1); 
+			modelBuilder->buildComponent(enginePath("/models/rocketlauncher.obj"));
+			textureBuilder->setBuildTarget(&tc1);
+			textureBuilder->buildComponent(enginePath("/materials/models/rocketlauncher.ktx"));
+			modelBuilder->setBuildTarget(&mdc2);
+			modelBuilder->buildComponent(enginePath("/models/rocketlauncher.obj"));
+			textureBuilder->setBuildTarget(&tc2);
+			textureBuilder->buildComponent(enginePath("/materials/models/rocketlauncher.ktx"));
+		}
+
 		
-		const auto e2 = registry.create();
-		auto& tfc2 = registry.emplace<bagel::TransformComponent>(e2);
-		auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2, bglDevice);
-		auto& tc2 = registry.emplace<bagel::TextureComponent>(e2, bglDevice);
-		tfc2.setTranslation({ 0.1f, 3.0f, 0.0f });
-		BGLJolt::GetInstance()->AddSphere(e2, 0.3f, { -0.1f,3.0f,0 }, { 0,0,0 }, true, Layers::MOVING);
-
-
-#ifndef USE_ABS_PATH 
+		const auto e_axis = registry.create();
+		auto& tfc1 = registry.emplace<bagel::TransformComponent>(e_axis);
+		auto& mdc1 = registry.emplace<bagel::ModelDescriptionComponent>(e_axis);
+		auto& tc1 = registry.emplace<bagel::DiffuseTextureComponent>(e_axis);
 		modelBuilder->setBuildTarget(&mdc1);
-		modelBuilder->buildComponent("../models/axis.obj");
+		modelBuilder->buildComponent(enginePath("/models/axis.obj"));
 		textureBuilder->setBuildTarget(&tc1);
-		textureBuilder->buildComponent("../materials/models/axis.ktx");
-		modelBuilder->setBuildTarget(&mdc2);
-		modelBuilder->buildComponent("../models/axis.obj");
-		textureBuilder->setBuildTarget(&tc2);
-		textureBuilder->buildComponent("../materials/models/axis.ktx");
-#else
-		//Loading same object twice somehow causes error on app close. Check this
-		modelBuilder->setBuildTarget(&mdc1);
-		modelBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/models/rocketlauncher.obj");
-		textureBuilder->setBuildTarget(&tc1);
-		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/rocketlauncher.ktx");
-		modelBuilder->setBuildTarget(&mdc2);
-		modelBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/models/rocketlauncher.obj");
-		textureBuilder->setBuildTarget(&tc2);
-		textureBuilder->buildComponent("C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/materials/models/rocketlauncher.ktx");
-#endif
+		textureBuilder->buildComponent(enginePath("/materials/models/axis.ktx"));
+		mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
+		tfc1.setScale({ 1.0f,1.0f, 1.0f });
 		
 		delete modelBuilder;
 		delete textureBuilder;
@@ -333,6 +341,7 @@ namespace bagel {
 			auto& light = registry.emplace<bagel::PointLightComponent>(entity);
 			light.color = glm::vec4(lightColors[i],4.0f);
 		}
+		return e_axis;
 	}
 
 	void FirstApp::resetScene() {
@@ -381,7 +390,7 @@ namespace bagel {
 		pool_info.poolSizeCount = std::size(pool_sizes);
 		pool_info.pPoolSizes = pool_sizes;
 		
-		VK_CHECK(vkCreateDescriptorPool(bglDevice.device(), &pool_info, nullptr, &imguiPool));
+		VK_CHECK(vkCreateDescriptorPool(BGLDevice::device(), &pool_info, nullptr, &imguiPool));
 
 		ImGui::CreateContext();
 		ImGui_ImplGlfw_InitForVulkan(bglWindow.getGLFWWindow(), true);
@@ -390,7 +399,7 @@ namespace bagel {
 		ImGui_ImplVulkan_InitInfo init_info = {};
 		init_info.Instance = bglDevice.getInstance();
 		init_info.PhysicalDevice = bglDevice.getPhysicalDevice();
-		init_info.Device = bglDevice.device();
+		init_info.Device = BGLDevice::device();
 		init_info.Queue = bglDevice.graphicsQueue();
 		init_info.DescriptorPool = imguiPool;
 		init_info.MinImageCount = 3;

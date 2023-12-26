@@ -4,7 +4,6 @@
 #include <GLFW/glfw3.h>
 #include <string>
 
-
 //https://www.youtube.com/watch?v=_riranMmtvI&ab_channel=BrendanGalea
 
 namespace bagel {

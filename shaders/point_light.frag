@@ -44,7 +44,7 @@ void main(){
 	float dist = sqrt(dot(fragOffset, fragOffset));
 	if(dist > push.radius) {
 		//Throw away this fragment and return
-		discard;
+		//discard;
 	}
 
 	//exponential

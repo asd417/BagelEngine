@@ -44,31 +44,42 @@ layout (set = 0, binding = 2) uniform sampler2D GlobalUBOColor;
 layout(push_constant) uniform Push {
 	mat4 modelMatrix;
 	mat4 normalMatrix;
-	uint textureHandle;
+
+	uint diffuseTextureHandle; 		//1
+	uint emissionTextureHandle; 	//2 Emission texture uses alpha channel as brightness. 1.0f = brightest
+	uint normalTextureHandle;		//4
+	uint roughmetalTextureHandle;	//8
+	uint textureMapFlag;
+
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
 } push;
 
+
 //Executed once per vertex
 void main() {
 	vec4 positionWorld;
-	vec3 graphicsPos = vec3(-position.x,position.y,position.z);
+	vec3 graphicsPos = vec3(position.x,position.y,position.z);
 	//Converts vertex position to world position
 	if(push.UsesBufferedTransform != 0){
 		mat4 modelMatrix = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].modelMatrix;
-		modelMatrix[3] = -1 * modelMatrix[3];
-		modelMatrix[3][3] = 1.0;
+		//modelMatrix[3] = -1 * modelMatrix[3];
+		//modelMatrix[3][3] = 1.0;
 		positionWorld = modelMatrix * vec4(graphicsPos,1.0);
 		//Converts vertex position to screen space
-		gl_Position = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
+		vec4 pos = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
+		//pos.y = -1 * pos.y;
+		gl_Position = pos;
 		fragNormalWorld = normalize(mat3(objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].normalMatrix) * normal);
 		isInstancedTransform = 1;
 	} else {
 		mat4 modelMatrix = push.modelMatrix;
-		modelMatrix[3] = -1 * modelMatrix[3];
-		modelMatrix[3][3] = 1.0;
+		//modelMatrix[3] = -1 * modelMatrix[3];
+		//modelMatrix[3][3] = 1.0;
 		positionWorld = modelMatrix * vec4(graphicsPos,1.0);
-		gl_Position = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
+		vec4 pos = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
+		//pos.y = -1 * pos.y;
+		gl_Position = pos;
 		fragNormalWorld = normalize(mat3(push.normalMatrix) * normal);
 		isInstancedTransform = 0;
 	}

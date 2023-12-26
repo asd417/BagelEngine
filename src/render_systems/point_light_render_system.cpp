@@ -1,6 +1,9 @@
 #include "point_light_render_system.hpp"
 #include "bagel_ecs_components.hpp"
 
+// vulkan headers
+#include <vulkan/vulkan.h>
+
 #include <stdexcept>
 #include <array>
 #include <chrono>
@@ -47,9 +50,10 @@ namespace bagel {
 	}
 	PointLightSystem::~PointLightSystem()
 	{
-		vkDestroyPipelineLayout(bglDevice.device(), pipelineLayout, nullptr);
+		vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
 	}
 	
+	// Update UBO
 	void PointLightSystem::update(FrameInfo& frameInfo, GlobalUBO& ubo)
 	{
 		// Copy all point light information into the globalubo point light information
@@ -57,9 +61,9 @@ namespace bagel {
 		auto view = frameInfo.registry.view<TransformComponent, PointLightComponent>();
 		for (auto [entity, transformComp, pointLightComp] : view.each()) {
 			auto rotateLight = glm::rotate(glm::mat4(1.0f), frameInfo.frameTime,{ 0.f,-1.f,0.f }); //axis of rotation
-			transformComp.translation = rotateLight * (glm::vec4(transformComp.translation, 1.f) - glm::vec4(0.f, 0.f, 5.0f, 1.0f)) + glm::vec4(0.f, 0.f, 5.0f, 1.0f);
+			transformComp.setTranslation(rotateLight * (glm::vec4(transformComp.getTranslation(), 1.f) - glm::vec4(0.f, 0.f, 5.0f, 1.0f)) + glm::vec4(0.f, 0.f, 5.0f, 1.0f));
 			
-			ubo.pointLights[lightIndex].position = glm::vec4(transformComp.translation,1.f);
+			ubo.pointLights[lightIndex].position = glm::vec4(transformComp.getTranslation(), 1.f);
 			ubo.pointLights[lightIndex].color = glm::vec4(pointLightComp.color);
 			lightIndex++;
 		}
@@ -71,10 +75,10 @@ namespace bagel {
 		//alpha sorting
 		//transparent entities need to be drawn from back to front.
 		glm::vec3 camPos = frameInfo.camera.getPosition();
-		frameInfo.registry.sort<TransformComponent>([&](const auto& lhs, const auto& rhs) {
-			glm::vec3 lhsOffset = camPos - lhs.translation[0];
+		frameInfo.registry.sort<TransformComponent>([&](const TransformComponent& lhs, const TransformComponent& rhs) {
+			glm::vec3 lhsOffset = camPos - lhs.getTranslation();
 			float lhsDisSquared = glm::dot(lhsOffset, lhsOffset);
-			glm::vec3 rhsOffset = camPos - rhs.translation[0];
+			glm::vec3 rhsOffset = camPos - rhs.getTranslation();
 			float rhsDisSquared = glm::dot(rhsOffset, rhsOffset);
 
 			//Need to sort it so that close things are last
@@ -98,7 +102,7 @@ namespace bagel {
 		view.use<TransformComponent>();
 		for (auto [entity, transformComp, pointLightComp] : view.each()) {
 			PointLightPushConstant push{};
-			push.positions = glm::vec4(transformComp.translation,1.f);
+			push.positions = glm::vec4(transformComp.getTranslation(), 1.f);
 			push.color = pointLightComp.color;
 			push.radius = pointLightComp.radius;
 		
@@ -131,7 +135,7 @@ namespace bagel {
 		pipelineLayoutInfo.pushConstantRangeCount = 1;
 		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-		if (vkCreatePipelineLayout(bglDevice.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+		if (vkCreatePipelineLayout(BGLDevice::device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create pipeline layout");
 		}

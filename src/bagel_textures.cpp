@@ -1,6 +1,9 @@
 #include "bagel_textures.h"
 #include "bagel_engine_swap_chain.hpp"
 
+// vulkan headers
+#include <vulkan/vulkan.h>
+
 #include <cassert>
 #include <iostream>
 #include <array>
@@ -64,11 +67,11 @@ namespace bagel {
 		// This buffer is used as a transfer source for the buffer copy
 		buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 		buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		VK_CHECK(vkCreateBuffer(bglDevice.device(), &buffer_create_info, nullptr, &staging_buffer));
+		VK_CHECK(vkCreateBuffer(BGLDevice::device(), &buffer_create_info, nullptr, &staging_buffer));
 
 		// Get memory requirements for the staging buffer (alignment, memory type bits)
 		VkMemoryRequirements staging_buffer_memory_requirements{};
-		vkGetBufferMemoryRequirements(bglDevice.device(), staging_buffer, &staging_buffer_memory_requirements);
+		vkGetBufferMemoryRequirements(BGLDevice::device(), staging_buffer, &staging_buffer_memory_requirements);
 		VkMemoryAllocateInfo staging_buffer_memory_allocate_info{};
 		staging_buffer_memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		staging_buffer_memory_allocate_info.allocationSize = staging_buffer_memory_requirements.size;
@@ -77,15 +80,15 @@ namespace bagel {
 		VkMemoryPropertyFlags stagingBufferFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 		// Get memory type index for a host visible buffer
 		staging_buffer_memory_allocate_info.memoryTypeIndex = bglDevice.findMemoryType(staging_buffer_memory_requirements.memoryTypeBits, stagingBufferFlags);
-		VK_CHECK(vkAllocateMemory(bglDevice.device(), &staging_buffer_memory_allocate_info, nullptr, &staging_memory));
-		VK_CHECK(vkBindBufferMemory(bglDevice.device(), staging_buffer, staging_memory, 0));
+		VK_CHECK(vkAllocateMemory(BGLDevice::device(), &staging_buffer_memory_allocate_info, nullptr, &staging_memory));
+		VK_CHECK(vkBindBufferMemory(BGLDevice::device(), staging_buffer, staging_memory, 0));
 
 		// Copy texture data into host local staging buffer
 
 		uint8_t* data;
-		VK_CHECK(vkMapMemory(bglDevice.device(), staging_memory, 0, staging_buffer_memory_requirements.size, 0, (void**)&data));
+		VK_CHECK(vkMapMemory(BGLDevice::device(), staging_memory, 0, staging_buffer_memory_requirements.size, 0, (void**)&data));
 		memcpy(data, ktx_image_data, ktx_texture_size);
-		vkUnmapMemory(bglDevice.device(), staging_memory);
+		vkUnmapMemory(BGLDevice::device(), staging_memory);
 
 
 		// Setup buffer copy regions for each mip level
@@ -122,16 +125,16 @@ namespace bagel {
 		image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		image_create_info.extent = { texture.width, texture.height, 1 };
 		image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		VK_CHECK(vkCreateImage(bglDevice.device(), &image_create_info, nullptr, &texture.image));
+		VK_CHECK(vkCreateImage(BGLDevice::device(), &image_create_info, nullptr, &texture.image));
 
 		VkMemoryRequirements image_memory_requirements{};
-		vkGetImageMemoryRequirements(bglDevice.device(), texture.image, &image_memory_requirements);
+		vkGetImageMemoryRequirements(BGLDevice::device(), texture.image, &image_memory_requirements);
 		VkMemoryAllocateInfo image_memory_allocate_info{};
 		image_memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		image_memory_allocate_info.allocationSize = image_memory_requirements.size;
 		image_memory_allocate_info.memoryTypeIndex = bglDevice.findMemoryType(image_memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK(vkAllocateMemory(bglDevice.device(), &image_memory_allocate_info, nullptr, &texture.device_memory));
-		VK_CHECK(vkBindImageMemory(bglDevice.device(), texture.image, texture.device_memory, 0));
+		VK_CHECK(vkAllocateMemory(BGLDevice::device(), &image_memory_allocate_info, nullptr, &texture.device_memory));
+		VK_CHECK(vkBindImageMemory(BGLDevice::device(), texture.image, texture.device_memory, 0));
 
 		//Create copy_command buffer and start recording
 		VkCommandBufferAllocateInfo cmd_buf_allocate_info{};
@@ -141,7 +144,7 @@ namespace bagel {
 		cmd_buf_allocate_info.commandBufferCount = 1;
 
 		VkCommandBuffer copy_command;
-		VK_CHECK(vkAllocateCommandBuffers(bglDevice.device(), &cmd_buf_allocate_info, &copy_command));
+		VK_CHECK(vkAllocateCommandBuffers(BGLDevice::device(), &cmd_buf_allocate_info, &copy_command));
 
 		// If requested, also start recording for the new command buffer
 		VkCommandBufferBeginInfo command_buffer_info{};
@@ -244,8 +247,8 @@ namespace bagel {
 		//}
 
 	// Clean up staging resources
-		vkDestroyBuffer(bglDevice.device(), staging_buffer, nullptr);
-		vkFreeMemory(bglDevice.device(), staging_memory, nullptr);
+		vkDestroyBuffer(BGLDevice::device(), staging_buffer, nullptr);
+		vkFreeMemory(BGLDevice::device(), staging_memory, nullptr);
 	
 		return true;
 	}
@@ -254,10 +257,10 @@ namespace bagel {
 
 	BGLTexture::~BGLTexture()
 	{
-		vkDestroyImageView(bglDevice.device(), info.view, nullptr);
-		vkDestroyImage(bglDevice.device(), info.image, nullptr);
-		vkDestroySampler(bglDevice.device(), info.sampler, nullptr);
-		vkFreeMemory(bglDevice.device(), info.device_memory, nullptr);
+		vkDestroyImageView(BGLDevice::device(), info.view, nullptr);
+		vkDestroyImage(BGLDevice::device(), info.image, nullptr);
+		vkDestroySampler(BGLDevice::device(), info.sampler, nullptr);
+		vkFreeMemory(BGLDevice::device(), info.device_memory, nullptr);
 	}
 
 	std::unique_ptr<BGLTexture> BGLTexture::createTextureFromFile(BGLDevice& bglDevice, const std::string & filepath, VkFormat imageFormat)
@@ -425,7 +428,7 @@ namespace bagel {
 			sampler.anisotropyEnable = VK_FALSE;
 		}
 		sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VkResult Samplerresult = vkCreateSampler(bglDevice.device(), &sampler, nullptr, &texture->info.sampler);
+		VkResult Samplerresult = vkCreateSampler(BGLDevice::device(), &sampler, nullptr, &texture->info.sampler);
 		if (Samplerresult != VK_SUCCESS)
 		{                                                               
 			std::cout << "Detected Vulkan error: " << Samplerresult << std::endl;
@@ -452,7 +455,7 @@ namespace bagel {
 		view.subresourceRange.levelCount = texture->info.mip_levels;
 		// The view will be based on the texture's image
 		view.image = texture->info.image;
-		VK_CHECK(vkCreateImageView(bglDevice.device(), &view, nullptr, &texture->info.view));
+		VK_CHECK(vkCreateImageView(BGLDevice::device(), &view, nullptr, &texture->info.view));
 
 		return texture;
 	}
@@ -492,6 +495,10 @@ namespace bagel {
 	TextureComponentBuilder::~TextureComponentBuilder()
 	{}
 
+	void TextureComponentBuilder::buildComponent(std::string filePath, VkFormat imageFormat)
+	{
+		buildComponent(filePath.c_str(), imageFormat);
+	}
 	void TextureComponentBuilder::buildComponent(const char* filePath, VkFormat imageFormat)
 	{
 #define MEMORY_SAVE
@@ -530,10 +537,10 @@ namespace bagel {
 		targetComponent->image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		generateSamplerCreateInfo();
-		VK_CHECK(vkCreateSampler(bglDevice.device(), &samplerCreateInfo, nullptr, &targetComponent->sampler));
+		VK_CHECK(vkCreateSampler(BGLDevice::device(), &samplerCreateInfo, nullptr, &targetComponent->sampler));
 
 		generateImageViewCreateInfo(imageFormat, targetComponent->image);
-		VK_CHECK(vkCreateImageView(bglDevice.device(), &imageViewCreateInfo, nullptr, &targetComponent->view));
+		VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageViewCreateInfo, nullptr, &targetComponent->view));
 		
 		targetComponent->textureHandle = descriptorManager.storeTexture(targetComponent->view, targetComponent->sampler);
 		delete stagingBuffer;

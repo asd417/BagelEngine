@@ -2,6 +2,8 @@
 
 #include "bagel_window.hpp"
 
+#include <vulkan/vulkan.h>
+
 // std lib headers
 #include <string>
 #include <vector>
@@ -38,7 +40,8 @@ namespace bagel {
 
         BGLDevice(BGLWindow &window);
         ~BGLDevice();
-
+        
+        //VkDevice device();
         // Not copyable or movable
         BGLDevice(const BGLDevice &) = delete;
         BGLDevice operator=(const BGLDevice &) = delete;
@@ -48,7 +51,6 @@ namespace bagel {
         VkInstance getInstance() const { return instance; }
         VkCommandPool getCommandPool() const { return commandPool; }
         VkPhysicalDevice getPhysicalDevice() const { return physicalDevice; }
-        VkDevice device() const { return device_; }
         VkSurfaceKHR surface() const { return surface_; }
         VkQueue graphicsQueue() const { return graphicsQueue_; }
         VkQueue presentQueue() const { return presentQueue_; }
@@ -89,6 +91,7 @@ namespace bagel {
         VkPhysicalDeviceFeatures supportedFeatures;
         VkPhysicalDeviceProperties properties;
 
+        static VkDevice& device() { return _device; }
     private:
         void createInstance();
         void setupDebugMessenger();
@@ -113,7 +116,7 @@ namespace bagel {
         BGLWindow& window;
         VkCommandPool commandPool;
 
-        VkDevice device_;
+        static VkDevice _device;
         VkSurfaceKHR surface_;
         VkQueue graphicsQueue_;
         VkQueue presentQueue_;

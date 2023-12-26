@@ -63,6 +63,7 @@ namespace bagel {
 
 		~TextureComponentBuilder();
 		void setBuildTarget(TextureComponent* _tC) { targetComponent = _tC; }
+		void buildComponent(std::string filePath, VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB);
 		void buildComponent(const char* filePath, VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB);
 
 	private:

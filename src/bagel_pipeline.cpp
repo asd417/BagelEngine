@@ -1,5 +1,8 @@
 #include "bagel_pipeline.hpp"
 
+// vulkan headers
+#include <vulkan/vulkan.h>
+
 #include "bgl_model.hpp"
 #include <fstream>
 #include <stdexcept>
@@ -20,9 +23,9 @@ namespace bagel {
 
 	BGLPipeline::~BGLPipeline()
 	{
-		vkDestroyShaderModule(bglDevice.device(), vertShaderModule, nullptr);
-		vkDestroyShaderModule(bglDevice.device(), fragShaderModule, nullptr);
-		vkDestroyPipeline(bglDevice.device(), graphicsPipeline, nullptr);
+		vkDestroyShaderModule(BGLDevice::device(), vertShaderModule, nullptr);
+		vkDestroyShaderModule(BGLDevice::device(), fragShaderModule, nullptr);
+		vkDestroyPipeline(BGLDevice::device(), graphicsPipeline, nullptr);
 	}
 
 	// This configures the first part of the graphics pipeline: Input Assembles
@@ -225,7 +228,7 @@ namespace bagel {
 		pipelineInfo.basePipelineIndex = -1;
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-		if (vkCreateGraphicsPipelines(bglDevice.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+		if (vkCreateGraphicsPipelines(BGLDevice::device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to create graphics pipeline");
 		}
 	}
@@ -239,7 +242,7 @@ namespace bagel {
 		//uint32_t is not the same size as char
 		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
-		if (vkCreateShaderModule(bglDevice.device(), &createInfo, nullptr, shaderModule) != VK_SUCCESS) {
+		if (vkCreateShaderModule(BGLDevice::device(), &createInfo, nullptr, shaderModule) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to create shader module");
 		}
 	}

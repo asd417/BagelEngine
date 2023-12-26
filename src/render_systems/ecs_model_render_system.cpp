@@ -1,9 +1,11 @@
 #include "ecs_model_render_system.hpp"
 #include "../bagel_ecs_components.hpp"
 
+#include "../bagel_engine_device.hpp"
+#include <vulkan/vulkan.h>
+
 #include <stdexcept>
 #include <array>
-
 #include <chrono>
 #include <iostream>
 
@@ -42,7 +44,14 @@ namespace bagel {
 	struct ECSPushConstantData {
 		glm::mat4 modelMatrix{ 1.0f };
 		glm::mat4 normalMatrix{ 1.0f };
-		uint32_t textureHandle;
+
+		uint32_t diffuseTextureHandle;
+		uint32_t emissionTextureHandle;
+		uint32_t normalTextureHandle;
+		uint32_t roughmetalTextureHandle;
+		// Stores flags to determine which textures are present
+		uint32_t textureMapFlag;
+
 		uint32_t BufferedTransformHandle = 0;
 		uint32_t UsesBufferedTransform = 0;
 	};
@@ -70,7 +79,7 @@ namespace bagel {
 	}
 	ModelRenderSystem::~ModelRenderSystem()
 	{
-		vkDestroyPipelineLayout(bglDevice.device(), pipelineLayout, nullptr);
+		vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
 	}
 	
 	void ModelRenderSystem::renderEntities(FrameInfo& frameInfo)
@@ -85,17 +94,24 @@ namespace bagel {
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
 
-		auto transformCompView = frameInfo.registry.view<TransformComponent, ModelDescriptionComponent, TextureComponent>();
-		for (auto [entity, transformComp, modelDescComp, textureComp] : transformCompView.each()) {
+		auto transformCompView = frameInfo.registry.view<TransformComponent, ModelDescriptionComponent>();
+		for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
 
 			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
 
 			ECSPushConstantData push{};
-			push.textureHandle = textureComp.textureHandle;
+
+			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE)	push.diffuseTextureHandle =		frameInfo.registry.get<DiffuseTextureComponent>(entity).textureHandle;
+			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::EMISSION)	push.emissionTextureHandle =	frameInfo.registry.get<EmissionTextureComponent>(entity).textureHandle;
+			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::NORMAL)		push.normalTextureHandle =		frameInfo.registry.get<NormalTextureComponent>(entity).textureHandle;
+			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::ROUGHMETAL)	push.roughmetalTextureHandle =	frameInfo.registry.get<RoughnessMetalTextureComponent>(entity).textureHandle;
+			
+			push.textureMapFlag = modelDescComp.textureMapFlag;
+
 			push.UsesBufferedTransform = 0;
-			push.modelMatrix = transformComp.mat4YPosFlip();
+			push.modelMatrix = transformComp.mat4();
 			push.normalMatrix = transformComp.normalMatrix();
 
 			sendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
@@ -108,20 +124,34 @@ namespace bagel {
 			}
 		}
 
-		auto instancedRenderView = frameInfo.registry.view<TransformArrayComponent, ModelDescriptionComponent, TextureComponent>();
-		for (auto [entity, transformComp, modelDescComp, textureComp] : instancedRenderView.each()) {
+		auto instancedRenderView = frameInfo.registry.view<TransformArrayComponent, ModelDescriptionComponent>();
+		for (auto [entity, transformComp, modelDescComp] : instancedRenderView.each()) {
 
 			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
 
 			ECSPushConstantData push{};
-			push.textureHandle = textureComp.textureHandle;
+			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE) {
+				push.diffuseTextureHandle = frameInfo.registry.get<DiffuseTextureComponent>(entity).textureHandle;
+			}
+			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::EMISSION) {
+				push.emissionTextureHandle = frameInfo.registry.get<EmissionTextureComponent>(entity).textureHandle;
+			}
+			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::NORMAL) {
+				push.normalTextureHandle = frameInfo.registry.get<NormalTextureComponent>(entity).textureHandle;
+			}
+			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::ROUGHMETAL) {
+				push.roughmetalTextureHandle = frameInfo.registry.get<RoughnessMetalTextureComponent>(entity).textureHandle;
+			}
+
+			push.textureMapFlag = modelDescComp.textureMapFlag;
+
 			push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
 			push.BufferedTransformHandle = transformComp.bufferHandle;
 
 			if (!transformComp.useBuffer()) {
-				push.modelMatrix = transformComp.mat4YPosFlip(0);
+				push.modelMatrix = transformComp.mat4(0);
 				push.normalMatrix = transformComp.normalMatrix(0);
 			}
 
@@ -129,10 +159,10 @@ namespace bagel {
 
 			if (modelDescComp.hasIndexBuffer) {
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.translation.size(), 0, 0, 0);
+				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.maxIndex, 0, 0, 0);
 			}
 			else {
-				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.translation.size(), 0, 0);
+				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.maxIndex, 0, 0);
 			}
 		}
 	}
@@ -158,7 +188,7 @@ namespace bagel {
 		pipelineLayoutInfo.pushConstantRangeCount = 1;
 		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-		if (vkCreatePipelineLayout(bglDevice.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+		if (vkCreatePipelineLayout(BGLDevice::device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create pipeline layout");
 		}

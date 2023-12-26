@@ -1,5 +1,8 @@
 #include "bagel_engine_device.hpp"
 
+// vulkan headers
+#include <vulkan/vulkan.h>
+
 // std headers
 #include <cstring>
 #include <iostream>
@@ -7,14 +10,12 @@
 #include <unordered_set>
 #include <cassert>
 
-
-
 #define PRINT_AVAILABLE_DEVICE_EXTENTION
 #define PRINT_REQUIRED_DEVICE_EXTENSION
 #define PRINT_PHYSICAL_DEVICE 
 
 namespace bagel {
-
+    VkDevice BGLDevice::_device = nullptr;
     // local callback functions
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
             VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -65,8 +66,8 @@ namespace bagel {
     }
 
     BGLDevice::~BGLDevice() {
-        vkDestroyCommandPool(device_, commandPool, nullptr);
-        vkDestroyDevice(device_, nullptr);
+        vkDestroyCommandPool(_device, commandPool, nullptr);
+        vkDestroyDevice(_device, nullptr);
 
         if (enableValidationLayers) {
         DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
@@ -217,13 +218,13 @@ namespace bagel {
             createInfo.enabledLayerCount = 0;
         }
 
-        if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device_) != VK_SUCCESS)
+        if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &_device) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create logical device!");
         }
 
-        vkGetDeviceQueue(device_, indices.graphicsFamily, 0, &graphicsQueue_);
-        vkGetDeviceQueue(device_, indices.presentFamily, 0, &presentQueue_);
+        vkGetDeviceQueue(_device, indices.graphicsFamily, 0, &graphicsQueue_);
+        vkGetDeviceQueue(_device, indices.presentFamily, 0, &presentQueue_);
     }
 
     void BGLDevice::createCommandPool() {
@@ -235,7 +236,7 @@ namespace bagel {
         poolInfo.flags =
             VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-        if (vkCreateCommandPool(device_, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+        if (vkCreateCommandPool(_device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create command pool!");
         }
@@ -478,23 +479,23 @@ namespace bagel {
         bufferInfo.usage = usage;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        if (vkCreateBuffer(device_, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        if (vkCreateBuffer(_device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to create buffer!");
         }
         //std::cout << "Created Buffer of size " << size << "\n";
         VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(device_, buffer, &memRequirements);
+        vkGetBufferMemoryRequirements(_device, buffer, &memRequirements);
 
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
         //std::cout << "Allocating memory of size " << memRequirements.size << "\n";
-        if (vkAllocateMemory(device_, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+        if (vkAllocateMemory(_device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
             throw std::runtime_error("Failed to allocate buffer!");
         }
 
-        if (vkBindBufferMemory(device_, buffer, bufferMemory, 0) != VK_SUCCESS) {
+        if (vkBindBufferMemory(_device, buffer, bufferMemory, 0) != VK_SUCCESS) {
             throw std::runtime_error("Failed to bind buffer!");
         }
     }
@@ -510,7 +511,7 @@ namespace bagel {
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         
         VkCommandBuffer commandBuffer;
-        vkAllocateCommandBuffers(device_, &allocInfo, &commandBuffer);
+        vkAllocateCommandBuffers(_device, &allocInfo, &commandBuffer);
         vkBeginCommandBuffer(commandBuffer, &beginInfo);
         return commandBuffer;
         
@@ -527,7 +528,7 @@ namespace bagel {
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-        vkAllocateCommandBuffers(device_, &allocInfo, existingBuffer);
+        vkAllocateCommandBuffers(_device, &allocInfo, existingBuffer);
         vkBeginCommandBuffer(*existingBuffer, &beginInfo);
 
     }
@@ -548,7 +549,7 @@ namespace bagel {
         }
         vkQueueWaitIdle(graphicsQueue_);
 
-        vkFreeCommandBuffers(device_, commandPool, 1, &commandBuffer);
+        vkFreeCommandBuffers(_device, commandPool, 1, &commandBuffer);
     }
 
     void BGLDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
@@ -596,25 +597,25 @@ namespace bagel {
             VkMemoryPropertyFlags properties,
             VkImage &image,
             VkDeviceMemory &imageMemory) {
-        if (vkCreateImage(device_, &imageInfo, nullptr, &image) != VK_SUCCESS)
+        if (vkCreateImage(_device, &imageInfo, nullptr, &image) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create image!");
         }
 
         VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(device_, image, &memRequirements);
+        vkGetImageMemoryRequirements(_device, image, &memRequirements);
 
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-        if (vkAllocateMemory(device_, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
+        if (vkAllocateMemory(_device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to allocate image memory!");
         }
 
-        if (vkBindImageMemory(device_, image, imageMemory, 0) != VK_SUCCESS)
+        if (vkBindImageMemory(_device, image, imageMemory, 0) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to bind image memory!");
         }
@@ -641,8 +642,8 @@ namespace bagel {
     void BGLDevice::createUploadFence() {
         VkFenceCreateInfo uploadFenceCreateInfo = fenceCreateInfo();
         
-        if (vkCreateFence(device_, &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence) != VK_SUCCESS) {
-            vkDestroyFence(device_, _uploadContext._uploadFence, nullptr);
+        if (vkCreateFence(_device, &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence) != VK_SUCCESS) {
+            vkDestroyFence(_device, _uploadContext._uploadFence, nullptr);
             throw std::runtime_error("Failed to create UploadFence!");
         }
     }
@@ -653,8 +654,8 @@ namespace bagel {
         beginSingleTimeCommands(&cmd);
         function(cmd);
         endSingleTimeCommands(cmd, &_uploadContext._uploadFence);
-        vkWaitForFences(device_, 1, &_uploadContext._uploadFence, true, 9999999999);
-        vkResetFences(device_, 1, &_uploadContext._uploadFence);
+        vkWaitForFences(_device, 1, &_uploadContext._uploadFence, true, 9999999999);
+        vkResetFences(_device, 1, &_uploadContext._uploadFence);
     }
 
 }
