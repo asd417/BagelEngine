@@ -44,7 +44,6 @@ namespace bagel {
 		// constexpr for calculating in compiletime
 		static constexpr int WIDTH = 800;
 		static constexpr int HEIGHT = 800;
-		
 
 		FirstApp();
 		~FirstApp();
@@ -61,6 +60,8 @@ namespace bagel {
 		//Command variables
 		bool freeFly = true;
 		bool runPhys = false;
+		bool rotateLight = false;
+		bool showFPS = false;
 		ConsoleApp console{};
 
 	private:

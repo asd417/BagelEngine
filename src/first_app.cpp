@@ -25,13 +25,12 @@
 #include "bagel_ecs_components.hpp"
 #include "bagel_jolt/bagel_jolt.hpp"
 #include "keyboard_movement_controller.hpp"
-
 #include "bagel_console_commands.hpp"
+#include "bagel_hierachy.hpp"
+#include "bagel_util.hpp"
 
 #define GLOBAL_DESCRIPTOR_COUNT 1000
-#define USE_ABS_PATH
-#define SHOW_FPS
-#define ENGINEPATH "C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine"
+//#define SHOW_FPS
 
 //#define INSTANCERENDERTEST
 //#define PHYSICSTEST
@@ -57,10 +56,6 @@ namespace bagel {
 
 	//this means r and g from the memory will be assigned to blank memory, causing those value to be unread
 	//to fix this, align the vec3 variable to the multiple of 16 bytes with alignas(16)
-
-	std::string enginePath(std::string path) {
-		return (ENGINEPATH + path);
-	}
 
 	FirstApp::FirstApp()
 	{
@@ -108,22 +103,33 @@ namespace bagel {
 		
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { descriptorManager->getDescriptorSetLayout() };
 
+#ifdef MODELRENDER_ORIGINAL
 		ModelRenderSystem modelRenderSystem{
 			bglDevice,
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
-			descriptorManager};
+			descriptorManager,
+			registry};
+#else
+		ModelRenderSystem modelRenderSystem{
+			bglRenderer.getSwapChainRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager,
+			registry };
+#endif
 
 		WireframeRenderSystem wireframeRenderSystem{
 			bglDevice,
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
-			descriptorManager };
+			descriptorManager,
+			registry };
 
 		PointLightSystem pointLightSystem{
-			bglDevice,
 			bglRenderer.getSwapChainRenderPass(),
-			pipelineDescriptorSetLayouts };
+			pipelineDescriptorSetLayouts,
+			descriptorManager,
+			registry };
 
 		BGLCamera camera{};
 
@@ -138,6 +144,9 @@ namespace bagel {
 
 		bool moveF = true;
 		entt::entity moved = loadECSObjects();
+
+		BGLJolt::GetInstance()->SetGravity({0,-0.0f,0});
+		BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
 		
 		// Game loop
 		while (!bglWindow.shouldClose())
@@ -151,37 +160,44 @@ namespace bagel {
 			auto newTime = std::chrono::high_resolution_clock::now();
 			float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
 			currentTime = newTime;
+			bool camMoved = false;
 
-			if(freeFly) cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
-
+			// Camera Control
+			if(freeFly) camMoved = cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
 			camera.setViewYXZ(viewerObject.transform.getTranslation(), viewerObject.transform.getRotation());
-
 			float aspect = bglRenderer.getAspectRatio();
 			camera.setPerspectiveProjection(glm::radians(100.0f), aspect, 0.1f, 300.0f);
 
+			// Example Game Logic
+			{
+				auto& tfc = registry.get<TransformComponent>(moved);
+				glm::vec3 pos = tfc.getTranslation();
+				if (pos.y >= 5.3f) {
+					moveF = false;
+				} else if (pos.y <= 0.0f) {
+					moveF = true;
+				}
+
+				if (moveF) {
+					pos.y = pos.y + 0.3 * frameTime;
+
+				}
+				else {
+					pos.y = pos.y - 0.3 * frameTime;
+				}
+				tfc.setTranslation(pos);
+			}
+
+			//Hierarchy Update
+			HierachySystem hs(registry);
+			hs.ApplyHiarchialChange();
+
 			// Physics
 			if (runPhys) {
+				BGLJolt::GetInstance()->ApplyTransformToKinematic(frameTime);
 				BGLJolt::GetInstance()->Step(frameTime, 3);
 				BGLJolt::GetInstance()->ApplyPhysicsTransform();
 			}
-
-			auto& tfc = registry.get<TransformComponent>(moved);
-			glm::vec3 pos = tfc.getTranslation();
-			if (pos.x >= 0.5f) {
-				moveF = false;
-			} else if (pos.x <= 0.0f) {
-				moveF = true;
-			}
-
-			if (moveF) {
-				pos.x = pos.x + 0.001;
-
-			}
-			else {
-				pos.x = pos.x - 0.001;
-			}
-			tfc.setTranslation(pos);
-			
 
 			// Render
 			// imgui new frame
@@ -195,10 +211,15 @@ namespace bagel {
 			ImGui::Render();
 			
 			// bglRenderer.beginFrame returns nullptr if the swapchain needs to be recreated
-			if (auto commandBuffer = bglRenderer.beginFrame()) {
+			if (auto primaryCommandBuffer = bglRenderer.beginPrimaryCMD()) {
+				//Render
+				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
+				
+				// Frame info hold secondary commandBuffer because that's where it will be recorded
+				// Only the ImGUI will be recorded to the primary commandBuffer
 				FrameInfo frameInfo{
 					frameTime,
-					commandBuffer,
+					primaryCommandBuffer,
 					camera,
 					descriptorManager->getDescriptorSet(),
 					registry
@@ -207,33 +228,29 @@ namespace bagel {
 				//Update
 				GlobalUBO ubo{};
 				ubo.updateCameraInfo(camera.getProjection(), camera.getView(), camera.getInverseView());
-				pointLightSystem.update(frameInfo, ubo);
-
+				if (rotateLight) pointLightSystem.update(ubo, frameTime);
+				else pointLightSystem.update(ubo, 0);
 				//Apply UBO changes to buffer
 				uboBuffers->writeToBuffer(&ubo);
 				uboBuffers->flush();
-
-
-				//Render
-				bglRenderer.beginSwapChainRenderPass(commandBuffer);
 
 				//always render solid objects before rendering transparent objects
 				modelRenderSystem.renderEntities(frameInfo);
 				//wireframeRenderSystem.renderEntities(frameInfo);
 				pointLightSystem.render(frameInfo);
-
-				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 				
-				bglRenderer.endSwapChainRenderPass(commandBuffer);
-				bglRenderer.endFrame();
+				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), primaryCommandBuffer);
 
-				auto stop = std::chrono::high_resolution_clock::now();
-				prevFrameTime = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+				bglRenderer.endSwapChainRenderPass(primaryCommandBuffer);
+				bglRenderer.endPrimaryCMD();
+
 			}
-#ifdef SHOW_FPS: 
-				//std::cout << 1.0f / frameTime << "fps\n";
-				std::cout << (long long)1000000/ prevFrameTime.count() << "fps\n";
-#endif
+			auto stop = std::chrono::high_resolution_clock::now();
+			prevFrameTime = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+
+			//std::cout << 1.0f / frameTime << "fps\n";
+			if(showFPS) std::cout << (long long)1000000/ prevFrameTime.count() << "fps\n";
+
 		}
 		//CPU will block until all gpu operations are complete
 		vkDeviceWaitIdle(BGLDevice::device());
@@ -257,7 +274,7 @@ namespace bagel {
 			modelBuilder->setBuildTarget(&mdc);
 			modelBuilder->buildComponent(enginePath("/models/flatfaces.obj"));
 			textureBuilder->setBuildTarget(&tc);
-			textureBuilder->buildComponent(enginePath("/materials/models/rocketlauncher.ktx"));
+			textureBuilder->buildComponent("/materials/models/rocketlauncher.ktx");
 
 			std::cout << "Creating entity 2\n"; 
 			const auto e2 = registry.create();
@@ -277,48 +294,94 @@ namespace bagel {
 			modelBuilder->setBuildTarget(&mdc2);
 			modelBuilder->buildComponent(enginePath("/models/axis.obj"));
 			textureBuilder->setBuildTarget(&tc2);
-			textureBuilder->buildComponent(enginePath("/materials/models/axis.ktx"));
+			textureBuilder->buildComponent("/materials/models/axis.ktx");
 		}
 #endif
+		
+		auto e1 = registry.create();
+		auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
+		auto& mdc1 = registry.emplace<bagel::ModelDescriptionComponent>(e1);
+		auto& tc1 = registry.emplace<bagel::DiffuseTextureComponent>(e1);
+		tfc1.setLocalTranslation({ 0.3f,0.5f,0.0 });
+
+		BGLJolt::PhysicsBodyCreationInfo info{
+			{0,0,0},{0,0,0},PhysicsType::KINEMATIC, true, PhysicsLayers::MOVING
+		};
+		BGLJolt::GetInstance()->AddSphere(e1, 0.3f,info);
+
 		{
-			const auto e1 = registry.create();
+			auto e1 = registry.create();
 			auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
 			auto& mdc1 = registry.emplace<bagel::ModelDescriptionComponent>(e1);
 			auto& tc1 = registry.emplace<bagel::DiffuseTextureComponent>(e1);
-			BGLJolt::GetInstance()->AddSphere(e1, 0.5f,{0,0,0},{0,0,0},false,Layers::MOVING);
-		
-			const auto e2 = registry.create();
-			auto& tfc2 = registry.emplace<bagel::TransformComponent>(e2);
-			auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2);
-			auto& tc2 = registry.emplace<bagel::DiffuseTextureComponent>(e2);
-			tfc2.setTranslation({ 0.1f, 3.0f, 0.0f });
-			//tfc2.setRotation({ 0.f,0.f,glm::pi<float>()});
-			BGLJolt::GetInstance()->AddSphere(e2, 0.5f, tfc2.getTranslation(), tfc2.getRotation(), true, Layers::MOVING);
+			tfc1.setTranslation({ 0.55f,5.3f,0.0 });
 
+			BGLJolt::PhysicsBodyCreationInfo info3{
+				tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, true, PhysicsLayers::MOVING
+			};
+			BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
+			modelBuilder->setBuildTarget(&mdc1);
+			modelBuilder->buildComponent(util::enginePath("/models/rocketlauncher.obj"));
 			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
-			mdc2.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
-
-			modelBuilder->setBuildTarget(&mdc1); 
-			modelBuilder->buildComponent(enginePath("/models/rocketlauncher.obj"));
 			textureBuilder->setBuildTarget(&tc1);
-			textureBuilder->buildComponent(enginePath("/materials/models/rocketlauncher.ktx"));
-			modelBuilder->setBuildTarget(&mdc2);
-			modelBuilder->buildComponent(enginePath("/models/rocketlauncher.obj"));
-			textureBuilder->setBuildTarget(&tc2);
-			textureBuilder->buildComponent(enginePath("/materials/models/rocketlauncher.ktx"));
+			textureBuilder->buildComponent("/materials/models/rocketlauncher.ktx");
 		}
 
+		{
+			auto e1 = registry.create();
+			auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
+			auto& mdc1 = registry.emplace<bagel::ModelDescriptionComponent>(e1);
+			auto& tc1 = registry.emplace<bagel::DiffuseTextureComponent>(e1);
+			tfc1.setTranslation({ -0.55f,5.3f,0.0 });
+
+			BGLJolt::PhysicsBodyCreationInfo info3{
+				tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, true, PhysicsLayers::MOVING
+			};
+			BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
+			modelBuilder->setBuildTarget(&mdc1);
+			modelBuilder->buildComponent(util::enginePath("/models/rocketlauncher.obj"));
+			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
+			textureBuilder->setBuildTarget(&tc1);
+			textureBuilder->buildComponent("/materials/models/rocketlauncher.ktx");
+		}
 		
-		const auto e_axis = registry.create();
-		auto& tfc1 = registry.emplace<bagel::TransformComponent>(e_axis);
-		auto& mdc1 = registry.emplace<bagel::ModelDescriptionComponent>(e_axis);
-		auto& tc1 = registry.emplace<bagel::DiffuseTextureComponent>(e_axis);
-		modelBuilder->setBuildTarget(&mdc1);
-		modelBuilder->buildComponent(enginePath("/models/axis.obj"));
-		textureBuilder->setBuildTarget(&tc1);
-		textureBuilder->buildComponent(enginePath("/materials/models/axis.ktx"));
+		auto e2 = registry.create();
+		auto& tfc2 = registry.emplace<bagel::TransformComponent>(e2);
+		auto& mdc2 = registry.emplace<bagel::ModelDescriptionComponent>(e2);
+		auto& tc2 = registry.emplace<bagel::DiffuseTextureComponent>(e2);
+		tfc2.setTranslation({ 0.1f, 3.0f, 0.0f });
+
+		BGLJolt::PhysicsBodyCreationInfo info2{
+			tfc2.getTranslation(),tfc2.getRotation(),PhysicsType::DYNAMIC, true, PhysicsLayers::MOVING
+		};
+		BGLJolt::GetInstance()->AddSphere(e2, 0.5f, info2);
+
 		mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
-		tfc1.setScale({ 1.0f,1.0f, 1.0f });
+		mdc2.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
+
+		modelBuilder->setBuildTarget(&mdc1); 
+		modelBuilder->buildComponent(util::enginePath("/models/rocketlauncher.obj"));
+		textureBuilder->setBuildTarget(&tc1);
+		textureBuilder->buildComponent("/materials/models/rocketlauncher.ktx");
+		modelBuilder->setBuildTarget(&mdc2);
+		modelBuilder->buildComponent(util::enginePath("/models/rocketlauncher.obj"));
+		textureBuilder->setBuildTarget(&tc2);
+		textureBuilder->buildComponent("/materials/models/rocketlauncher.ktx");
+		
+
+		auto e_axis = registry.create();
+		auto& tfc3 = registry.emplace<bagel::TransformComponent>(e_axis);
+		auto& mdc3 = registry.emplace<bagel::ModelDescriptionComponent>(e_axis);
+		auto& tc3 = registry.emplace<bagel::DiffuseTextureComponent>(e_axis);
+		modelBuilder->setBuildTarget(&mdc3);
+		modelBuilder->buildComponent(util::enginePath("/models/axis.obj"));
+		textureBuilder->setBuildTarget(&tc3);
+		textureBuilder->buildComponent("/materials/models/axis.ktx");
+		mdc3.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
+		tfc3.setScale({ 1.0f,1.0f, 1.0f });
+		tfc3.setLocalRotation({ 0.3f,0.5f,0.3f });
+		HierachySystem hs(registry);
+		hs.CreateHierachy(e_axis, e1);
 		
 		delete modelBuilder;
 		delete textureBuilder;
@@ -357,6 +420,8 @@ namespace bagel {
 		console.AddCommand("FREEFLY", this, ConsoleCommand::ToggleFly);
 		console.AddCommand("TOGGLEPHYSICS", this, ConsoleCommand::TogglePhys);
 		console.AddCommand("RESETSCENE", this, ConsoleCommand::ResetScene);
+		console.AddCommand("ROTATELIGHT", this, ConsoleCommand::RotateLight);
+		console.AddCommand("SHOWFPS", this, ConsoleCommand::ShowFPS);
 	}
 
 	void FirstApp::initJolt()

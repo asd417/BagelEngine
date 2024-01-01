@@ -258,8 +258,8 @@ namespace bagel {
 		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, filename.c_str())) {
 			throw std::runtime_error(warn + error);
 		}
-		std::map<BGLModel::Vertex, int> vertexMap{};
-		int vertInt = 0;
+		std::unordered_map<BGLModel::Vertex, uint32_t, BGLModel::VertexHasher, BGLModel::VertexEquals> vertexMap{};
+		uint32_t vertInt = 0;
 		for (const auto& shape : shapes) {
 			for (const auto& index : shape.mesh.indices) {
 				BGLModel::Vertex vertex{};

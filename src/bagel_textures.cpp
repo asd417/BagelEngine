@@ -1,5 +1,6 @@
 #include "bagel_textures.h"
 #include "bagel_engine_swap_chain.hpp"
+#include "bagel_util.hpp"
 
 // vulkan headers
 #include <vulkan/vulkan.h>
@@ -7,8 +8,8 @@
 #include <cassert>
 #include <iostream>
 #include <array>
+#include <limits>
 
-#define BINDLESS
 #define GLOBAL_DESCRIPTOR_COUNT 1000
 
 #define VK_CHECK(x)                                                     \
@@ -499,10 +500,12 @@ namespace bagel {
 	{
 		buildComponent(filePath.c_str(), imageFormat);
 	}
+
+	// filePath relative to engine path starting with /
 	void TextureComponentBuilder::buildComponent(const char* filePath, VkFormat imageFormat)
 	{
-#define MEMORY_SAVE
-#ifdef MEMORY_SAVE
+#define memorySave
+#ifdef memorySaveOld
 		std::string filenameStr(filePath);
 		if (lastBoundTextureName == filenameStr)
 		{
@@ -514,9 +517,18 @@ namespace bagel {
 			return;
 		}
 		lastBoundTextureName = filenameStr;
+#else
+		uint32_t storedIndex = descriptorManager.searchTextureName(filePath);
+		if (storedIndex != std::numeric_limits<uint32_t>::max())
+		{
+			std::cout << filePath << " Texture already bound\n";
+			targetComponent->textureHandle = storedIndex;
+			return;
+		}
 #endif
 		assert(targetComponent != nullptr && "No targetComponent set for TextureComponentBuilder");
-		loadKTXImageInStagingBuffer(filePath, imageFormat);
+		// Staging Buffer is created here
+		loadKTXImageInStagingBuffer(util::enginePath(filePath).c_str(), imageFormat);
 		generateImageCreateInfo(imageFormat);
 		//VK_CHECK(vkCreateImage(bglDevice.device(), &imageCreateInfo, nullptr, &targetComponent.image));
 		bglDevice.createImageWithInfo(imageCreateInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent->image, targetComponent->device_memory);
@@ -542,7 +554,7 @@ namespace bagel {
 		generateImageViewCreateInfo(imageFormat, targetComponent->image);
 		VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageViewCreateInfo, nullptr, &targetComponent->view));
 		
-		targetComponent->textureHandle = descriptorManager.storeTexture(targetComponent->view, targetComponent->sampler);
+		targetComponent->textureHandle = descriptorManager.storeTexture(targetComponent->view, targetComponent->sampler, filePath);
 		delete stagingBuffer;
 		buffCpyRegions.clear();
 	}

@@ -264,8 +264,10 @@
     </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\bagel_hierachy.cpp" />
+    <ClCompile Include="..\src\bagel_util.cpp" />
+    <ClCompile Include="..\src\render_systems\bagel_render_system.cpp" />
     <ClCompile Include="..\src\render_systems\wireframe_render_system.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_bindless.cpp" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_buffer.cpp" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_descriptors.cpp" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_ecs_components.cpp" />
@@ -288,8 +290,11 @@
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\point_light_render_system.cpp" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\simple_render_system.cpp" />
     <ClInclude Include="..\src\bagel_console_commands.hpp" />
+    <ClInclude Include="..\src\bagel_hierachy.hpp" />
+    <ClInclude Include="..\src\bagel_util.hpp" />
+    <ClInclude Include="..\src\render_systems\bagel_render_system.hpp" />
+    <ClInclude Include="..\src\render_systems\depths_render_system.hpp" />
     <ClInclude Include="..\src\render_systems\wireframe_render_system.hpp" />
-    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_bindless.hpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_buffer.hpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_descriptors.hpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_ecs_components.hpp" />

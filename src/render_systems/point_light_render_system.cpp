@@ -15,52 +15,14 @@
 #include <glm/glm.hpp>
 
 namespace bagel {
-
-
-	// PushConstantData is a performant and simple way to send data to vertex and fragment shader
-	// It is typically faster than descriptor sets for frequently updated data
-	// 
-	// But its size is limited to 128 bytes (technically each device has different max size but only 128 is guaranteed)
-	// This maximum size varies from device to device and is specified in bytes by the max_push_constants_size field of vk::PhysicalDeviceLimits
-	// Even the high end device (RTX3080) has only 256 bytes available so it is unrealistic to send most data
-	// 
-	//Struct normally packs the data as close as possible so it 
-	//packs like this: (host memory layout)
-	//{x,y,r,g,b}
-
-	//a float using 32bits is four bytes
-	//a vec2 with float would therefore be 8 bytes
-	//in device memory, vec3 requires to be aligned by multiple of 16 bytes
-	//meaning that the device aligns like this:
-	//{x,y,_,_,r,g,b}
-
-	//this means r and g from the memory will be assigned to blank memory, causing those value to be unread
-	//to fix this, align the vec3 variable to the multiple of 16 bytes with alignas(16)
-
-	struct PointLightPushConstant {
-		glm::vec4 positions{};
-		glm::vec4 color{};
-		float radius;
-	};
-
-	PointLightSystem::PointLightSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> globalSetLayouts) : bglDevice{device}
-	{
-		createPipelineLayout(globalSetLayouts);
-		createPipeline(renderPass);
-	}
-	PointLightSystem::~PointLightSystem()
-	{
-		vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
-	}
-	
-	// Update UBO
-	void PointLightSystem::update(FrameInfo& frameInfo, GlobalUBO& ubo)
+	// Update Position
+	void PointLightSystem::update(GlobalUBO& ubo, float frameTime)
 	{
 		// Copy all point light information into the globalubo point light information
 		int lightIndex = 0;
-		auto view = frameInfo.registry.view<TransformComponent, PointLightComponent>();
+		auto view = registry.view<TransformComponent, PointLightComponent>();
 		for (auto [entity, transformComp, pointLightComp] : view.each()) {
-			auto rotateLight = glm::rotate(glm::mat4(1.0f), frameInfo.frameTime,{ 0.f,-1.f,0.f }); //axis of rotation
+			auto rotateLight = glm::rotate(glm::mat4(1.0f), frameTime,{ 0.f,-1.f,0.f }); //axis of rotation
 			transformComp.setTranslation(rotateLight * (glm::vec4(transformComp.getTranslation(), 1.f) - glm::vec4(0.f, 0.f, 5.0f, 1.0f)) + glm::vec4(0.f, 0.f, 5.0f, 1.0f));
 			
 			ubo.pointLights[lightIndex].position = glm::vec4(transformComp.getTranslation(), 1.f);
@@ -117,6 +79,21 @@ namespace bagel {
 			vkCmdDraw(frameInfo.commandBuffer, 6, 1, 0, 0);
 		}
 	}
+#ifdef POINTLIGHT_ORIGINAL
+
+	PointLightSystem::PointLightSystem(
+		BGLDevice& device,
+		VkRenderPass renderPass,
+		std::vector<VkDescriptorSetLayout> globalSetLayouts,
+		entt::registry& _registry) : bglDevice{ device }, registry{ _registry }
+	{
+		createPipelineLayout(globalSetLayouts);
+		createPipeline(renderPass);
+	}
+	PointLightSystem::~PointLightSystem()
+	{
+		vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
+	}
 
 	void PointLightSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
 	{
@@ -153,17 +130,16 @@ namespace bagel {
 #define USE_ABS_PATH
 #ifndef USE_ABS_PATH
 		bglPipeline = std::make_unique<BGLPipeline>(
-			bglDevice,
 			"../shaders/point_light.vert.spv",
 			"../shaders/point_light.frag.spv",
 			pipelineConfig);
 #else
 		bglPipeline = std::make_unique<BGLPipeline>(
-			bglDevice,
 			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/point_light.vert.spv",
 			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/point_light.frag.spv",
 			pipelineConfig);
 #endif
 	}
+#endif
 }
 

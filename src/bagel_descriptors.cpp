@@ -310,13 +310,13 @@ namespace bagel {
         write.dstArrayElement = 0;
         write.pBufferInfo = &bufferInfo;
 
-        write.dstBinding = UniformBinding;
+        write.dstBinding = BINDINGS::UNIFORM;
         write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
         vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
     }
 
-    uint32_t BGLBindlessDescriptorManager::storeBuffer(VkDescriptorBufferInfo bufferInfo)
+    uint32_t BGLBindlessDescriptorManager::storeBuffer(VkDescriptorBufferInfo bufferInfo, const char* name = NULL)
     {
         size_t newHandle = buffers.size();
         buffers.push_back(bufferInfo);
@@ -324,7 +324,7 @@ namespace bagel {
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        write.dstBinding = BufferBinding;
+        write.dstBinding = BINDINGS::BUFFER;
         write.dstSet = bindlessDescriptorSet;
 
         // Write one buffer that is being added
@@ -333,10 +333,13 @@ namespace bagel {
         write.dstArrayElement = newHandle;
 
         vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        if (name != NULL) {
+            bufferIndexMap.emplace(std::string(name), newHandle);
+        }
         return newHandle;
     }
 
-    uint32_t BGLBindlessDescriptorManager::storeTexture(VkImageView imageView, VkSampler sampler)
+    uint32_t BGLBindlessDescriptorManager::storeTexture(VkImageView imageView, VkSampler sampler, const char* name = NULL)
     {
         size_t newHandle = textures.size();
         textures.push_back(imageView);
@@ -349,7 +352,7 @@ namespace bagel {
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write.dstBinding = TextureBinding;
+        write.dstBinding = BINDINGS::TEXTURE;
         write.dstSet = bindlessDescriptorSet;
         // Write one texture that is being added
         write.descriptorCount = 1;
@@ -359,7 +362,23 @@ namespace bagel {
         write.pImageInfo = &imageInfo;
 
         vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        if (name != NULL) {
+            textureIndexMap.emplace(std::string(name), newHandle);
+        }
         return newHandle;
     }
 
-}  // namespace lve
+    uint32_t BGLBindlessDescriptorManager::searchBufferName(std::string bufferName)
+    {
+        auto it = bufferIndexMap.find(bufferName);
+        if (it == bufferIndexMap.end()) return std::numeric_limits<uint32_t>::max();
+        return it->second;
+    }
+
+    uint32_t BGLBindlessDescriptorManager::searchTextureName(std::string textureName)
+    {
+        auto it = textureIndexMap.find(textureName);
+        if (it == textureIndexMap.end()) return std::numeric_limits<uint32_t>::max();
+        return it->second;
+    }
+}

@@ -18,19 +18,6 @@ namespace bagel {
 		// Note that for simple shapes (like boxes) you can also directly construct a BoxShape.
 		//BoxShapeSettings floor_shape_settings(Vec3(100.0f, 1.0f, 100.0f));
 
-		// Create the shape
-		//ShapeSettings::ShapeResult floor_shape_result = floor_shape_settings.Create();
-		//ShapeRefC floor_shape = floor_shape_result.Get(); // We don't expect an error here, but you can check floor_shape_result for HasError() / GetError()
-
-		// Create the settings for the body itself. Note that here you can also set other properties like the restitution / friction.
-		//BodyCreationSettings floor_settings(floor_shape, RVec3(0.0_r, -1.0_r, 0.0_r), Quat::sIdentity(), EMotionType::Static, Layers::NON_MOVING);
-
-		// Create the actual rigid body
-		//Body* floor = bodyInterface->CreateBody(floor_settings); // Note that if we run out of bodies this can return nullptr
-
-		// Add it to the world
-		//bodyInterface->AddBody(floor->GetID(), EActivation::DontActivate);
-
 		// Now create a dynamic body to bounce on the floor
 		// Note that this uses the shorthand version of creating and adding a body to the world
 		//BodyCreationSettings sphere_settings(new SphereShape(0.5f), RVec3(0.0_r, 2.0_r, 0.0_r), Quat::sIdentity(), EMotionType::Dynamic, Layers::MOVING);
@@ -77,6 +64,29 @@ namespace bagel {
 		}
 	}
 
+	void BGLJolt::ApplyTransformToKinematic(float dt)
+	{
+		auto entView = registry.view<TransformComponent, JoltKinematicComponent>();
+		for (auto [entity, transComp, physComp] : entView.each()) {
+			glm::vec3 targetPos = transComp.getWorldTranslation();
+			glm::vec3 targetRotation = transComp.getWorldRotation();
+			JPH::Vec3 jphPos = { targetPos.x,targetPos.y,targetPos.z };
+			JPH::Quat jphRot = JPH::Quat::sEulerAngles({ targetRotation.x,targetRotation.y,targetRotation.z });
+			
+			switch (physComp.moveMode) {
+			case JoltKinematicComponent::MoveMode::PHYSICAL:
+				bodyInterface->MoveKinematic(physComp.bodyID, jphPos, jphRot, dt);
+				break;
+			case JoltKinematicComponent::MoveMode::IMMEDIATE:
+				bodyInterface->SetPositionAndRotation(physComp.bodyID, jphPos, jphRot, JPH::EActivation::Activate);
+				break;
+			case JoltKinematicComponent::MoveMode::IMMEDIATE_OPTIMAL:
+				bodyInterface->SetPositionAndRotationWhenChanged(physComp.bodyID, jphPos, jphRot, JPH::EActivation::Activate);
+				break;
+			}
+		}
+	}
+
 	void BGLJolt::ApplyPhysicsTransform()
 	{
 		auto entView = registry.view<TransformComponent, JoltPhysicsComponent>();
@@ -95,23 +105,40 @@ namespace bagel {
 		}
 	}
 
-	void BGLJolt::AddSphere(entt::entity ent, float radius, glm::vec3 pos, glm::vec3 rot, bool isDynamic, bool activate, JPH::ObjectLayer layer) {
-		JPH::EMotionType type = isDynamic ? JPH::EMotionType::Dynamic : JPH::EMotionType::Static;
-		JPH::EActivation activity = activate ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
-		JPH::BodyCreationSettings sphereSettings(new JPH::SphereShape(radius), JPH::RVec3(pos.x, pos.y, pos.z), JPH::Quat::sEulerAngles({ rot.x,rot.y,rot.z }), type, layer);
-
-		auto& jpc = registry.emplace<bagel::JoltPhysicsComponent>(ent);
-		//jpc.AddBody(bodyInterface->CreateAndAddBody(sphereSettings, activity));
-		jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
+	void BGLJolt::AddSphere(entt::entity ent, float radius, PhysicsBodyCreationInfo& info) {
+		JPH::EActivation activity = info.activate ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
+		JPH::BodyCreationSettings sphereSettings(new JPH::SphereShape(radius), JPH::RVec3(info.pos.x, info.pos.y, info.pos.z), JPH::Quat::sEulerAngles({ info.rot.x,info.rot.y,info.rot.z }), (JPH::EMotionType)info.physicsType, info.layer);
+		if (info.physicsType == PhysicsType::KINEMATIC) {
+			auto& jpc = registry.emplace<bagel::JoltKinematicComponent>(ent);
+			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
+		}
+		else {
+			auto& jpc = registry.emplace<bagel::JoltPhysicsComponent>(ent);
+			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
+		}
+		
 	}
 
-	void BGLJolt::AddBox(entt::entity ent, glm::vec3 halfExtent, glm::vec3 pos, glm::vec3 rot, bool isDynamic, bool activate, JPH::ObjectLayer layer) {
-		JPH::EMotionType type = isDynamic ? JPH::EMotionType::Dynamic : JPH::EMotionType::Static;
-		JPH::EActivation activity = activate ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
-		JPH::BodyCreationSettings sphereSettings(new JPH::BoxShapeSettings({halfExtent.x,halfExtent.y,halfExtent.z}), JPH::RVec3(pos.x, pos.y, pos.z), JPH::Quat::sEulerAngles({ rot.x,rot.y,rot.z }), type, layer);
-	
-		auto& jpc = registry.emplace<bagel::JoltPhysicsComponent>(ent);
-		//jpc.AddBody(bodyInterface->CreateAndAddBody(sphereSettings, activity));
-		jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
+	void BGLJolt::AddBox(entt::entity ent, glm::vec3 halfExtent, PhysicsBodyCreationInfo& info) {
+		JPH::EActivation activity = info.activate ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
+		JPH::BodyCreationSettings sphereSettings(new JPH::BoxShapeSettings({halfExtent.x,halfExtent.y,halfExtent.z}), JPH::RVec3(info.pos.x, info.pos.y, info.pos.z), JPH::Quat::sEulerAngles({ info.rot.x,info.rot.y,info.rot.z }), (JPH::EMotionType)info.physicsType, info.layer);
+		
+		if (info.physicsType == PhysicsType::KINEMATIC) {
+			auto& jpc = registry.emplace<bagel::JoltKinematicComponent>(ent);
+			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
+		}
+		else {
+			auto& jpc = registry.emplace<bagel::JoltPhysicsComponent>(ent);
+			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
+		}
+	}
+	glm::vec3 BGLJolt::GetGravity()
+	{
+		JPH::Vec3 dir = physicsSystem.GetGravity();
+		return {dir.GetX(), dir.GetY(), dir.GetZ() };
+	}
+	void BGLJolt::SetGravity(glm::vec3 gravity)
+	{
+		physicsSystem.SetGravity({ gravity.x,gravity.y,gravity.z });
 	}
 }

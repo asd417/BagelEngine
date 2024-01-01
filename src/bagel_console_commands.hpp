@@ -22,5 +22,18 @@ namespace ConsoleCommand {
 		app->resetScene();
 		return "Reset scene and paused physics";
 	}
+	char* RotateLight(void* ptr) {
+		FirstApp* app = static_cast<FirstApp*>(ptr);
+		app->rotateLight = !app->rotateLight;
+		if (app->rotateLight) return "Rotating Light acivated";
+		else return "Rotating Light deacivated";
+	}
+	char* ShowFPS(void* ptr)
+	{
+		FirstApp* app = static_cast<FirstApp*>(ptr);
+		app->showFPS = !app->showFPS;
+		if (app->showFPS) return "Printing FPS. FPS will tank";
+		else return "Printing FPS";
+	}
 }
 }

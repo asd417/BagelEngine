@@ -12,13 +12,11 @@
 namespace bagel {
 
 	BGLPipeline::BGLPipeline(
-		BGLDevice& device, 
-		const std::string& vertFilePath, 
-		const std::string& fragFilePath, 
-		const PipelineConfigInfo& configInfo) : bglDevice{device} //Initialize bglDevice as device
+		std::string vertFilePath, 
+		std::string fragFilePath, 
+		const PipelineConfigInfo& configInfo) //Initialize bglDevice as device
 	{
 		createGraphicsPipeline(vertFilePath, fragFilePath, configInfo);
-		
 	}
 
 	BGLPipeline::~BGLPipeline()
@@ -70,8 +68,8 @@ namespace bagel {
 		// This example sets the winding order of the triangle facing the camera as 
 		// wise
 		// Backface culling can bring huge performance benefits
-		configInfo.rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
-		configInfo.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		configInfo.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+		configInfo.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
 		configInfo.rasterizationInfo.depthBiasEnable = VK_FALSE;
 		configInfo.rasterizationInfo.depthBiasConstantFactor = 0.0f;	//optional

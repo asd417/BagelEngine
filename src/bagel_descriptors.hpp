@@ -3,6 +3,7 @@
 #include "bagel_engine_device.hpp"
 #include "bagel_buffer.hpp"
 // std
+#include <map>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -103,9 +104,11 @@ namespace bagel {
     };
 
     class BGLBindlessDescriptorManager {
-        const uint32_t UniformBinding = 0;
-        const uint32_t BufferBinding = 1;
-        const uint32_t TextureBinding = 2;
+        enum BINDINGS {
+            UNIFORM,
+            BUFFER,
+            TEXTURE
+        };
     public:
         BGLBindlessDescriptorManager(BGLDevice& bglDevice, BGLDescriptorPool& globalPool);
         ~BGLBindlessDescriptorManager();
@@ -116,8 +119,11 @@ namespace bagel {
         void createBindlessDescriptorSet(uint32_t descriptorCount);
 
         void storeUBO(VkDescriptorBufferInfo bufferInfo);
-        uint32_t storeBuffer(VkDescriptorBufferInfo bufferInfo);
-        uint32_t storeTexture(VkImageView imageView, VkSampler sampler);
+        uint32_t storeBuffer(VkDescriptorBufferInfo bufferInfo, const char* name);
+        uint32_t storeTexture(VkImageView imageView, VkSampler sampler, const char* name);
+
+        uint32_t searchBufferName(std::string bufferName);
+        uint32_t searchTextureName(std::string textureName);
 
         //Can use these functions to store handle if the last bound resource is the same as one being bound;
         uint32_t getLastBufferHandle() { return textures.size() - 1; };
@@ -130,6 +136,10 @@ namespace bagel {
         BGLDescriptorPool& globalPool;
         std::vector<VkDescriptorBufferInfo> buffers{};
         std::vector<VkImageView> textures{};
+
+        std::unordered_map<std::string, uint32_t> bufferIndexMap;
+        std::unordered_map<std::string, uint32_t> textureIndexMap;
+
         VkDescriptorSetLayout bindlessSetLayout = nullptr;
         VkDescriptorSet bindlessDescriptorSet = nullptr;
     };

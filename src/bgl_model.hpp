@@ -15,7 +15,15 @@
 #include <vector>
 #include <tuple>
 #include <ostream>
+#include <functional>
 namespace bagel {
+	// Magic hash function from boost
+	template<typename T>
+	inline void Hash(std::size_t& seed, const T& v)
+	{
+		std::hash<T> hasher;
+		seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+	}
 
 	// The purpose of this class is to be able to take vertex data on cpu, allocate memory and copy it over to gpu device
 	class BGLModel {
@@ -54,6 +62,35 @@ namespace bagel {
 
 		};
 		
+		struct VertexHasher
+		{
+			size_t operator()(const Vertex& a) const
+			{
+				size_t seed{};
+				Hash<float>(seed, a.position.x);
+				Hash<float>(seed, a.position.y);
+				Hash<float>(seed, a.position.z);
+				Hash<float>(seed, a.normal.x);
+				Hash<float>(seed, a.normal.y);
+				Hash<float>(seed, a.normal.z);
+				return seed;
+			}
+		};
+
+		//We assume that two vertices with same vertex normal at same position are same vertices.
+		//Change this if there are models that use two vertices with same position and normal but different uv coordinate. 
+		//I don't know if that is possible to make in blender
+		struct VertexEquals
+		{
+			bool operator()(const Vertex& a, const Vertex& b) const
+			{
+				return std::tie(
+					a.position.x, a.position.y, a.position.z,
+					a.normal.x, a.normal.y, a.normal.z)
+					== std::tie(b.position.x, b.position.y, b.position.z,
+						b.normal.x, b.normal.y, b.normal.z);
+			}
+		};
 		template<typename T>
 		//Models can be built with either uint16_t index buffer or with uint32_t index buffer. For model with more than 65,535 vertices, use uint32_t
 		struct Builder {

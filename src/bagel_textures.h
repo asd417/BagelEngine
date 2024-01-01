@@ -7,8 +7,6 @@
 #include <ktx.h>
 #include <memory>
 
-#define BINDLESS
-
 namespace bagel {
 	class BGLTexture
 	{
@@ -91,7 +89,7 @@ namespace bagel {
 		VkSamplerCreateInfo samplerCreateInfo{};
 		VkImageViewCreateInfo imageViewCreateInfo{};
 
-		BGLBuffer* stagingBuffer;
+		BGLBuffer* stagingBuffer = nullptr;
 		BGLDevice& bglDevice;
 		BGLDescriptorPool& globalPool;
 		TextureComponent* targetComponent = nullptr;

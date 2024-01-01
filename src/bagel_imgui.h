@@ -29,7 +29,7 @@ namespace bagel {
 
         bool testToggle = false;
 
-        std::map<const char*, std::pair<void*, std::function<char*(void*)>>> callbackMap;
+        std::unordered_map<const char*, std::pair<void*, std::function<char*(void*)>>> callbackMap;
 
         ConsoleApp()
         {

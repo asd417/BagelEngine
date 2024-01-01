@@ -22,8 +22,12 @@ namespace bagel {
 		BGLRenderer(const BGLRenderer&) = delete;
 		BGLRenderer& operator=(const BGLRenderer&) = delete;
 		
-		VkCommandBuffer beginFrame();
-		void endFrame();
+		VkCommandBuffer beginPrimaryCMD();
+		void endPrimaryCMD();
+
+		VkCommandBuffer beginSecondaryCMD();
+		void endSecondaryCMD();
+
 		void beginSwapChainRenderPass(VkCommandBuffer commandBuffer);
 		void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
 
@@ -55,6 +59,7 @@ namespace bagel {
 		BGLDevice& bglDevice;
 		std::unique_ptr<BGLSwapChain> bglSwapChain;
 		std::vector<VkCommandBuffer> commandBuffers;
+		VkCommandBuffer secondaryCommandBuffer;
 	};
 
 }

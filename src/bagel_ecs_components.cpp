@@ -10,7 +10,7 @@
 #define X1Y2Z3
 
 namespace bagel {
-    DataBufferComponent::DataBufferComponent(BGLDevice& device, BGLBindlessDescriptorManager& descriptorManager, uint32_t bufferUnitsize)
+    DataBufferComponent::DataBufferComponent(BGLDevice& device, BGLBindlessDescriptorManager& descriptorManager, uint32_t bufferUnitsize, const char* bufferName = NULL)
     {
         objDataBuffer = std::make_unique<BGLBuffer>(
             device,
@@ -19,7 +19,7 @@ namespace bagel {
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
         objDataBuffer->map();
-        bufferHandle = descriptorManager.storeBuffer(objDataBuffer->descriptorInfo());
+        bufferHandle = descriptorManager.storeBuffer(objDataBuffer->descriptorInfo(), bufferName);
     }
 
     DataBufferComponent::~DataBufferComponent()
@@ -37,59 +37,59 @@ namespace bagel {
     {
         //X1Y2Z3 
         //Jolt Quaternion returns XYZ rotation
-        const float c3 = glm::cos(rotation.z);
-        const float s3 = glm::sin(rotation.z);
-        const float c2 = glm::cos(rotation.y);
-        const float s2 = glm::sin(rotation.y);
-        const float c1 = glm::cos(rotation.x);
-        const float s1 = glm::sin(rotation.x);
+        const float c3 = glm::cos(rotation.z + localRotation.z);
+        const float s3 = glm::sin(rotation.z + localRotation.z);
+        const float c2 = glm::cos(rotation.y + localRotation.y);
+        const float s2 = glm::sin(rotation.y + localRotation.y);
+        const float c1 = glm::cos(rotation.x + localRotation.x);
+        const float s1 = glm::sin(rotation.x + localRotation.x);
 
         return glm::mat4{
             {
-                scale.x * (c2 * c3),
-                scale.x * (c1 * s3 + c3 * s1 * s2),
-                scale.x * (s1 * s3 - c1 * c3 * s2),
+                (scale.x * localScale.x) * (c2 * c3),
+                (scale.x * localScale.x)* (c1 * s3 + c3 * s1 * s2),
+                (scale.x * localScale.x)* (s1 * s3 - c1 * c3 * s2),
                 0.0f,
             },
             {
-                scale.y * (-c2 * s3),
-                scale.y * (c1 * c3 - s1 * s2 * s3),
-                scale.y * (c3 * s1 + c1 * s2 * s3),
+                (scale.y * localScale.y) * (-c2 * s3),
+                (scale.y * localScale.y) * (c1 * c3 - s1 * s2 * s3),
+                (scale.y * localScale.y) * (c3 * s1 + c1 * s2 * s3),
                 0.0f,
             },
             {
-                scale.z * (s2),
-                scale.z * (-c2 * s1),
-                scale.z * (c1 * c2),
+                (scale.z * localScale.z) * (s2),
+                (scale.z * localScale.z) * (-c2 * s1),
+                (scale.z * localScale.z) * (c1 * c2),
                 0.0f,
             },
-            {translation.x, translation.y, translation.z, 1.0f} };
+            {translation.x + localTranslation.x, translation.y + localTranslation.y, translation.z + localTranslation.z, 1.0f} };
     }
 
     glm::mat3 TransformComponent::normalMatrix()
     {
-        const float c3 = glm::cos(rotation.z);
-        const float s3 = glm::sin(rotation.z);
-        const float c2 = glm::cos(rotation.y);
-        const float s2 = glm::sin(rotation.y);
-        const float c1 = glm::cos(rotation.x);
-        const float s1 = glm::sin(rotation.x);
-        const glm::vec3 invScale = 1.0f / scale;
+        const float c3 = glm::cos(rotation.z + localRotation.z);
+        const float s3 = glm::sin(rotation.z + localRotation.z);
+        const float c2 = glm::cos(rotation.y + localRotation.y);
+        const float s2 = glm::sin(rotation.y + localRotation.y);
+        const float c1 = glm::cos(rotation.x + localRotation.x);
+        const float s1 = glm::sin(rotation.x + localRotation.x);
+        const glm::vec3 invScale = 1.0f / glm::vec3(scale.x * localScale.x, scale.y * localScale.y, scale.z * localScale.z);
         return glm::mat3{
             {
-                scale.x * (c2 * c3),
-                scale.x * (c1 * s3 + c3 * s1 * s2),
-                scale.x * (s1 * s3 - c1 * c3 * s2),
+                invScale.x * (c2 * c3),
+                invScale.x * (c1 * s3 + c3 * s1 * s2),
+                invScale.x * (s1 * s3 - c1 * c3 * s2),
             },
             {
-                scale.y * (-c2 * s3),
-                scale.y * (c1 * c3 - s1 * s2 * s3),
-                scale.y * (c3 * s1 + c1 * s2 * s3),
+                invScale.y * (-c2 * s3),
+                invScale.y * (c1 * c3 - s1 * s2 * s3),
+                invScale.y * (c3 * s1 + c1 * s2 * s3),
             },
             {
-                scale.z * (s2),
-                scale.z * (-c2 * s1),
-                scale.z * (c1 * c2),
+                invScale.z * (s2),
+                invScale.z * (-c2 * s1),
+                invScale.z * (c1 * c2),
             }};
     }
 
@@ -97,18 +97,17 @@ namespace bagel {
         return { translation.x,translation.y,translation.z };
     }
 
-    void TransformComponent::setTranslation(glm::vec3 _translation)
+    void TransformComponent::setTranslation(const glm::vec3& _translation)
     {
-        //_translation *= -1;
         translation = _translation;
     }
 
-    void TransformComponent::setScale(glm::vec3 _scale)
+    void TransformComponent::setScale(const glm::vec3& _scale)
     {
         scale = _scale;
     }
 
-    void TransformComponent::setRotation(glm::vec3 _rotation)
+    void TransformComponent::setRotation(const glm::vec3& _rotation)
     {
         rotation = _rotation;
     }
@@ -117,18 +116,17 @@ namespace bagel {
         return { localTranslation.x,localTranslation.y,localTranslation.z };
     }
 
-    void TransformComponent::setLocalTranslation(glm::vec3 _translation)
+    void TransformComponent::setLocalTranslation(const glm::vec3& _translation)
     {
-        //_translation *= -1;
         localTranslation = _translation;
     }
 
-    void TransformComponent::setLocalScale(glm::vec3 _scale)
+    void TransformComponent::setLocalScale(const glm::vec3& _scale)
     {
         localScale = _scale;
     }
 
-    void TransformComponent::setLocalRotation(glm::vec3 _rotation)
+    void TransformComponent::setLocalRotation(const glm::vec3& _rotation)
     {
         localRotation = _rotation;
     }

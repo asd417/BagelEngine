@@ -18,8 +18,8 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 		glm::vec3 newRot = gameObject.transform.getRotation() + lookSpeed * dt * glm::normalize(rotate);
 		gameObject.transform.setRotation(newRot);
 		updated = true;
+		gameObject.transform.setRotation({ glm::clamp(gameObject.transform.getRotation().x, -1.5f, 1.5f), glm::mod(gameObject.transform.getRotation().y, glm::two_pi<float>()), gameObject.transform.getRotation().z });
 	}
-	gameObject.transform.setRotation({ glm::clamp(gameObject.transform.getRotation().x, -1.5f, 1.5f), glm::mod(gameObject.transform.getRotation().y, glm::two_pi<float>()), gameObject.transform.getRotation().z });
 
 	float yaw = gameObject.transform.getRotation().y;
 	const glm::vec3 forwardDir{ sin(yaw),0.0f,cos(yaw) };

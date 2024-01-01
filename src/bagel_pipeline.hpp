@@ -32,8 +32,7 @@ namespace bagel {
 
 	class BGLPipeline {
 	public:
-		BGLPipeline(BGLDevice& device, const std::string& vertFilePath, const std::string& fragFilePath, const PipelineConfigInfo& configInfo);
-
+		BGLPipeline(std::string vertFilePath, std::string fragFilePath, const PipelineConfigInfo& configInfo);
 		~BGLPipeline();
 
 		// Delete these copy constructors to avoid duplicating the pointers to the vulkan objects
@@ -48,7 +47,7 @@ namespace bagel {
 		static std::vector<char> readFile(const std::string& filepath);
 
 		void createGraphicsPipeline(const std::string& vertFilePath, const std::string& fragFilePath, const PipelineConfigInfo &configInfo);
-
+		void createOffscreenPipeline();
 		// A pipeline fundamentally needs a device. Therefore setting this memory unsafe variable is not necessarily dangerous
 		// In ULM this type of relation is known as Agregation
 
@@ -56,9 +55,10 @@ namespace bagel {
 		//shaderModule is a pointer to a pointer
 		void createShaderModule(const std::vector<char>& code, VkShaderModule * shaderModule);
 
-		BGLDevice& bglDevice;
 		//typedef pointer 
 		VkPipeline graphicsPipeline;
+		VkPipeline offscreenPipeline;
+
 		// VkShaderModule is a pointer to VkShaderModule_T
 		VkShaderModule vertShaderModule;
 		VkShaderModule fragShaderModule;

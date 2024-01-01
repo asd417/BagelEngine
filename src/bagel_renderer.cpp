@@ -18,9 +18,9 @@ namespace bagel {
 		freeCommandBuffers();
 	}
 
-	VkCommandBuffer BGLRenderer::beginFrame()
+	VkCommandBuffer BGLRenderer::beginPrimaryCMD()
 	{
-		assert(!isFrameStarted && "Can not call BeginFrame() while the frame is already started");
+		assert(!isFrameStarted && "Can not call beginPrimaryCMD() while the frame is already started");
 		auto result = bglSwapChain->acquireNextImage(&currentImageIndex);
 
 		//detect if the surface is no longer compatible with the swapchain
@@ -39,13 +39,14 @@ namespace bagel {
 		// Record draw commands to each command buffers
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
 			throw std::runtime_error("failed to begin recording draw command to command buffers");
 		}
 		return commandBuffer;
 	}
 
-	void BGLRenderer::endFrame()
+	void BGLRenderer::endPrimaryCMD()
 	{
 		assert(isFrameStarted && "Cannot call endFrame() while frame is not in progress");
 
@@ -168,6 +169,5 @@ namespace bagel {
 			commandBuffers.data());
 		commandBuffers.clear();
 	}
-
 }
 

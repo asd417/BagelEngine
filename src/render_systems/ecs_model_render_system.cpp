@@ -1,7 +1,8 @@
 #include "ecs_model_render_system.hpp"
 #include "../bagel_ecs_components.hpp"
-
 #include "../bagel_engine_device.hpp"
+#include "../bagel_util.hpp"
+
 #include <vulkan/vulkan.h>
 
 #include <stdexcept>
@@ -35,33 +36,7 @@ namespace bagel {
 	//this means r and g from the memory will be assigned to blank memory, causing those value to be unread
 	//to fix this, align the vec3 variable to the multiple of 16 bytes with alignas(16)
 
-	struct SimplePushConstantData {
-		glm::mat4 modelMatrix{ 1.0f };
-		// alignas aligns the variable to the 
-		glm::mat4 normalMatrix{ 1.0f };
-	};
-
-	struct ECSPushConstantData {
-		glm::mat4 modelMatrix{ 1.0f };
-		glm::mat4 normalMatrix{ 1.0f };
-
-		uint32_t diffuseTextureHandle;
-		uint32_t emissionTextureHandle;
-		uint32_t normalTextureHandle;
-		uint32_t roughmetalTextureHandle;
-		// Stores flags to determine which textures are present
-		uint32_t textureMapFlag;
-
-		uint32_t BufferedTransformHandle = 0;
-		uint32_t UsesBufferedTransform = 0;
-	};
-
-	struct OBJDataBufferUnit {
-		glm::mat4 modelMatrix{ 1.0f };
-		glm::mat4 normalMatrix{ 1.0f };
-	};
-
-	void sendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push)
+	inline void SendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push)
 	{
 		vkCmdPushConstants(
 			cmdBuffer,
@@ -72,7 +47,31 @@ namespace bagel {
 			&push);
 	}
 
-	ModelRenderSystem::ModelRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts, std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager) : bglDevice{ device }, descriptorManager{ _descriptorManager }
+	inline void FillPushConstantData(ECSPushConstantData& push, const ModelDescriptionComponent& comp, const entt::registry& r, const entt::entity& ent) {
+		if (comp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE)		push.diffuseTextureHandle =		r.get<DiffuseTextureComponent>(ent).textureHandle;
+		if (comp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::EMISSION)	push.emissionTextureHandle =	r.get<EmissionTextureComponent>(ent).textureHandle;
+		if (comp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::NORMAL)		push.normalTextureHandle =		r.get<NormalTextureComponent>(ent).textureHandle;
+		if (comp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::ROUGHMETAL)	push.roughmetalTextureHandle =	r.get<RoughnessMetalTextureComponent>(ent).textureHandle;
+		push.textureMapFlag = comp.textureMapFlag;
+	}
+
+	inline void BindAppropriateModelBuffer(VkCommandBuffer& commandBuffer, const ModelDescriptionComponent& comp, uint32_t instanceCount)
+	{
+		if (comp.hasIndexBuffer) {
+			vkCmdBindIndexBuffer(commandBuffer, comp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdDrawIndexed(commandBuffer, comp.indexCount, instanceCount, 0, 0, 0);
+		}
+		else {
+			vkCmdDraw(commandBuffer, comp.vertexCount, instanceCount, 0, 0);
+		}
+	}
+
+#ifdef MODELRENDER_ORIGINAL
+	ModelRenderSystem::ModelRenderSystem(
+		BGLDevice& device, VkRenderPass renderPass, 
+		std::vector<VkDescriptorSetLayout> setLayouts, 
+		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager, 
+		entt::registry& _registry) : bglDevice{ device }, descriptorManager{ _descriptorManager }, registry{_registry}
 	{
 		createPipelineLayout(setLayouts);
 		createPipeline(renderPass);
@@ -80,91 +79,6 @@ namespace bagel {
 	ModelRenderSystem::~ModelRenderSystem()
 	{
 		vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
-	}
-	
-	void ModelRenderSystem::renderEntities(FrameInfo& frameInfo)
-	{
-		bglPipeline->bind(frameInfo.commandBuffer);
-		vkCmdBindDescriptorSets(
-			frameInfo.commandBuffer,
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			pipelineLayout,
-			0, //first set
-			1, //descriptorSet Count 
-			&frameInfo.globalDescriptorSets,
-			0, nullptr);
-
-		auto transformCompView = frameInfo.registry.view<TransformComponent, ModelDescriptionComponent>();
-		for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
-
-			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
-			VkDeviceSize offsets[] = { 0 };
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
-
-			ECSPushConstantData push{};
-
-			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE)	push.diffuseTextureHandle =		frameInfo.registry.get<DiffuseTextureComponent>(entity).textureHandle;
-			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::EMISSION)	push.emissionTextureHandle =	frameInfo.registry.get<EmissionTextureComponent>(entity).textureHandle;
-			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::NORMAL)		push.normalTextureHandle =		frameInfo.registry.get<NormalTextureComponent>(entity).textureHandle;
-			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::ROUGHMETAL)	push.roughmetalTextureHandle =	frameInfo.registry.get<RoughnessMetalTextureComponent>(entity).textureHandle;
-			
-			push.textureMapFlag = modelDescComp.textureMapFlag;
-
-			push.UsesBufferedTransform = 0;
-			push.modelMatrix = transformComp.mat4();
-			push.normalMatrix = transformComp.normalMatrix();
-
-			sendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-
-			if (modelDescComp.hasIndexBuffer) {
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, 1, 0, 0, 0);
-			} else {
-				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, 0, 0);
-			}
-		}
-
-		auto instancedRenderView = frameInfo.registry.view<TransformArrayComponent, ModelDescriptionComponent>();
-		for (auto [entity, transformComp, modelDescComp] : instancedRenderView.each()) {
-
-			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
-			VkDeviceSize offsets[] = { 0 };
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
-
-			ECSPushConstantData push{};
-			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE) {
-				push.diffuseTextureHandle = frameInfo.registry.get<DiffuseTextureComponent>(entity).textureHandle;
-			}
-			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::EMISSION) {
-				push.emissionTextureHandle = frameInfo.registry.get<EmissionTextureComponent>(entity).textureHandle;
-			}
-			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::NORMAL) {
-				push.normalTextureHandle = frameInfo.registry.get<NormalTextureComponent>(entity).textureHandle;
-			}
-			if (modelDescComp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::ROUGHMETAL) {
-				push.roughmetalTextureHandle = frameInfo.registry.get<RoughnessMetalTextureComponent>(entity).textureHandle;
-			}
-
-			push.textureMapFlag = modelDescComp.textureMapFlag;
-
-			push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
-			push.BufferedTransformHandle = transformComp.bufferHandle;
-
-			if (!transformComp.useBuffer()) {
-				push.modelMatrix = transformComp.mat4(0);
-				push.normalMatrix = transformComp.normalMatrix(0);
-			}
-
-			sendPushConstantData(frameInfo.commandBuffer, pipelineLayout,push);
-
-			if (modelDescComp.hasIndexBuffer) {
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.maxIndex, 0, 0, 0);
-			}
-			else {
-				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.maxIndex, 0, 0);
-			}
-		}
 	}
 
 	void ModelRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
@@ -202,21 +116,64 @@ namespace bagel {
 		BGLPipeline::defaultPipelineConfigInfo(pipelineConfig);
 		pipelineConfig.renderPass = renderPass;
 		pipelineConfig.pipelineLayout = pipelineLayout;
-#define USE_ABS_PATH
-#ifndef USE_ABS_PATH
+
 		bglPipeline = std::make_unique<BGLPipeline>(
-			bglDevice,
-			"../shaders/simple_shader.vert.spv",
-			"../shaders/simple_shader.frag.spv",
+			util::enginePath("/shaders/simple_shader.vert.spv"),
+			util::enginePath("/shaders/simple_shader.frag.spv"),
 			pipelineConfig);
-#else
-		bglPipeline = std::make_unique<BGLPipeline>(
-			bglDevice,
-			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/simple_shader.vert.spv",
-			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/simple_shader.frag.spv",
-			pipelineConfig);
-#endif
 	}
-	
+#endif
+
+	void ModelRenderSystem::renderEntities(FrameInfo& frameInfo)
+	{
+		bglPipeline->bind(frameInfo.commandBuffer);
+		vkCmdBindDescriptorSets(
+			frameInfo.commandBuffer,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipelineLayout,
+			0, //first set
+			1, //descriptorSet Count 
+			&frameInfo.globalDescriptorSets,
+			0, nullptr);
+
+		VkDeviceSize offsets[] = { 0 };
+		auto transformCompView = registry.view<TransformComponent, ModelDescriptionComponent>();
+		for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
+			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
+			
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
+
+			ECSPushConstantData push{};
+			FillPushConstantData(push, modelDescComp,registry,entity);
+
+			push.UsesBufferedTransform = 0;
+			push.modelMatrix = transformComp.mat4();
+			push.normalMatrix = transformComp.normalMatrix();
+
+			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelDescComp, 1);
+		}
+
+		auto instancedRenderView = registry.view<TransformArrayComponent, ModelDescriptionComponent>();
+		for (auto [entity, transformComp, modelDescComp] : instancedRenderView.each()) {
+			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
+
+			ECSPushConstantData push{};
+			FillPushConstantData(push, modelDescComp, registry, entity);
+
+			push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
+			push.BufferedTransformHandle = transformComp.bufferHandle;
+
+			if (!transformComp.useBuffer()) {
+				push.modelMatrix = transformComp.mat4(0);
+				push.normalMatrix = transformComp.normalMatrix(0);
+			}
+
+			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelDescComp, transformComp.maxIndex);
+		}
+	}
+
 }
 

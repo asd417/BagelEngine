@@ -20,7 +20,12 @@ namespace bagel {
 
 	class WireframeRenderSystem {
 	public:
-		WireframeRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts, std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager);
+		WireframeRenderSystem(
+			BGLDevice& device, 
+			VkRenderPass renderPass, 
+			std::vector<VkDescriptorSetLayout> setLayouts, 
+			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
+			entt::registry& registry);
 		~WireframeRenderSystem();
 
 		WireframeRenderSystem(const WireframeRenderSystem&) = delete;
@@ -32,6 +37,7 @@ namespace bagel {
 		void createPipeline(VkRenderPass renderPass);
 
 		BGLDevice& bglDevice;
+		entt::registry& registry;
 
 		std::unique_ptr<BGLPipeline> bglPipeline;
 		VkPipelineLayout pipelineLayout;

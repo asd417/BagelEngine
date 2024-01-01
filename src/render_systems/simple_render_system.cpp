@@ -105,7 +105,6 @@ namespace bagel {
 		pipelineConfig.renderPass = renderPass;
 		pipelineConfig.pipelineLayout = pipelineLayout;
 		bglPipeline = std::make_unique<BGLPipeline>(
-			bglDevice,
 			"../shaders/simple_shader.vert.spv",
 			"../shaders/simple_shader.frag.spv",
 			pipelineConfig);

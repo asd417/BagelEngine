@@ -92,6 +92,7 @@ namespace bagel {
         VkPhysicalDeviceProperties properties;
 
         static VkDevice& device() { return _device; }
+
     private:
         void createInstance();
         void setupDebugMessenger();

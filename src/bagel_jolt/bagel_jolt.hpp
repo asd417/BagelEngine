@@ -16,6 +16,8 @@
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
 
+#include <Jolt/Renderer/DebugRenderer.h>
+
 #include "entt.hpp"
 #include <glm/glm.hpp>
 
@@ -29,11 +31,18 @@ namespace bagel {
 	// Typically you at least want to have 1 layer for moving bodies and 1 layer for static bodies, but you can have more
 	// layers if you want. E.g. you could have a layer for high detail collision (which is not used by the physics simulation
 	// but only if you do collision testing).
-	namespace Layers
+	namespace PhysicsLayers
 	{
 		static constexpr JPH::ObjectLayer NON_MOVING = 0;
 		static constexpr JPH::ObjectLayer MOVING = 1;
 		static constexpr JPH::ObjectLayer NUM_LAYERS = 2;
+	};
+
+	enum PhysicsType
+	{
+		STATIC,
+		KINEMATIC,
+		DYNAMIC
 	};
 
 	// Callback for traces, connect this to your own trace function if you have one
@@ -80,7 +89,7 @@ namespace bagel {
 		// See: ContactListener
 		virtual JPH::ValidateResult	OnContactValidate(const JPH::Body& inBody1, const JPH::Body& inBody2, JPH::RVec3Arg inBaseOffset, const JPH::CollideShapeResult& inCollisionResult) override
 		{
-			std::cout << "Contact validate callback" << std::endl;
+			//std::cout << "Contact validate callback" << std::endl;
 
 			// Allows you to ignore a contact before it is created (using layers to not make objects collide is cheaper!)
 			return JPH::ValidateResult::AcceptAllContactsForThisBodyPair;
@@ -88,17 +97,18 @@ namespace bagel {
 
 		virtual void OnContactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2, const JPH::ContactManifold& inManifold, JPH::ContactSettings& ioSettings) override
 		{
+			std::cout << "Contact on " << inManifold.GetWorldSpaceContactPointOn1(0) << "\n";
 			std::cout << "A contact was added" << std::endl;
 		}
 
 		virtual void OnContactPersisted(const JPH::Body& inBody1, const JPH::Body& inBody2, const JPH::ContactManifold& inManifold, JPH::ContactSettings& ioSettings) override
 		{
-			std::cout << "A contact was persisted" << std::endl;
+			//std::cout << "A contact was persisted" << std::endl;
 		}
 
 		virtual void OnContactRemoved(const JPH::SubShapeIDPair& inSubShapePair) override
 		{
-			std::cout << "A contact was removed" << std::endl;
+			//std::cout << "A contact was removed" << std::endl;
 		}
 	};
 
@@ -125,9 +135,9 @@ namespace bagel {
 		{
 			switch (inLayer1)
 			{
-			case Layers::NON_MOVING:
+			case PhysicsLayers::NON_MOVING:
 				return inLayer2 == BroadPhaseLayers::MOVING;
-			case Layers::MOVING:
+			case PhysicsLayers::MOVING:
 				return true;
 			default:
 				JPH_ASSERT(false);
@@ -145,8 +155,8 @@ namespace bagel {
 		BPLayerInterfaceImpl()
 		{
 			// Create a mapping table from object to broad phase layer
-			mObjectToBroadPhase[Layers::NON_MOVING] = BroadPhaseLayers::NON_MOVING;
-			mObjectToBroadPhase[Layers::MOVING] = BroadPhaseLayers::MOVING;
+			mObjectToBroadPhase[PhysicsLayers::NON_MOVING] = BroadPhaseLayers::NON_MOVING;
+			mObjectToBroadPhase[PhysicsLayers::MOVING] = BroadPhaseLayers::MOVING;
 		}
 
 		virtual JPH::uint GetNumBroadPhaseLayers() const override
@@ -156,7 +166,7 @@ namespace bagel {
 
 		virtual JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer inLayer) const override
 		{
-			JPH_ASSERT(inLayer < Layers::NUM_LAYERS);
+			JPH_ASSERT(inLayer < PhysicsLayers::NUM_LAYERS);
 			return mObjectToBroadPhase[inLayer];
 		}
 
@@ -173,7 +183,7 @@ namespace bagel {
 #endif // JPH_EXTERNAL_PROFILE || JPH_PROFILE_ENABLED
 
 	private:
-		JPH::BroadPhaseLayer mObjectToBroadPhase[Layers::NUM_LAYERS];
+		JPH::BroadPhaseLayer mObjectToBroadPhase[PhysicsLayers::NUM_LAYERS];
 	};
 
 	/// Class that determines if two object layers can collide
@@ -184,9 +194,9 @@ namespace bagel {
 		{
 			switch (inObject1)
 			{
-			case Layers::NON_MOVING:
-				return inObject2 == Layers::MOVING; // Non moving only collides with moving
-			case Layers::MOVING:
+			case PhysicsLayers::NON_MOVING:
+				return inObject2 == PhysicsLayers::MOVING; // Non moving only collides with moving
+			case PhysicsLayers::MOVING:
 				return true; // Moving collides with everything
 			default:
 				JPH_ASSERT(false);
@@ -198,6 +208,15 @@ namespace bagel {
 
 	class BGLJolt {
 	public:
+
+		struct PhysicsBodyCreationInfo {
+			glm::vec3 pos;
+			glm::vec3 rot;
+			PhysicsType physicsType;
+			bool activate;
+			JPH::ObjectLayer layer;
+		};
+
 		static void Initialize(entt::registry& registry) {
 			// Register allocation hook
 			JPH::RegisterDefaultAllocator();
@@ -219,16 +238,21 @@ namespace bagel {
 		}
 		JPH::BodyInterface& GetBodyInterface() const { return *bodyInterface; }
 		void Step(float dt, JPH::uint stepCount = 1);
+		void ApplyTransformToKinematic(float dt);
 		void ApplyPhysicsTransform();
-		void AddSphere(entt::entity ent, float radius, glm::vec3 pos, glm::vec3 rot, bool isDynamic, bool activate, JPH::ObjectLayer layer = Layers::MOVING);
-		void AddBox(entt::entity ent, glm::vec3 halfExtent, glm::vec3 pos, glm::vec3 rot, bool isDynamic, bool activate, JPH::ObjectLayer layer = Layers::MOVING);
-		void ChangeSimulationTimescale(float _s) { simTimeScale = _s; }
+		void AddSphere(entt::entity ent, float radius, PhysicsBodyCreationInfo &info);
+		void AddBox(entt::entity ent, glm::vec3 halfExtent, PhysicsBodyCreationInfo& info);
+		void SetSimulationTimescale(float _s) { simTimeScale = _s; }
+		glm::vec3 GetGravity();
+		void SetGravity(glm::vec3 gravity);
 	private:
 		BGLJolt(entt::registry& _registry);
 		~BGLJolt();
+
 		//Singleton Pattern
 		static BGLJolt* instance;
 		entt::registry& registry;
+
 
 		// We need a job system that will execute physics jobs on multiple threads. Typically
 		// you would implement the JobSystem interface yourself and let Jolt Physics run on top

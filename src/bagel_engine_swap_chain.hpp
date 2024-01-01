@@ -7,11 +7,13 @@
 #include <vector>
 #include <memory>
 
-namespace bagel {
+// 16 bits of depth is enough for such a small scene
+#define DEPTH_FORMAT VK_FORMAT_D16_UNORM
 
+namespace bagel {
     class BGLSwapChain {
     public:
-        static constexpr int MAX_FRAMES_IN_FLIGHT = 1;
+        static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
         BGLSwapChain(BGLDevice &deviceRef, VkExtent2D windowExtent);
         BGLSwapChain(BGLDevice& deviceRef, VkExtent2D windowExtent, std::shared_ptr<BGLSwapChain> previous);
@@ -22,6 +24,7 @@ namespace bagel {
 
         VkFramebuffer getFrameBuffer(int index) { return swapChainFramebuffers[index]; }
         VkRenderPass getRenderPass() { return renderPass; }
+        VkRenderPass getOffscreenRenderPass() { return offscreenRenderPass; }
         VkImageView getImageView(int index) { return swapChainImageViews[index]; }
         size_t imageCount() { return swapChainImages.size(); }
         VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
@@ -47,6 +50,7 @@ namespace bagel {
         void createImageViews();
         void createDepthResources();
         void createRenderPass();
+        void createDepthsRenderPass();
         void createFramebuffers();
         void createSyncObjects();
 
@@ -62,7 +66,9 @@ namespace bagel {
         VkExtent2D swapChainExtent;
 
         std::vector<VkFramebuffer> swapChainFramebuffers;
+
         VkRenderPass renderPass;
+        VkRenderPass offscreenRenderPass;
 
         std::vector<VkImage> depthImages;
         std::vector<VkDeviceMemory> depthImageMemorys;

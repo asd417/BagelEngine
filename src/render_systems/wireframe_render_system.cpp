@@ -55,7 +55,7 @@ namespace bagel {
 		glm::mat4 normalMatrix{ 1.0f };
 	};
 
-	void sendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push);
+	void SendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push);
 	//void sendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push)
 	//{
 	//	vkCmdPushConstants(
@@ -67,7 +67,11 @@ namespace bagel {
 	//		&push);
 	//}
 
-	WireframeRenderSystem::WireframeRenderSystem(BGLDevice& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts, std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager) : bglDevice{ device }, descriptorManager{ _descriptorManager }
+	WireframeRenderSystem::WireframeRenderSystem(
+		BGLDevice& device, VkRenderPass renderPass, 
+		std::vector<VkDescriptorSetLayout> setLayouts, 
+		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
+		entt::registry& _registry) : bglDevice{ device }, descriptorManager{ _descriptorManager }, registry{_registry}
 	{
 		createPipelineLayout(setLayouts);
 		createPipeline(renderPass);
@@ -89,7 +93,7 @@ namespace bagel {
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
 
-		auto transformCompView = frameInfo.registry.view<TransformComponent, ModelDescriptionComponent, TextureComponent>();
+		auto transformCompView = registry.view<TransformComponent, ModelDescriptionComponent, TextureComponent>();
 		for (auto [entity, transformComp, modelDescComp, textureComp] : transformCompView.each()) {
 
 			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
@@ -102,7 +106,7 @@ namespace bagel {
 			push.modelMatrix = transformComp.mat4();
 			push.normalMatrix = transformComp.normalMatrix();
 
-			sendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 
 			if (modelDescComp.hasIndexBuffer) {
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -112,7 +116,7 @@ namespace bagel {
 			}
 		}
 
-		auto instancedRenderView = frameInfo.registry.view<TransformArrayComponent, ModelDescriptionComponent, TextureComponent>();
+		auto instancedRenderView = registry.view<TransformArrayComponent, ModelDescriptionComponent, TextureComponent>();
 		for (auto [entity, transformComp, modelDescComp, textureComp] : instancedRenderView.each()) {
 
 			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
@@ -129,7 +133,7 @@ namespace bagel {
 				push.normalMatrix = transformComp.normalMatrix(0);
 			}
 
-			sendPushConstantData(frameInfo.commandBuffer, pipelineLayout,push);
+			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout,push);
 
 			if (modelDescComp.hasIndexBuffer) {
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -182,13 +186,11 @@ namespace bagel {
 #define USE_ABS_PATH
 #ifndef USE_ABS_PATH
 		bglPipeline = std::make_unique<BGLPipeline>(
-			bglDevice,
 			"../shaders/wireframe_shader.vert.spv",
 			"../shaders/wireframe_shader.frag.spv",
 			pipelineConfig);
 #else
 		bglPipeline = std::make_unique<BGLPipeline>(
-			bglDevice,
 			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv",
 			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv",
 			pipelineConfig);
