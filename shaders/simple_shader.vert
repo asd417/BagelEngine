@@ -39,7 +39,7 @@ layout (set = 0, binding = 1) readonly buffer objTransform {
 	ObjectData objects[];
 } objTransformArray[];
 
-layout (set = 0, binding = 2) uniform sampler2D GlobalUBOColor;
+layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
 
 layout(push_constant) uniform Push {
 	mat4 modelMatrix;

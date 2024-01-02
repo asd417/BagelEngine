@@ -103,20 +103,12 @@ namespace bagel {
 		
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { descriptorManager->getDescriptorSetLayout() };
 
-#ifdef MODELRENDER_ORIGINAL
-		ModelRenderSystem modelRenderSystem{
-			bglDevice,
-			bglRenderer.getSwapChainRenderPass(),
-			pipelineDescriptorSetLayouts,
-			descriptorManager,
-			registry};
-#else
 		ModelRenderSystem modelRenderSystem{
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			registry };
-#endif
+			registry,
+			console};
 
 		WireframeRenderSystem wireframeRenderSystem{
 			bglDevice,

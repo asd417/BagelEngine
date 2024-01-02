@@ -74,6 +74,7 @@ namespace bagel {
 		//It is critical to define variables that require bglDevice below this line as variables below will get destroyed first
 
 		std::unique_ptr<BGLBindlessDescriptorManager> descriptorManager;
+		//std::unique_ptr<BGLModelBufferManager> modelBufferManager;
 		entt::registry registry;
 
 		void initRenderSystems();

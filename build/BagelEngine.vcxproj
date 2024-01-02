@@ -267,6 +267,7 @@
     <ClCompile Include="..\src\bagel_hierachy.cpp" />
     <ClCompile Include="..\src\bagel_util.cpp" />
     <ClCompile Include="..\src\render_systems\bagel_render_system.cpp" />
+    <ClCompile Include="..\src\render_systems\depths_render_system.cpp" />
     <ClCompile Include="..\src\render_systems\wireframe_render_system.cpp" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_buffer.cpp" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_descriptors.cpp" />

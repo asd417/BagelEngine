@@ -1,9 +1,12 @@
 #pragma once
 #include "first_app.hpp"
+//#include "render_systems/ecs_model_render_system.hpp"
 namespace bagel {
 namespace ConsoleCommand {
 	//Console Callbacks
 	//The console will call Addlog() with the returned char*
+
+	// FirstApp Controllers
 	char* ToggleFly(void* ptr) {
 		FirstApp* app = static_cast<FirstApp*>(ptr);
 		app->freeFly = !app->freeFly;
@@ -35,5 +38,6 @@ namespace ConsoleCommand {
 		if (app->showFPS) return "Printing FPS. FPS will tank";
 		else return "Printing FPS";
 	}
+
 }
 }

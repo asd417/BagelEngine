@@ -12,6 +12,7 @@
 #include <glm/glm.hpp>
 
 #include <memory>
+#include <map>
 #include <vector>
 #include <tuple>
 #include <ostream>
@@ -99,8 +100,6 @@ namespace bagel {
 			void loadModel(const std::string& filename, uint32_t materialIndex);
 		};
 
-		
-
 		BGLModel(BGLDevice& device, const BGLModel::Builder<uint16_t>& builder);
 		BGLModel::BGLModel(
 			BGLDevice& device, 
@@ -145,6 +144,50 @@ namespace bagel {
 		template<typename T>
 		void createIndexBuffers(const std::vector<T>& indices);
 
+	};
+
+	class BGLModelBufferManager {
+	public:
+		struct BufferHandlePair {
+			int32_t vertexBufferHandle;
+			int32_t indexBufferHandle;
+		};
+		BGLModelBufferManager() = default;
+		~BGLModelBufferManager() {
+			for (auto v : vertexBufferArray) {
+				vkDestroyBuffer(BGLDevice::device(), v, nullptr);
+			}
+			for (auto vm : vertexBufferMemoryArray) {
+				vkFreeMemory(BGLDevice::device(), vm, nullptr);
+			}
+			for (auto i : IndexBufferArray) {
+				vkDestroyBuffer(BGLDevice::device(), i, nullptr);
+			}
+			for (auto im : IndexBufferMemoryArray) {
+				vkFreeMemory(BGLDevice::device(), im, nullptr);
+			}
+		}
+		BufferHandlePair* GetModelHandle(std::string& modelName) {
+			auto it = modelNameMap.find(modelName);
+			if (it != modelNameMap.end()) {
+				return &(it->second);
+			}
+			return nullptr;
+		}
+		VkBuffer GetVertexBufferHandle(BufferHandlePair* pair) {
+			return vertexBufferArray[pair->vertexBufferHandle];
+		}
+		VkBuffer GetIndexBufferHandle(BufferHandlePair* pair) {
+			if (pair->indexBufferHandle < 0) return nullptr;
+			return IndexBufferArray[pair->indexBufferHandle];
+		}
+
+	private:
+		std::unordered_map<std::string, BufferHandlePair> modelNameMap;
+		std::vector<VkBuffer>		vertexBufferArray;
+		std::vector<VkDeviceMemory> vertexBufferMemoryArray;
+		std::vector<VkBuffer>		IndexBufferArray;
+		std::vector<VkDeviceMemory>	IndexBufferMemoryArray;
 	};
 
 	class ModelDescriptionComponentBuilder {

@@ -33,9 +33,10 @@ struct ObjectData{
 	mat4 modelMatrix;
 	mat4 normalMatrix;
 };
+
 layout (set = 0, binding = 1) readonly buffer objTransform {
 	ObjectData objects[];
-};
+} objTransformArray[];
 
 layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
 //layout (set = 1, binding = 0) uniform sampler2D samplerModelColor;
@@ -53,17 +54,6 @@ layout(push_constant) uniform Push {
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
 } push;
-
-
-
-// Lambert = diffuseColor/pi
-// Wi = incoming direction vector from light
-// Wo = outgoing direction to the viewer
-// Cook-torrance = (Normal distribution function * Fresnel equation * Geometry function) / 4(Wo * n)(Wi * n)
-// float kS = calculateSpecularComponent(...); // reflection/specular fraction
-// float kD = 1.0 - kS; 
-// Fr(P, Wi, Wo) = kD * Lambert + kS * Cook-torrance
-// But since Fresnel function already multiplies with kS, kS is later ignored
 
 // Normal distribution function
 // Describes how much of the microfacets are aligned to the half angle vector, influenced by roughness

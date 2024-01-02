@@ -1,5 +1,4 @@
 #pragma once
-
 #include <memory>
 #include <vector>
 
@@ -12,6 +11,8 @@
 #include "../bgl_camera.hpp"
 #include "../bgl_gameobject.hpp"
 #include "../bgl_model.hpp"
+#include "../bagel_imgui.h"
+
 
 //#define MODELRENDER_ORIGINAL
 namespace bagel {
@@ -29,51 +30,22 @@ namespace bagel {
 		uint32_t BufferedTransformHandle = 0;
 		uint32_t UsesBufferedTransform = 0;
 	};
-#ifdef MODELRENDER_ORIGINAL
-	class ModelRenderSystem {
-	public:
-		ModelRenderSystem(
-			BGLDevice& device, 
-			VkRenderPass renderPass, 
-			std::vector<VkDescriptorSetLayout> setLayouts, 
-			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager, 
-			entt::registry& registry);
-		~ModelRenderSystem();
 
-		ModelRenderSystem(const ModelRenderSystem&) = delete;
-		ModelRenderSystem& operator=(const ModelRenderSystem&) = delete;
-		void renderEntities(FrameInfo& frameInfo);
-
-	private:
-		void createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts);
-		void createPipeline(VkRenderPass renderPass);
-
-		BGLDevice& bglDevice;
-		entt::registry& registry;
-
-		std::unique_ptr<BGLPipeline> bglPipeline;
-		VkPipelineLayout pipelineLayout;
-		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
-		std::unique_ptr <BGLBuffer> objDataBuffer;
-	};
-#else
 	class ModelRenderSystem : BGLRenderSystem{
 	public:
-		ModelRenderSystem( 
+		ModelRenderSystem(
 			VkRenderPass renderPass,
 			std::vector<VkDescriptorSetLayout> setLayouts,
 			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-			entt::registry& _registry) : 
-				BGLRenderSystem{ renderPass, setLayouts, sizeof(ECSPushConstantData)}, 
-				descriptorManager{_descriptorManager },
-				registry{_registry}
-		{
-			createPipeline(renderPass, "/shaders/simple_shader.vert.spv", "/shaders/simple_shader.frag.spv", nullptr);
-		}
+			entt::registry& _registry,
+			ConsoleApp& consoleApp);
+
 		void renderEntities(FrameInfo& frameInfo);
+
+		bool stopBinding = false;
 	private:
 		entt::registry& registry;
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
 	};
-#endif
+
 }

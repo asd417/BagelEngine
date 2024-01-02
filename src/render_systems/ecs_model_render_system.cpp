@@ -2,6 +2,7 @@
 #include "../bagel_ecs_components.hpp"
 #include "../bagel_engine_device.hpp"
 #include "../bagel_util.hpp"
+//#include "../bagel_console_commands.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -36,6 +37,17 @@ namespace bagel {
 	//this means r and g from the memory will be assigned to blank memory, causing those value to be unread
 	//to fix this, align the vec3 variable to the multiple of 16 bytes with alignas(16)
 
+
+	namespace ConsoleCommand {
+		//ModelRenderSystem controllers
+		char* StopBind(void* ptr)
+		{
+			ModelRenderSystem* mrs = static_cast<ModelRenderSystem*>(ptr);
+			mrs->stopBinding = !mrs->stopBinding;
+			if (mrs->stopBinding) return "Stopped binding descriptorSet";
+			else return "Binding descriptorSet";
+		}
+	}
 	inline void SendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push)
 	{
 		vkCmdPushConstants(
@@ -66,63 +78,19 @@ namespace bagel {
 		}
 	}
 
-#ifdef MODELRENDER_ORIGINAL
 	ModelRenderSystem::ModelRenderSystem(
-		BGLDevice& device, VkRenderPass renderPass, 
-		std::vector<VkDescriptorSetLayout> setLayouts, 
-		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager, 
-		entt::registry& _registry) : bglDevice{ device }, descriptorManager{ _descriptorManager }, registry{_registry}
+		VkRenderPass renderPass,
+		std::vector<VkDescriptorSetLayout> setLayouts,
+		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
+		entt::registry& _registry,
+		ConsoleApp& consoleApp) :
+		BGLRenderSystem{ renderPass, setLayouts, sizeof(ECSPushConstantData) },
+		descriptorManager{ _descriptorManager },
+		registry{ _registry }
 	{
-		createPipelineLayout(setLayouts);
-		createPipeline(renderPass);
+		consoleApp.AddCommand("STOPBINDING", this, ConsoleCommand::StopBind);
+		createPipeline(renderPass, "/shaders/simple_shader.vert.spv", "/shaders/simple_shader.frag.spv", nullptr);
 	}
-	ModelRenderSystem::~ModelRenderSystem()
-	{
-		vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
-	}
-
-	void ModelRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
-	{
-		VkPushConstantRange pushConstantRange{};
-		// This flag indicates that we want this pushconstantdata to be accessible in both vertex and fragment shaders
-		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-		// offset mainly for if you want to use separate ranges for vertex and fragment shader
-		pushConstantRange.offset = 0;
-
-		pushConstantRange.size = sizeof(ECSPushConstantData);
-
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-
-		//desciptor set layout information
-		std::cout << "Creating Model Render System Pipeline with descriptorSetLayout count of " << setLayouts.size() << "\n";
-		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
-		pipelineLayoutInfo.pSetLayouts = setLayouts.data();
-
-		pipelineLayoutInfo.pushConstantRangeCount = 1;
-		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-
-		if (vkCreatePipelineLayout(BGLDevice::device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create pipeline layout");
-		}
-	}
-	void ModelRenderSystem::createPipeline(VkRenderPass renderPass)
-	{
-		//assert(bglSwapChain != nullptr && "Cannot create pipeline before swapchain");
-		assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
-
-		PipelineConfigInfo pipelineConfig{};
-		BGLPipeline::defaultPipelineConfigInfo(pipelineConfig);
-		pipelineConfig.renderPass = renderPass;
-		pipelineConfig.pipelineLayout = pipelineLayout;
-
-		bglPipeline = std::make_unique<BGLPipeline>(
-			util::enginePath("/shaders/simple_shader.vert.spv"),
-			util::enginePath("/shaders/simple_shader.frag.spv"),
-			pipelineConfig);
-	}
-#endif
 
 	void ModelRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
@@ -135,7 +103,7 @@ namespace bagel {
 			1, //descriptorSet Count 
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
-
+		
 		VkDeviceSize offsets[] = { 0 };
 		auto transformCompView = registry.view<TransformComponent, ModelDescriptionComponent>();
 		for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
