@@ -329,6 +329,118 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\02ca9b722990edee589c818c19d892a0\wireframe_shader.frag.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.3.261.1\Bin\glslangValidator.exe -V C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag -o C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.3.261.1\Bin\glslangValidator.exe -V C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag -o C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.3.261.1\Bin\glslangValidator.exe -V C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag -o C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.3.261.1\Bin\glslangValidator.exe -V C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag -o C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\02ca9b722990edee589c818c19d892a0\wireframe_shader.vert.spv.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+C:\VulkanSDK\1.3.261.1\Bin\glslangValidator.exe -V C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert -o C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+C:\VulkanSDK\1.3.261.1\Bin\glslangValidator.exe -V C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert -o C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+C:\VulkanSDK\1.3.261.1\Bin\glslangValidator.exe -V C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert -o C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+C:\VulkanSDK\1.3.261.1\Bin\glslangValidator.exe -V C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert -o C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert.spv</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
     <CustomBuild Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\b11959ea404b733e90179ca8b46dedbd\Shaders.rule">
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"></Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
@@ -338,7 +450,7 @@ endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
 exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.vert.spv;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert.spv;%(AdditionalInputs)</AdditionalInputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\Shaders</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
       <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</VerifyInputsAndOutputsExist>
@@ -350,7 +462,7 @@ endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
 exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.vert.spv;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert.spv;%(AdditionalInputs)</AdditionalInputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\Shaders</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
       <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</VerifyInputsAndOutputsExist>
@@ -362,7 +474,7 @@ endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
 exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.vert.spv;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert.spv;%(AdditionalInputs)</AdditionalInputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\Shaders</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
       <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</VerifyInputsAndOutputsExist>
@@ -374,7 +486,7 @@ endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
 exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.vert.spv;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\point_light.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\simple_shader.vert.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.frag.spv;C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\shaders\wireframe_shader.vert.spv;%(AdditionalInputs)</AdditionalInputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\Shaders</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
       <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</VerifyInputsAndOutputsExist>

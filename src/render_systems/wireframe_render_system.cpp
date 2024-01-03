@@ -1,12 +1,13 @@
 #include "wireframe_render_system.hpp"
 #include "../bagel_ecs_components.hpp"
+#include "../bagel_engine_device.hpp"
+#include "../bagel_util.hpp"
+//#include "../bagel_console_commands.hpp"
 
-// vulkan headers
 #include <vulkan/vulkan.h>
 
 #include <stdexcept>
 #include <array>
-
 #include <chrono>
 #include <iostream>
 
@@ -36,51 +37,63 @@ namespace bagel {
 	//this means r and g from the memory will be assigned to blank memory, causing those value to be unread
 	//to fix this, align the vec3 variable to the multiple of 16 bytes with alignas(16)
 
-	struct SimplePushConstantData {
-		glm::mat4 modelMatrix{ 1.0f };
-		// alignas aligns the variable to the 
-		glm::mat4 normalMatrix{ 1.0f };
-	};
 
-	struct ECSPushConstantData {
-		glm::mat4 modelMatrix{ 1.0f };
-		glm::mat4 normalMatrix{ 1.0f };
-		uint32_t textureHandle;
-		uint32_t BufferedTransformHandle = 0;
-		uint32_t UsesBufferedTransform = 0;
-	};
+	namespace ConsoleCommand {
+		//WireframeRenderSystem controllers here
+		
+	}
+	inline void SendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, WireframePushConstantData& push)
+	{
+		vkCmdPushConstants(
+			cmdBuffer,
+			pipelineLayout,
+			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+			0,
+			sizeof(WireframePushConstantData),
+			&push);
+	}
 
-	struct OBJDataBufferUnit {
-		glm::mat4 modelMatrix{ 1.0f };
-		glm::mat4 normalMatrix{ 1.0f };
-	};
+	inline void BindAppropriateModelBuffer(
+		VkCommandBuffer& commandBuffer,
+		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager,
+		const BGLModelBufferManager::BufferHandlePair& handles,
+		ModelDescriptionComponent& comp,
+		uint32_t instanceCount)
+	{
+		if (comp.indexCount > 0) {
+			const VkBuffer& ibuffer = modelBufferManager->GetIndexBufferHandle(handles);
+			vkCmdBindIndexBuffer(commandBuffer, ibuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdDrawIndexed(commandBuffer, comp.indexCount, instanceCount, 0, 0, 0);
+		}
+		else {
+			vkCmdDraw(commandBuffer, comp.vertexCount, instanceCount, 0, 0);
+		}
+	}
 
-	void SendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push);
-	//void sendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push)
-	//{
-	//	vkCmdPushConstants(
-	//		cmdBuffer,
-	//		pipelineLayout,
-	//		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-	//		0,
-	//		sizeof(ECSPushConstantData),
-	//		&push);
-	//}
+	void pipelineConfigModifier(PipelineConfigInfo& pipelineConfig) {
+		pipelineConfig.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
+		//pipelineConfig.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
+		pipelineConfig.rasterizationInfo.lineWidth = 1.0f;
+	}
 
 	WireframeRenderSystem::WireframeRenderSystem(
-		BGLDevice& device, VkRenderPass renderPass, 
-		std::vector<VkDescriptorSetLayout> setLayouts, 
+		VkRenderPass renderPass,
+		std::vector<VkDescriptorSetLayout> setLayouts,
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-		entt::registry& _registry) : bglDevice{ device }, descriptorManager{ _descriptorManager }, registry{_registry}
+		std::unique_ptr<BGLModelBufferManager> const& _modelBufferManager,
+		entt::registry& _registry,
+		ConsoleApp& consoleApp) :
+		BGLRenderSystem{ renderPass, setLayouts, sizeof(WireframePushConstantData) },
+		descriptorManager{ _descriptorManager },
+		modelBufferManager{ _modelBufferManager },
+		registry{ _registry }
 	{
-		createPipelineLayout(setLayouts);
-		createPipeline(renderPass);
+		//Add console commands here
+		//consoleApp.AddCommand("STOPBINDING", this, ConsoleCommand::StopBind);
+		std::cout << "Creating Wireframe Render System\n";
+		createPipeline(renderPass, "/shaders/wireframe_shader.vert.spv", "/shaders/wireframe_shader.frag.spv", pipelineConfigModifier);
 	}
-	WireframeRenderSystem::~WireframeRenderSystem()
-	{
-		vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
-	}
-	
+
 	void WireframeRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
 		bglPipeline->bind(frameInfo.commandBuffer);
@@ -93,38 +106,32 @@ namespace bagel {
 			&frameInfo.globalDescriptorSets,
 			0, nullptr);
 
-		auto transformCompView = registry.view<TransformComponent, ModelDescriptionComponent, TextureComponent>();
-		for (auto [entity, transformComp, modelDescComp, textureComp] : transformCompView.each()) {
+		VkDeviceSize offsets[] = { 0 };
+		auto transformCompView = registry.view<TransformComponent, ModelDescriptionComponent>();
+		for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
+			//VkBuffer buffers[] = { modelDescComp.vertexBuffer };
+			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelDescComp.modelName);
+			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &vbuffer, offsets);
 
-			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
-			VkDeviceSize offsets[] = { 0 };
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
+			WireframePushConstantData push{};
 
-			ECSPushConstantData push{};
-			push.textureHandle = textureComp.textureHandle;
 			push.UsesBufferedTransform = 0;
 			push.modelMatrix = transformComp.mat4();
 			push.normalMatrix = transformComp.normalMatrix();
 
 			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-
-			if (modelDescComp.hasIndexBuffer) {
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, 1, 0, 0, 0);
-			} else {
-				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, 0, 0);
-			}
+			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, modelDescComp, 1);
 		}
 
-		auto instancedRenderView = registry.view<TransformArrayComponent, ModelDescriptionComponent, TextureComponent>();
-		for (auto [entity, transformComp, modelDescComp, textureComp] : instancedRenderView.each()) {
+		auto instancedRenderView = registry.view<TransformArrayComponent, ModelDescriptionComponent>();
+		for (auto [entity, transformComp, modelDescComp] : instancedRenderView.each()) {
+			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelDescComp.modelName);
+			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &vbuffer, offsets);
 
-			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
-			VkDeviceSize offsets[] = { 0 };
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
+			WireframePushConstantData push{};
 
-			ECSPushConstantData push{};
-			push.textureHandle = textureComp.textureHandle;
 			push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
 			push.BufferedTransformHandle = transformComp.bufferHandle;
 
@@ -133,69 +140,9 @@ namespace bagel {
 				push.normalMatrix = transformComp.normalMatrix(0);
 			}
 
-			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout,push);
-
-			if (modelDescComp.hasIndexBuffer) {
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.maxIndex, 0, 0, 0);
-			}
-			else {
-				vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.maxIndex, 0, 0);
-			}
+			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, modelDescComp, 1);
 		}
 	}
-
-	void WireframeRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
-	{
-		VkPushConstantRange pushConstantRange{};
-		// This flag indicates that we want this pushconstantdata to be accessible in both vertex and fragment shaders
-		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-		// offset mainly for if you want to use separate ranges for vertex and fragment shader
-		pushConstantRange.offset = 0;
-
-		pushConstantRange.size = sizeof(ECSPushConstantData);
-
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-
-		//desciptor set layout information
-		std::cout << "Creating Model Render System Pipeline with descriptorSetLayout count of " << setLayouts.size() << "\n";
-		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
-		pipelineLayoutInfo.pSetLayouts = setLayouts.data();
-
-		pipelineLayoutInfo.pushConstantRangeCount = 1;
-		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-
-		if (vkCreatePipelineLayout(BGLDevice::device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create pipeline layout");
-		}
-	}
-	void WireframeRenderSystem::createPipeline(VkRenderPass renderPass)
-	{
-		//assert(bglSwapChain != nullptr && "Cannot create pipeline before swapchain");
-		assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
-
-		PipelineConfigInfo pipelineConfig{};
-		BGLPipeline::defaultPipelineConfigInfo(pipelineConfig);
-		pipelineConfig.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
-		pipelineConfig.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
-		pipelineConfig.rasterizationInfo.lineWidth = 1.0f;
-		pipelineConfig.renderPass = renderPass;
-		pipelineConfig.pipelineLayout = pipelineLayout;
-#define USE_ABS_PATH
-#ifndef USE_ABS_PATH
-		bglPipeline = std::make_unique<BGLPipeline>(
-			"../shaders/wireframe_shader.vert.spv",
-			"../shaders/wireframe_shader.frag.spv",
-			pipelineConfig);
-#else
-		bglPipeline = std::make_unique<BGLPipeline>(
-			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.vert.spv",
-			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/wireframe_shader.frag.spv",
-			pipelineConfig);
-#endif
-	}
-	
 }
 

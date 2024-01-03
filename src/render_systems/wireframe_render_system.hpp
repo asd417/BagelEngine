@@ -1,48 +1,45 @@
 #pragma once
+#include <memory>
+#include <vector>
 
+#include "entt.hpp"
 #include <glm/gtc/constants.hpp>
 
-#include "../bagel_engine_device.hpp"
+#include "bagel_render_system.hpp"
 #include "../bagel_pipeline.hpp"
-
 #include "../bagel_frame_info.hpp"
 #include "../bgl_camera.hpp"
 #include "../bgl_gameobject.hpp"
 #include "../bgl_model.hpp"
+#include "../bagel_imgui.hpp"
 
 
-#include "entt.hpp"
-
-#include <memory>
-#include <vector>
-
+//#define MODELRENDER_ORIGINAL
 namespace bagel {
+	struct WireframePushConstantData {
+		glm::mat4 modelMatrix{ 1.0f };
+		glm::mat4 normalMatrix{ 1.0f };
+		uint32_t BufferedTransformHandle = 0;
+		uint32_t UsesBufferedTransform = 0;
+	};
 
-	class WireframeRenderSystem {
+	class WireframeRenderSystem : BGLRenderSystem {
 	public:
 		WireframeRenderSystem(
-			BGLDevice& device, 
-			VkRenderPass renderPass, 
-			std::vector<VkDescriptorSetLayout> setLayouts, 
+			VkRenderPass renderPass,
+			std::vector<VkDescriptorSetLayout> setLayouts,
 			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-			entt::registry& registry);
-		~WireframeRenderSystem();
+			std::unique_ptr<BGLModelBufferManager> const& _modelBufferManager,
+			entt::registry& _registry,
+			ConsoleApp& consoleApp);
 
-		WireframeRenderSystem(const WireframeRenderSystem&) = delete;
-		WireframeRenderSystem& operator=(const WireframeRenderSystem&) = delete;
 		void renderEntities(FrameInfo& frameInfo);
 
+		bool stopBinding = false;
 	private:
-		void createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts);
-		void createPipeline(VkRenderPass renderPass);
-
-		BGLDevice& bglDevice;
 		entt::registry& registry;
-
-		std::unique_ptr<BGLPipeline> bglPipeline;
-		VkPipelineLayout pipelineLayout;
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
-		std::unique_ptr <BGLBuffer> objDataBuffer;
+		std::unique_ptr<BGLModelBufferManager> const& modelBufferManager;
 	};
 
 }

@@ -67,10 +67,16 @@ namespace bagel {
 		push.textureMapFlag = comp.textureMapFlag;
 	}
 
-	inline void BindAppropriateModelBuffer(VkCommandBuffer& commandBuffer, const ModelDescriptionComponent& comp, uint32_t instanceCount)
+	inline void BindAppropriateModelBuffer(
+		VkCommandBuffer& commandBuffer, 
+		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager, 
+		const BGLModelBufferManager::BufferHandlePair& handles, 
+		ModelDescriptionComponent& comp, 
+		uint32_t instanceCount)
 	{
-		if (comp.hasIndexBuffer) {
-			vkCmdBindIndexBuffer(commandBuffer, comp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		if (comp.indexCount > 0) {
+			const VkBuffer& ibuffer = modelBufferManager->GetIndexBufferHandle(handles);
+			vkCmdBindIndexBuffer(commandBuffer, ibuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(commandBuffer, comp.indexCount, instanceCount, 0, 0, 0);
 		}
 		else {
@@ -82,12 +88,15 @@ namespace bagel {
 		VkRenderPass renderPass,
 		std::vector<VkDescriptorSetLayout> setLayouts,
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
+		std::unique_ptr<BGLModelBufferManager> const& _modelBufferManager,
 		entt::registry& _registry,
 		ConsoleApp& consoleApp) :
 		BGLRenderSystem{ renderPass, setLayouts, sizeof(ECSPushConstantData) },
 		descriptorManager{ _descriptorManager },
+		modelBufferManager{ _modelBufferManager },
 		registry{ _registry }
 	{
+		std::cout << "Creating Model Render System\n";
 		consoleApp.AddCommand("STOPBINDING", this, ConsoleCommand::StopBind);
 		createPipeline(renderPass, "/shaders/simple_shader.vert.spv", "/shaders/simple_shader.frag.spv", nullptr);
 	}
@@ -107,9 +116,10 @@ namespace bagel {
 		VkDeviceSize offsets[] = { 0 };
 		auto transformCompView = registry.view<TransformComponent, ModelDescriptionComponent>();
 		for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
-			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
-			
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
+			//VkBuffer buffers[] = { modelDescComp.vertexBuffer };
+			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelDescComp.modelName);
+			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &vbuffer, offsets);
 
 			ECSPushConstantData push{};
 			FillPushConstantData(push, modelDescComp,registry,entity);
@@ -119,13 +129,14 @@ namespace bagel {
 			push.normalMatrix = transformComp.normalMatrix();
 
 			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelDescComp, 1);
+			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, modelDescComp, 1);
 		}
 
 		auto instancedRenderView = registry.view<TransformArrayComponent, ModelDescriptionComponent>();
 		for (auto [entity, transformComp, modelDescComp] : instancedRenderView.each()) {
-			VkBuffer buffers[] = { modelDescComp.vertexBuffer };
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, buffers, offsets);
+			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelDescComp.modelName);
+			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &vbuffer, offsets);
 
 			ECSPushConstantData push{};
 			FillPushConstantData(push, modelDescComp, registry, entity);
@@ -139,7 +150,7 @@ namespace bagel {
 			}
 
 			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelDescComp, transformComp.maxIndex);
+			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, modelDescComp, 1);
 		}
 	}
 

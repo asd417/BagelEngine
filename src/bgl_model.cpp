@@ -229,7 +229,11 @@ namespace bagel {
 		}
 	}
 
-	ModelDescriptionComponentBuilder::ModelDescriptionComponentBuilder(BGLDevice& _device) : bglDevice{ _device }
+	ModelDescriptionComponentBuilder::ModelDescriptionComponentBuilder(
+		BGLDevice& _bglDevice, 
+		const std::unique_ptr<BGLModelBufferManager>& _modelBufferManager) : 
+		bglDevice{_bglDevice},
+		modelBufferManager{ _modelBufferManager }
 	{
 	}
 
@@ -237,12 +241,21 @@ namespace bagel {
 	{
 		assert(targetComponent != nullptr && "No targetComponent set for ModelDescriptionComponentBuilder");
 		targetComponent->modelName = modelFilename;
+		if (modelBufferManager->CheckAllocationByModelName(modelFilename)) {
+			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelFilename);
+			targetComponent->vertexCount = handles.vertexCount;
+			targetComponent->indexCount = handles.indexCount;
+			return;
+		}
 		loadModel(modelFilename);
 		createVertexBuffer();
 		if (indices.size() > 0) {
 			std::cout << "Model has Index Buffer. Allocating...\n";
-			targetComponent->hasIndexBuffer = true;
 			createIndexBuffer();
+			modelBufferManager->EmplaceAllocatedModelAll(modelFilename, targetComponent->vertexCount, targetComponent->indexCount);
+		}
+		else {
+			modelBufferManager->EmplaceAllocatedModelVertexOnly(modelFilename, targetComponent->vertexCount);
 		}
 		vertices.clear();
 		indices.clear();
@@ -293,18 +306,6 @@ namespace bagel {
 		std::cout << "Model Loader looped through " << vertInt << "\n";
 		std::cout << "Vertex Buffer size " << vertices.size() << "\n";
 		std::cout << "Index Buffer size " << indices.size() << "\n";
-		
-		/*indices.push_back(0);
-		indices.push_back(1);
-		indices.push_back(2);
-		indices.push_back(3);
-		indices.push_back(4);
-		indices.push_back(5);
-		indices.push_back(3);
-		indices.push_back(5);
-		indices.push_back(6);*/
-		//printVertexArray();
-		//printIndexArray();
 	}
 
 	void ModelDescriptionComponentBuilder::printVertexArray() {
@@ -340,16 +341,22 @@ namespace bagel {
 		assert(mapped && "Cannot copy to unmapped buffer");
 		memcpy(mapped, (void*)vertices.data(), bufferSize);
 
-		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent->vertexBuffer, targetComponent->vertexMemory);
+		bglDevice.createBuffer(
+			bufferSize, 
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+			modelBufferManager->GetVertexBufferDst(), 
+			modelBufferManager->GetVertexMemoryDst());
 
 		// Finished Mapping vertex buffer to staging buffer inside device
-		bglDevice.copyBuffer(stagingBuffer, targetComponent->vertexBuffer, bufferSize);
+		bglDevice.copyBuffer(stagingBuffer, modelBufferManager->GetAllocatedVertexBuffer(), bufferSize);
 
 		// Finished Mapping device staging buffer to device vertex buffer. Destroy staging buffer.
 		vkUnmapMemory(BGLDevice::device(), stagingMemory);
 		vkDestroyBuffer(BGLDevice::device(), stagingBuffer, nullptr);
 		vkFreeMemory(BGLDevice::device(), stagingMemory, nullptr);
 		mapped = nullptr;
+
 	}
 
 	void ModelDescriptionComponentBuilder::createIndexBuffer()
@@ -370,10 +377,14 @@ namespace bagel {
 		assert(mapped && "Cannot copy to unmapped buffer");
 		memcpy(mapped, (void*)indices.data(), bufferSize);
 
-		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent->indexBuffer, targetComponent->indexMemory);
+		bglDevice.createBuffer(bufferSize, 
+			VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+			modelBufferManager->GetIndexBufferDst(),
+			modelBufferManager->GetIndexMemoryDst());
 
 		// Map index buffer to staging buffer inside device
-		bglDevice.copyBuffer(stagingBuffer, targetComponent->indexBuffer, bufferSize);
+		bglDevice.copyBuffer(stagingBuffer, modelBufferManager->GetAllocatedIndexBuffer(), bufferSize);
 
 		// Finished Mapping device staging buffer to device index buffer due to VK_BUFFER_USAGE_TRANSFER_DST_BIT. Destroy staging buffer.
 		vkUnmapMemory(BGLDevice::device(), stagingMemory);
@@ -381,33 +392,4 @@ namespace bagel {
 		vkFreeMemory(BGLDevice::device(), stagingMemory, nullptr);
 		mapped = nullptr;
 	}
-
-	GeneratedWireframeComponentBuilder::GeneratedWireframeComponentBuilder(BGLDevice& _device) : bglDevice{_device}, ModelDescriptionComponentBuilder(_device)
-	{
-	}
-
-	void GeneratedWireframeComponentBuilder::buildComponent(const std::string& filename)
-	{
-		ModelDescriptionComponentBuilder::buildComponent(filename);
-	}
-
-	void GeneratedWireframeComponentBuilder::printVertexArray()
-	{
-		ModelDescriptionComponentBuilder::printVertexArray();
-	}
-
-	void GeneratedWireframeComponentBuilder::printIndexArray()
-	{
-		ModelDescriptionComponentBuilder::printIndexArray();
-	}
-
-	void GeneratedWireframeComponentBuilder::createVertexBuffer()
-	{
-		ModelDescriptionComponentBuilder::createVertexBuffer();
-	}
-	void GeneratedWireframeComponentBuilder::createIndexBuffer()
-	{
-		ModelDescriptionComponentBuilder::createIndexBuffer();
-	}
-
 }

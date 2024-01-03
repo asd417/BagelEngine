@@ -59,19 +59,39 @@ endif()
  
 include_directories(Dependencies)
  
-file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp)
-file(GLOB_RECURSE SOURCES_HPP ${PROJECT_SOURCE_DIR}/src/*.hpp)
-file(GLOB_RECURSE SOURCES_H ${PROJECT_SOURCE_DIR}/src/*.h)
-file(GLOB IMGUI_SRC_H ${IMGUI}/*.h)
-file(GLOB IMGUI_SRC ${IMGUI}/*.cpp)
+# file(GLOB_RECURSE SOURCES "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.hpp" "${PROJECT_SOURCE_DIR}/src/*.h")
+
+file(GLOB SOURCES "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.hpp" "${PROJECT_SOURCE_DIR}/src/*.h")
+
+file(GLOB RENDERSYSTEM 	"${PROJECT_SOURCE_DIR}/src/render_systems/*.cpp" "${PROJECT_SOURCE_DIR}/src/render_systems/*.hpp")
+file(GLOB PHYSICS 	"${PROJECT_SOURCE_DIR}/src/physics/*.cpp" "${PROJECT_SOURCE_DIR}/src/physics/*.hpp")
+
+file(GLOB IMGUI_SRC "${IMGUI}/*.cpp" "${IMGUI}/*.h")
 file(GLOB IMGUI_BCKEND_vk ${IMGUI}/backends/imgui_impl_vulkan.*)
 file(GLOB IMGUI_BCKEND_glfw ${IMGUI}/backends/imgui_impl_glfw.*)
 
-add_executable(${PROJECT_NAME} ${SOURCES} ${SOURCES_HPP} ${SOURCES_H} ${IMGUI_SRC} ${IMGUI_BCKEND_vk} ${IMGUI_BCKEND_glfw})
- 
+add_executable(${PROJECT_NAME} 
+	${SOURCES} 
+	${RENDERSYSTEM}
+	${PHYSICS} 
+	${IMGUI_SRC} 
+	${IMGUI_BCKEND_vk} 
+	${IMGUI_BCKEND_glfw} )
+
+source_group("Render Systems"	FILES ${RENDERSYSTEM})
+source_group("Physics"		FILES ${PHYSICS})
+source_group("Imgui"            FILES ${IMGUI_SRC} ${IMGUI_BCKEND_vk} ${IMGUI_BCKEND_glfw})
+
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
  
 set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
+
+target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:_DEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER>")
+target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:NDEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER>")
+
+target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
+target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
+
 
 if (WIN32)
   message(STATUS "CREATING BUILD FOR WINDOWS")
@@ -91,24 +111,23 @@ if (WIN32)
 	
   target_include_directories(${PROJECT_NAME} PUBLIC ${JoltPhysics_SOURCE_DIR}/..)
  
-  target_link_directories(${PROJECT_NAME} PUBLIC
-    ${Vulkan_LIBRARIES}
-    ${GLFW_LIB}
-    ${KTX_LIB}
-    ${JOLT_LIB}
-  )
- 
+  target_link_directories(${PROJECT_NAME} PUBLIC 
+	${Vulkan_LIBRARIES} 
+	${GLFW_LIB} 
+	$<$<CONFIG:Debug>:${KTX_LIB}/Debug> 
+	$<$<CONFIG:Debug>:${JOLT}/Build/VS2022_CL/Debug>)
+  
+  target_link_directories(${PROJECT_NAME} PUBLIC 
+	${Vulkan_LIBRARIES} 
+	${GLFW_LIB} 
+	$<$<CONFIG:Release>:${KTX_LIB}/Release> 
+	$<$<CONFIG:Release>:${JOLT}/Build/VS2022_CL/Release>)
+
   target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1 ktx Jolt)
 
 endif()
 
 
-target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:_DEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER>")
-target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:NDEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER>")
-
-target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
-target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
- 
 ############## Build SHADERS #######################
  
 # Find all vertex and fragment sources within shaders directory

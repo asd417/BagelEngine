@@ -44,7 +44,6 @@ layout (set = 0, binding = 2) uniform sampler2D GlobalUBOColor;
 layout(push_constant) uniform Push {
 	mat4 modelMatrix;
 	mat4 normalMatrix;
-	uint textureHandle;
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
 } push;
@@ -52,12 +51,10 @@ layout(push_constant) uniform Push {
 //Executed once per vertex
 void main() {
 	vec4 positionWorld;
-	vec3 graphicsPos = vec3(position.x,-position.y, position.z);
+	vec3 graphicsPos = vec3(position.x,position.y, position.z);
 	//Converts vertex position to world position
 	if(push.UsesBufferedTransform != 0){
 		mat4 modelMatrix = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].modelMatrix;
-		modelMatrix[3] = -1 * modelMatrix[3];
-		modelMatrix[3][3] = 1.0;
 		positionWorld = modelMatrix * vec4(graphicsPos,1.0);
 		//Converts vertex position to screen space
 		gl_Position = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
@@ -65,8 +62,6 @@ void main() {
 		isInstancedTransform = 1;
 	} else {
 		mat4 modelMatrix = push.modelMatrix;
-		modelMatrix[3] = -1 * modelMatrix[3];
-		modelMatrix[3][3] = 1.0;
 		positionWorld = modelMatrix * vec4(graphicsPos,1.0);
 		gl_Position = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
 		fragNormalWorld = normalize(mat3(push.normalMatrix) * normal);

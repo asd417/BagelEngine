@@ -13,6 +13,12 @@
     <CustomBuild Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\02ca9b722990edee589c818c19d892a0\simple_shader.vert.spv.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
+    <CustomBuild Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\02ca9b722990edee589c818c19d892a0\wireframe_shader.frag.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\02ca9b722990edee589c818c19d892a0\wireframe_shader.vert.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
     <CustomBuild Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\CMakeFiles\b11959ea404b733e90179ca8b46dedbd\Shaders.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>

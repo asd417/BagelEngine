@@ -63,8 +63,6 @@ void main() {
 	//Converts vertex position to world position
 	if(push.UsesBufferedTransform != 0){
 		mat4 modelMatrix = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].modelMatrix;
-		//modelMatrix[3] = -1 * modelMatrix[3];
-		//modelMatrix[3][3] = 1.0;
 		positionWorld = modelMatrix * vec4(graphicsPos,1.0);
 		//Converts vertex position to screen space
 		vec4 pos = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
@@ -74,8 +72,6 @@ void main() {
 		isInstancedTransform = 1;
 	} else {
 		mat4 modelMatrix = push.modelMatrix;
-		//modelMatrix[3] = -1 * modelMatrix[3];
-		//modelMatrix[3][3] = 1.0;
 		positionWorld = modelMatrix * vec4(graphicsPos,1.0);
 		vec4 pos = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
 		//pos.y = -1 * pos.y;

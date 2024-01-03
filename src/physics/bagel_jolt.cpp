@@ -1,4 +1,4 @@
-#include "bagel_jolt/bagel_jolt.hpp"
+#include "physics/bagel_jolt.hpp"
 #include "bagel_ecs_components.hpp"
 
 namespace bagel {

@@ -82,10 +82,10 @@ namespace bagel {
 #ifdef POINTLIGHT_ORIGINAL
 
 	PointLightSystem::PointLightSystem(
-		BGLDevice& device,
 		VkRenderPass renderPass,
 		std::vector<VkDescriptorSetLayout> globalSetLayouts,
-		entt::registry& _registry) : bglDevice{ device }, registry{ _registry }
+		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
+		entt::registry& _registry) : registry{ _registry }
 	{
 		createPipelineLayout(globalSetLayouts);
 		createPipeline(renderPass);

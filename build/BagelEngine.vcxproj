@@ -164,7 +164,7 @@
     </Midl>
     <Link>
       <AdditionalDependencies>glfw3.lib;vulkan-1.lib;ktx.lib;Jolt.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics/Build/VS2022_CL/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics/Build/VS2022_CL/Debug/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Release;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Release/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics/Build/VS2022_CL/Release;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics/Build/VS2022_CL/Release/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
@@ -208,7 +208,7 @@
     </Midl>
     <Link>
       <AdditionalDependencies>glfw3.lib;vulkan-1.lib;ktx.lib;Jolt.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics/Build/VS2022_CL/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics/Build/VS2022_CL/Debug/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
@@ -251,7 +251,7 @@
     </Midl>
     <Link>
       <AdditionalDependencies>glfw3.lib;vulkan-1.lib;ktx.lib;Jolt.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics/Build/VS2022_CL/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics/Build/VS2022_CL/Debug/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
@@ -264,64 +264,70 @@
     </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\bagel_hierachy.cpp" />
-    <ClCompile Include="..\src\bagel_util.cpp" />
-    <ClCompile Include="..\src\render_systems\bagel_render_system.cpp" />
-    <ClCompile Include="..\src\render_systems\depths_render_system.cpp" />
-    <ClCompile Include="..\src\render_systems\wireframe_render_system.cpp" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_buffer.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_descriptors.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_ecs_components.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_device.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_swap_chain.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_imgui.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_jolt\bagel_jolt.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_pipeline.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_renderer.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_window.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_camera.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_gameobject.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_model.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\first_app.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\keyboard_movement_controller.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\main.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\physics\bagel_physics.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\ecs_model_render_system.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\point_light_render_system.cpp" />
-    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\simple_render_system.cpp" />
-    <ClInclude Include="..\src\bagel_console_commands.hpp" />
-    <ClInclude Include="..\src\bagel_hierachy.hpp" />
-    <ClInclude Include="..\src\bagel_util.hpp" />
-    <ClInclude Include="..\src\render_systems\bagel_render_system.hpp" />
-    <ClInclude Include="..\src\render_systems\depths_render_system.hpp" />
-    <ClInclude Include="..\src\render_systems\wireframe_render_system.hpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_buffer.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_console_commands.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_descriptors.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_descriptors.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_ecs_components.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_ecs_components.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_device.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_device.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_swap_chain.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_engine_swap_chain.hpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_frame_info.hpp" />
-    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_jolt\bagel_jolt.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_hierachy.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_hierachy.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_imgui.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_imgui.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_pipeline.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_pipeline.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_renderer.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_renderer.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_util.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_util.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_window.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_window.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_camera.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_camera.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_gameobject.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_gameobject.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_model.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bgl_model.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\first_app.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\first_app.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\keyboard_movement_controller.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\keyboard_movement_controller.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\main.cpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\bagel_render_system.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\bagel_render_system.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\depths_render_system.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\depths_render_system.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\ecs_model_render_system.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\ecs_model_render_system.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\point_light_render_system.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\point_light_render_system.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\simple_render_system.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\simple_render_system.hpp" />
-    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_imgui.h" />
-    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\bagel_textures.h" />
-    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\physics\bagel_physics.h" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\wireframe_render_system.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\render_systems\wireframe_render_system.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\physics\bagel_jolt.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\physics\bagel_jolt.hpp" />
+    <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\physics\bagel_physics.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\physics\bagel_physics.hpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imconfig.h" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imgui.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imgui.h" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imgui_demo.cpp" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imgui_draw.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imgui_internal.h" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imgui_tables.cpp" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imgui_widgets.cpp" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imstb_rectpack.h" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imstb_textedit.h" />
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imstb_truetype.h" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\backends\imgui_impl_vulkan.cpp" />
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\backends\imgui_impl_vulkan.h" />
     <ClCompile Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\backends\imgui_impl_glfw.cpp" />

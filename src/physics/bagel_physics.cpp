@@ -1,4 +1,4 @@
-#include "bagel_physics.h"
+#include "bagel_physics.hpp"
 namespace bagel {
 namespace Physics {
 	// Moved to jolt physics engine. Will revisit later

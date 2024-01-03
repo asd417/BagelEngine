@@ -12,15 +12,23 @@
 
 #include <memory>
 #include <vector>
-//#define POINTLIGHT_ORIGINAL
+#define POINTLIGHT_ORIGINAL
 namespace bagel {
+
+	struct PointLightPushConstant {
+		glm::vec4 positions{};
+		glm::vec4 color{};
+		float radius;
+	};
+
 #ifdef POINTLIGHT_ORIGINAL
 	class PointLightSystem {
 	public:
 		PointLightSystem(
-			BGLDevice& device, 
 			VkRenderPass renderPass, 
-			std::vector<VkDescriptorSetLayout> setLayouts, entt::registry& registry);
+			std::vector<VkDescriptorSetLayout> setLayouts,
+			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
+			entt::registry& registry);
 		~PointLightSystem();
 
 		PointLightSystem(const PointLightSystem&) = delete;
@@ -33,20 +41,13 @@ namespace bagel {
 		void createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts);
 		void createPipeline(VkRenderPass renderPass);
 
-		BGLDevice& bglDevice;
 		entt::registry& registry;
 
 		std::unique_ptr<BGLPipeline> bglPipeline;
 		VkPipelineLayout pipelineLayout;
-
 	};
-#endif
-	struct PointLightPushConstant {
-		glm::vec4 positions{};
-		glm::vec4 color{};
-		float radius;
-	};
-
+	
+#else
 	class PointLightSystem : BGLRenderSystem {
 	public:
 		PointLightSystem(
@@ -67,5 +68,5 @@ namespace bagel {
 		entt::registry& registry;
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
 	};
-	
+#endif
 }

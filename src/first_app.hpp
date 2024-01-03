@@ -18,9 +18,9 @@
 
 #include "bgl_gameobject.hpp"
 #include "bgl_model.hpp"
-#include "bagel_textures.h"
-#include "bagel_imgui.h"
-#include "physics/bagel_physics.h"
+#include "bagel_textures.hpp"
+#include "bagel_imgui.hpp"
+#include "physics/bagel_physics.hpp"
 
 #include <memory>
 #include <vector>
@@ -74,7 +74,7 @@ namespace bagel {
 		//It is critical to define variables that require bglDevice below this line as variables below will get destroyed first
 
 		std::unique_ptr<BGLBindlessDescriptorManager> descriptorManager;
-		//std::unique_ptr<BGLModelBufferManager> modelBufferManager;
+		std::unique_ptr<BGLModelBufferManager> modelBufferManager;
 		entt::registry registry;
 
 		void initRenderSystems();

@@ -146,28 +146,9 @@ namespace bagel {
 			ROUGHMETAL= 0b0000'1000
 		};
 		std::string modelName = "";
-
-		VkBuffer vertexBuffer = nullptr;
-		VkDeviceMemory vertexMemory = nullptr;
 		uint32_t vertexCount = 0;
-
-		bool hasIndexBuffer = false;
-		VkBuffer indexBuffer = nullptr;
-		VkDeviceMemory indexMemory = nullptr;
 		uint32_t indexCount = 0;
-
 		uint8_t textureMapFlag;
-		
-		ModelDescriptionComponent() = default;
-		~ModelDescriptionComponent() {
-			std::cout << "Destroying Model Description Component" << "\n";
-			if(vertexBuffer != nullptr) vkDestroyBuffer(BGLDevice::device(), vertexBuffer, nullptr);
-			if (vertexMemory != nullptr) vkFreeMemory(BGLDevice::device(), vertexMemory, nullptr);
-			if (hasIndexBuffer) {
-				if (indexBuffer != nullptr) vkDestroyBuffer(BGLDevice::device(), indexBuffer, nullptr);
-				if (indexMemory != nullptr) vkFreeMemory(BGLDevice::device(), indexMemory, nullptr);
-			}
-		};
 	};
 	struct GeneratedWireframeComponent {
 		VkBuffer vertexBuffer = nullptr;

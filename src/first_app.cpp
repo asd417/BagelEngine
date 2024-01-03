@@ -23,7 +23,7 @@
 #include "bagel_buffer.hpp"
 #include "bgl_camera.hpp"
 #include "bagel_ecs_components.hpp"
-#include "bagel_jolt/bagel_jolt.hpp"
+#include "physics/bagel_jolt.hpp"
 #include "keyboard_movement_controller.hpp"
 #include "bagel_console_commands.hpp"
 #include "bagel_hierachy.hpp"
@@ -65,8 +65,11 @@ namespace bagel {
 			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, GLOBAL_DESCRIPTOR_COUNT)
 			.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, GLOBAL_DESCRIPTOR_COUNT)
 			.build();
+
 		descriptorManager = std::make_unique<BGLBindlessDescriptorManager>(bglDevice, *globalPool);
 		descriptorManager->createBindlessDescriptorSet(GLOBAL_DESCRIPTOR_COUNT);
+		modelBufferManager = std::make_unique<BGLModelBufferManager>();
+
 		std::cout << "Finished Creating Global Pool\n";
 
 		std::cout << "Initializing ENTT Registry\n";
@@ -107,15 +110,17 @@ namespace bagel {
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
+			modelBufferManager,
 			registry,
 			console};
 
 		WireframeRenderSystem wireframeRenderSystem{
-			bglDevice,
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			registry };
+			modelBufferManager,
+			registry,
+			console };
 
 		PointLightSystem pointLightSystem{
 			bglRenderer.getSwapChainRenderPass(),
@@ -228,7 +233,7 @@ namespace bagel {
 
 				//always render solid objects before rendering transparent objects
 				modelRenderSystem.renderEntities(frameInfo);
-				//wireframeRenderSystem.renderEntities(frameInfo);
+				wireframeRenderSystem.renderEntities(frameInfo);
 				pointLightSystem.render(frameInfo);
 				
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), primaryCommandBuffer);
@@ -249,7 +254,7 @@ namespace bagel {
 	}
 
 	entt::entity FirstApp::loadECSObjects() {
-		auto modelBuilder = new ModelDescriptionComponentBuilder(bglDevice);
+		auto modelBuilder = new ModelDescriptionComponentBuilder(bglDevice, modelBufferManager);
 		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
 
 #ifdef INSTANCERENDERTEST

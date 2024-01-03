@@ -1,7 +1,7 @@
 #pragma once
 #include "bagel_engine_device.hpp"
 #include "bagel_buffer.hpp"
-#include "bagel_textures.h"
+#include "bagel_textures.hpp"
 #include "bagel_descriptors.hpp"
 #include "bagel_ecs_components.hpp"
 
@@ -149,8 +149,10 @@ namespace bagel {
 	class BGLModelBufferManager {
 	public:
 		struct BufferHandlePair {
-			int32_t vertexBufferHandle;
-			int32_t indexBufferHandle;
+			uint32_t vertexBufferHandle = 0;
+			uint32_t indexBufferHandle = 0;
+			uint32_t vertexCount = 0;
+			uint32_t indexCount = 0;
 		};
 		BGLModelBufferManager() = default;
 		~BGLModelBufferManager() {
@@ -160,39 +162,91 @@ namespace bagel {
 			for (auto vm : vertexBufferMemoryArray) {
 				vkFreeMemory(BGLDevice::device(), vm, nullptr);
 			}
-			for (auto i : IndexBufferArray) {
+			for (auto i : indexBufferArray) {
 				vkDestroyBuffer(BGLDevice::device(), i, nullptr);
 			}
 			for (auto im : IndexBufferMemoryArray) {
 				vkFreeMemory(BGLDevice::device(), im, nullptr);
 			}
 		}
-		BufferHandlePair* GetModelHandle(std::string& modelName) {
+		const bool CheckAllocationByModelName(const std::string& modelName) {
+			auto it = modelNameMap.find(modelName);
+			return it != modelNameMap.end();
+		}
+		const BufferHandlePair& GetModelHandle(const std::string& modelName) {
 			auto it = modelNameMap.find(modelName);
 			if (it != modelNameMap.end()) {
-				return &(it->second);
+				return it->second;
 			}
-			return nullptr;
+			throw("Model named " + modelName + " was not allocated by ModelDescriptionComponentBuilder!");
 		}
-		VkBuffer GetVertexBufferHandle(BufferHandlePair* pair) {
-			return vertexBufferArray[pair->vertexBufferHandle];
+		const VkBuffer GetVertexBufferHandle(const BufferHandlePair& pair) {
+			return vertexBufferArray[pair.vertexBufferHandle];
 		}
-		VkBuffer GetIndexBufferHandle(BufferHandlePair* pair) {
-			if (pair->indexBufferHandle < 0) return nullptr;
-			return IndexBufferArray[pair->indexBufferHandle];
+		const VkBuffer GetIndexBufferHandle(const BufferHandlePair& pair) {
+			return indexBufferArray[pair.indexBufferHandle];
+		}
+		// Returns last allocated vertex buffer
+		VkBuffer& GetAllocatedVertexBuffer() {
+			return vertexBufferArray[vertexBufferArray.size() - 1];
+		}
+		VkBuffer& GetVertexBufferDst() {
+			int i = vertexBufferArray.size();
+			VkBuffer newBuffer;
+			vertexBufferArray.push_back(newBuffer);
+			return vertexBufferArray[i];
+		}
+		VkDeviceMemory& GetVertexMemoryDst() {
+			int i = vertexBufferArray.size();
+			VkDeviceMemory newMem;
+			vertexBufferMemoryArray.push_back(newMem);
+			return vertexBufferMemoryArray[i];
+		}
+		// Returns last allocated index buffer
+		VkBuffer& GetAllocatedIndexBuffer() {
+			return indexBufferArray[indexBufferArray.size() - 1];
+		}
+		VkBuffer& GetIndexBufferDst() {
+			int i = indexBufferArray.size();
+			VkBuffer newBuffer;
+			indexBufferArray.push_back(newBuffer);
+			return indexBufferArray[i];
+		}
+		VkDeviceMemory& GetIndexMemoryDst() {
+			int i = IndexBufferMemoryArray.size();
+			VkDeviceMemory newMem;
+			IndexBufferMemoryArray.push_back(newMem);
+			return IndexBufferMemoryArray[i];
+		}
+		bool HasIndexBuffer(const BufferHandlePair& pair) {
+			return pair.indexBufferHandle >= 0;
+		}
+		void EmplaceAllocatedModelVertexOnly(const std::string modelName, uint32_t vertexCount) {
+			BufferHandlePair pair{};
+			pair.vertexBufferHandle = vertexBufferArray.size() - 1;
+			pair.vertexCount = vertexCount;
+			modelNameMap.emplace(modelName, pair);
+		}
+		void EmplaceAllocatedModelAll(const std::string modelName, uint32_t vertexCount, uint32_t indexCount) {
+			BufferHandlePair pair{};
+			pair.vertexBufferHandle = vertexBufferArray.size() - 1;
+			pair.vertexCount = vertexCount;
+			pair.indexBufferHandle = indexBufferArray.size() - 1;
+			pair.indexCount = indexCount;
+			modelNameMap.emplace(modelName, pair);
 		}
 
 	private:
 		std::unordered_map<std::string, BufferHandlePair> modelNameMap;
 		std::vector<VkBuffer>		vertexBufferArray;
 		std::vector<VkDeviceMemory> vertexBufferMemoryArray;
-		std::vector<VkBuffer>		IndexBufferArray;
+		std::vector<VkBuffer>		indexBufferArray;
 		std::vector<VkDeviceMemory>	IndexBufferMemoryArray;
 	};
 
 	class ModelDescriptionComponentBuilder {
 	public:
-		ModelDescriptionComponentBuilder(BGLDevice& _device);
+		ModelDescriptionComponentBuilder(BGLDevice& bglDevice, const std::unique_ptr<BGLModelBufferManager>& modelBufferManager);
 		void setBuildTarget(ModelDescriptionComponent* _tC) { targetComponent = _tC; }
 		void buildComponent(const std::string& filename);
 		void loadModel(const std::string& filename);
@@ -204,7 +258,7 @@ namespace bagel {
 	private:
 		ModelDescriptionComponent* targetComponent = nullptr;
 		BGLDevice& bglDevice;
-
+		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager;
 		std::vector<BGLModel::Vertex> vertices{};
 		std::vector<uint32_t> indices{};
 	};

@@ -222,7 +222,7 @@ namespace bagel {
 			JPH::RegisterDefaultAllocator();
 			// Install callbacks
 			JPH::Trace = TraceImpl;
-			JPH::JPH_IF_ENABLE_ASSERTS(AssertFailed = AssertFailedImpl;)
+			//JPH::JPH_IF_ENABLE_ASSERTS(AssertFailed = AssertFailedImpl;)
 
 			// Create a factory
 			JPH::Factory::sInstance = new JPH::Factory();

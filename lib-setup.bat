@@ -6,5 +6,6 @@ git clone https://github.com/ocornut/imgui.git
 git clone https://github.com/skypjack/entt.git
 git clone https://github.com/KhronosGroup/KTX-Software.git
 git clone https://github.com/jrouwe/JoltPhysics.git
+git clone https://github.com/syoyo/tinygltf.git
 
 cd ..

@@ -1,4 +1,4 @@
-#include "bagel_textures.h"
+#include "bagel_textures.hpp"
 #include "bagel_engine_swap_chain.hpp"
 #include "bagel_util.hpp"
 

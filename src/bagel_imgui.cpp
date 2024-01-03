@@ -1,4 +1,4 @@
-#include "bagel_imgui.h"
+#include "bagel_imgui.hpp"
 
 namespace bagel {
     //Default Console Callbacks

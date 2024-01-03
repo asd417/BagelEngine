@@ -11,7 +11,7 @@
 #include "../bgl_camera.hpp"
 #include "../bgl_gameobject.hpp"
 #include "../bgl_model.hpp"
-#include "../bagel_imgui.h"
+#include "../bagel_imgui.hpp"
 
 
 //#define MODELRENDER_ORIGINAL
@@ -37,6 +37,7 @@ namespace bagel {
 			VkRenderPass renderPass,
 			std::vector<VkDescriptorSetLayout> setLayouts,
 			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
+			std::unique_ptr<BGLModelBufferManager> const& _modelBufferManager,
 			entt::registry& _registry,
 			ConsoleApp& consoleApp);
 
@@ -46,6 +47,7 @@ namespace bagel {
 	private:
 		entt::registry& registry;
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
+		std::unique_ptr<BGLModelBufferManager> const& modelBufferManager;
 	};
 
 }
