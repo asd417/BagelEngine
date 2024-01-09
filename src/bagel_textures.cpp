@@ -504,20 +504,6 @@ namespace bagel {
 	// filePath relative to engine path starting with /
 	void TextureComponentBuilder::buildComponent(const char* filePath, VkFormat imageFormat)
 	{
-#define memorySave
-#ifdef memorySaveOld
-		std::string filenameStr(filePath);
-		if (lastBoundTextureName == filenameStr)
-		{
-			//Don't bind again. Just use the last bound texturehandle
-			targetComponent->textureHandle = descriptorManager.getLastTextureHandle();
-			lastBoundTextureName = filenameStr;
-			std::cout << filenameStr << " same as the last bound texture. Skipping memory allocation\n";
-			targetComponent->duplicate = true;
-			return;
-		}
-		lastBoundTextureName = filenameStr;
-#else
 		uint32_t storedIndex = descriptorManager.searchTextureName(filePath);
 		if (storedIndex != std::numeric_limits<uint32_t>::max())
 		{
@@ -525,7 +511,6 @@ namespace bagel {
 			targetComponent->textureHandle = storedIndex;
 			return;
 		}
-#endif
 		assert(targetComponent != nullptr && "No targetComponent set for TextureComponentBuilder");
 		// Staging Buffer is created here
 		loadKTXImageInStagingBuffer(util::enginePath(filePath).c_str(), imageFormat);

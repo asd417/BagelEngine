@@ -20,6 +20,9 @@
 
 #include "entt.hpp"
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include "../bagel_engine_device.hpp"
+#include "../bgl_model.hpp"
 
 // All Jolt symbols are in the JPH namespace
 // If you want your code to compile using single or double precision write 0.0_r to get a Real value that compiles to double or float depending if JPH_DOUBLE_PRECISION is set or not.
@@ -217,7 +220,7 @@ namespace bagel {
 			JPH::ObjectLayer layer;
 		};
 
-		static void Initialize(entt::registry& registry) {
+		static void Initialize(BGLDevice& device, entt::registry& registry, const std::unique_ptr<BGLModelBufferManager>& mbm) {
 			// Register allocation hook
 			JPH::RegisterDefaultAllocator();
 			// Install callbacks
@@ -230,7 +233,7 @@ namespace bagel {
 			// Register all Jolt physics types
 			JPH::RegisterTypes();
 
-			instance = new BGLJolt(registry);
+			instance = new BGLJolt(device,registry,mbm);
 		}
 		static BGLJolt* GetInstance() { 
 			if (instance == nullptr) throw std::exception("BGLJolt must be initialized with entt registry reference");
@@ -246,13 +249,14 @@ namespace bagel {
 		glm::vec3 GetGravity();
 		void SetGravity(glm::vec3 gravity);
 	private:
-		BGLJolt(entt::registry& _registry);
+		BGLJolt(BGLDevice& _bglDevice, entt::registry& _registry, const std::unique_ptr<BGLModelBufferManager>& _m);
 		~BGLJolt();
 
 		//Singleton Pattern
 		static BGLJolt* instance;
 		entt::registry& registry;
-
+		BGLDevice& bglDevice;
+		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager;
 
 		// We need a job system that will execute physics jobs on multiple threads. Typically
 		// you would implement the JobSystem interface yourself and let Jolt Physics run on top

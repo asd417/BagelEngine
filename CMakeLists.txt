@@ -65,6 +65,7 @@ file(GLOB SOURCES "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*
 
 file(GLOB RENDERSYSTEM 	"${PROJECT_SOURCE_DIR}/src/render_systems/*.cpp" "${PROJECT_SOURCE_DIR}/src/render_systems/*.hpp")
 file(GLOB PHYSICS 	"${PROJECT_SOURCE_DIR}/src/physics/*.cpp" "${PROJECT_SOURCE_DIR}/src/physics/*.hpp")
+file(GLOB MATH		"${PROJECT_SOURCE_DIR}/src/math/*.cpp" "${PROJECT_SOURCE_DIR}/src/math/*.hpp")
 
 file(GLOB IMGUI_SRC "${IMGUI}/*.cpp" "${IMGUI}/*.h")
 file(GLOB IMGUI_BCKEND_vk ${IMGUI}/backends/imgui_impl_vulkan.*)
@@ -73,13 +74,15 @@ file(GLOB IMGUI_BCKEND_glfw ${IMGUI}/backends/imgui_impl_glfw.*)
 add_executable(${PROJECT_NAME} 
 	${SOURCES} 
 	${RENDERSYSTEM}
-	${PHYSICS} 
+	${PHYSICS}
+	${MATH}
 	${IMGUI_SRC} 
 	${IMGUI_BCKEND_vk} 
 	${IMGUI_BCKEND_glfw} )
 
 source_group("Render Systems"	FILES ${RENDERSYSTEM})
 source_group("Physics"		FILES ${PHYSICS})
+source_group("Math"		FILES ${MATH})
 source_group("Imgui"            FILES ${IMGUI_SRC} ${IMGUI_BCKEND_vk} ${IMGUI_BCKEND_glfw})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
@@ -100,6 +103,7 @@ if (WIN32)
     ${PROJECT_SOURCE_DIR}/src
     ${Vulkan_INCLUDE_DIRS}
     ${TINYOBJ_PATH}
+    ${TINYGLTF_PATH}
     ${GLFW_INCLUDE_DIRS}
     ${GLM_PATH}
     ${KTX}
@@ -125,8 +129,11 @@ if (WIN32)
 
   target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1 ktx Jolt)
 
-endif()
+  set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
+  set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
+  add_subdirectory(${TINYGLTF_PATH})
 
+endif()
 
 ############## Build SHADERS #######################
  

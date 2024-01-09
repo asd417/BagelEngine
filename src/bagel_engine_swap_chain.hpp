@@ -9,6 +9,7 @@
 
 // 16 bits of depth is enough for such a small scene
 #define DEPTH_FORMAT VK_FORMAT_D16_UNORM
+//#define SYNC_DEVICEWAITIDLE
 
 namespace bagel {
     class BGLSwapChain {

@@ -15,7 +15,9 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
-//https://www.youtube.com/watch?v=mnKp501RXDc&list=PL8327DO66nu9qYVKLDmdLW_84-yE4auCR&index=8&ab_channel=BrendanGalea
+// There are hard-coded behaviors:
+// WireframeComponentBuilder::buildComponent("grid") : generates a 50x50 square grid
+
 namespace bagel {
 
 	std::ostream& operator<<(std::ostream& os, const BGLModel::Vertex& other) {
@@ -229,40 +231,67 @@ namespace bagel {
 		}
 	}
 
-	ModelDescriptionComponentBuilder::ModelDescriptionComponentBuilder(
+	//Builder class of all Model-loading components
+	//Any component with following members is valid:
+	// std::string modelName;
+	// uint32_t vertexCount;
+	// uint32_t indexCount;
+
+	ModelComponentBuilder::ModelComponentBuilder(
 		BGLDevice& _bglDevice, 
 		const std::unique_ptr<BGLModelBufferManager>& _modelBufferManager) : 
 		bglDevice{_bglDevice},
 		modelBufferManager{ _modelBufferManager }
-	{
-	}
+	{}
 
-	void ModelDescriptionComponentBuilder::buildComponent(const std::string& modelFilename)
+	// ComponentBuildMode::LINES is for wireframe rendering
+	// ComponentBuildMode::FACES is for pbr rendering
+	void ModelComponentBuilder::buildComponent(const std::string& modelFilename, ComponentBuildMode buildmode, std::string& outModelName, uint32_t& outVertexCount, uint32_t& outIndexCount)
 	{
-		assert(targetComponent != nullptr && "No targetComponent set for ModelDescriptionComponentBuilder");
-		targetComponent->modelName = modelFilename;
+		outModelName = modelFilename;
 		if (modelBufferManager->CheckAllocationByModelName(modelFilename)) {
 			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelFilename);
-			targetComponent->vertexCount = handles.vertexCount;
-			targetComponent->indexCount = handles.indexCount;
+			outVertexCount = handles.vertexCount;
+			outIndexCount = handles.indexCount;
 			return;
 		}
-		loadModel(modelFilename);
-		createVertexBuffer();
+		loadModel(modelFilename, buildmode == LINES);
+		outVertexCount = static_cast<uint32_t>(vertices.size());
+		createVertexBuffer(sizeof(vertices[0]) * vertices.size());
 		if (indices.size() > 0) {
 			std::cout << "Model has Index Buffer. Allocating...\n";
-			createIndexBuffer();
-			modelBufferManager->EmplaceAllocatedModelAll(modelFilename, targetComponent->vertexCount, targetComponent->indexCount);
+			outIndexCount = static_cast<uint32_t>(indices.size());
+			std::cout << "Index Buffer length: " << outIndexCount << "\n";
+			createIndexBuffer(sizeof(indices[0]) * indices.size());
+			modelBufferManager->EmplaceAllocatedModelAll(modelFilename, outVertexCount, outIndexCount);
 		}
 		else {
-			modelBufferManager->EmplaceAllocatedModelVertexOnly(modelFilename, targetComponent->vertexCount);
+			modelBufferManager->EmplaceAllocatedModelVertexOnly(modelFilename, outVertexCount);
 		}
 		vertices.clear();
 		indices.clear();
 		std::cout << "Finished building Component\n";
 	}
 
-	void ModelDescriptionComponentBuilder::loadModel(const std::string& filename) {
+	void ModelComponentBuilder::loadModel(const std::string& filename, bool loadLines) {
+		if (filename == "grid") {
+			for (int i = 0; i < 101; i++) {
+				BGLModel::Vertex vertex1{};
+				vertex1.position = { i - 50, 0, -50 };
+				vertices.push_back(vertex1);
+				BGLModel::Vertex vertex2{};
+				vertex2.position = { i - 50, 0, 50 };
+				vertices.push_back(vertex2);
+
+				BGLModel::Vertex vertex4{};
+				vertex4.position = { -50, 0, i - 50 };
+				vertices.push_back(vertex4);
+				BGLModel::Vertex vertex5{};
+				vertex5.position = { 50, 0, i - 50 };
+				vertices.push_back(vertex5);
+			}
+			return;
+		}
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
@@ -273,34 +302,69 @@ namespace bagel {
 		}
 		std::unordered_map<BGLModel::Vertex, uint32_t, BGLModel::VertexHasher, BGLModel::VertexEquals> vertexMap{};
 		uint32_t vertInt = 0;
-		for (const auto& shape : shapes) {
-			for (const auto& index : shape.mesh.indices) {
-				BGLModel::Vertex vertex{};
-				if (index.vertex_index >= 0) {
-					vertex.position = { attrib.vertices[3 * index.vertex_index + 0] , attrib.vertices[3 * index.vertex_index + 1] , attrib.vertices[3 * index.vertex_index + 2] };
-				}
+		if (!loadLines) {
+			for (const auto& shape : shapes) {
+				for (const auto& index : shape.mesh.indices) {
+					BGLModel::Vertex vertex{};
+					if (index.vertex_index >= 0) {
+						vertex.position = { attrib.vertices[3 * index.vertex_index + 0] , attrib.vertices[3 * index.vertex_index + 1] , attrib.vertices[3 * index.vertex_index + 2] };
+					}
 
-				vertex.color = { attrib.colors[3 * index.vertex_index] , attrib.colors[3 * index.vertex_index + 1] , attrib.colors[3 * index.vertex_index + 2] };
+					vertex.color = { attrib.colors[3 * index.vertex_index] , attrib.colors[3 * index.vertex_index + 1] , attrib.colors[3 * index.vertex_index + 2] };
 
-				if (index.normal_index >= 0) {
-					vertex.normal = { attrib.normals[3 * index.normal_index + 0] , attrib.normals[3 * index.normal_index + 1] , attrib.normals[3 * index.normal_index + 2] };
+					if (index.normal_index >= 0) {
+						vertex.normal = { attrib.normals[3 * index.normal_index + 0] , attrib.normals[3 * index.normal_index + 1] , attrib.normals[3 * index.normal_index + 2] };
+					}
+					if (index.texcoord_index >= 0) {
+						vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0] , 1 - attrib.texcoords[2 * index.texcoord_index + 1] };
+					}
+					int index;
+					if (auto search = vertexMap.find(vertex); search != vertexMap.end()) {
+						//vertex already exists in map
+						index = search->second;
+					} else {
+						//new vertex
+						vertexMap.emplace(vertex, vertInt);
+						index = vertInt;
+						vertInt++;
+						vertices.push_back(vertex);
+					}
+					//vertices.push_back(vertex);
+					indices.push_back(index);
 				}
-				if (index.texcoord_index >= 0) {
-					vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0] , 1 - attrib.texcoords[2 * index.texcoord_index + 1] };
+			}
+		}
+		else {
+			for (const auto& shape : shapes) {
+				for (const auto& index : shape.lines.indices) {
+					BGLModel::Vertex vertex{};
+					if (index.vertex_index >= 0) {
+						vertex.position = { attrib.vertices[3 * index.vertex_index + 0] , attrib.vertices[3 * index.vertex_index + 1] , attrib.vertices[3 * index.vertex_index + 2] };
+					}
+
+					vertex.color = { attrib.colors[3 * index.vertex_index] , attrib.colors[3 * index.vertex_index + 1] , attrib.colors[3 * index.vertex_index + 2] };
+
+					if (index.normal_index >= 0) {
+						vertex.normal = { attrib.normals[3 * index.normal_index + 0] , attrib.normals[3 * index.normal_index + 1] , attrib.normals[3 * index.normal_index + 2] };
+					}
+					if (index.texcoord_index >= 0) {
+						vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0] , 1 - attrib.texcoords[2 * index.texcoord_index + 1] };
+					}
+					int index;
+					if (auto search = vertexMap.find(vertex); search != vertexMap.end()) {
+						//vertex already exists in map
+						index = search->second;
+					}
+					else {
+						//new vertex
+						vertexMap.emplace(vertex, vertInt);
+						index = vertInt;
+						vertInt++;
+						vertices.push_back(vertex);
+					}
+					//vertices.push_back(vertex);
+					indices.push_back(index);
 				}
-				int index;
-				if (auto search = vertexMap.find(vertex); search != vertexMap.end()) {
-					//vertex already exists in map
-					index = search->second;
-				} else {
-					//new vertex
-					vertexMap.emplace(vertex, vertInt);
-					index = vertInt;
-					vertInt++;
-					vertices.push_back(vertex);
-				}
-				//vertices.push_back(vertex);
-				indices.push_back(index);
 			}
 		}
 		std::cout << "Model Loader looped through " << vertInt << "\n";
@@ -308,7 +372,7 @@ namespace bagel {
 		std::cout << "Index Buffer size " << indices.size() << "\n";
 	}
 
-	void ModelDescriptionComponentBuilder::printVertexArray() {
+	void ModelComponentBuilder::printVertexArray() {
 		std::cout << "[ ";
 		for (auto i : vertices) {
 			std::cout << i << ", ";
@@ -316,7 +380,7 @@ namespace bagel {
 		std::cout << "]\n";
 	}
 
-	void ModelDescriptionComponentBuilder::printIndexArray() {
+	void ModelComponentBuilder::printIndexArray() {
 		std::cout << "[ ";
 		for (auto i : indices) {
 			std::cout << i << " ";
@@ -324,18 +388,17 @@ namespace bagel {
 		std::cout << "]\n";
 	}
 
-	void ModelDescriptionComponentBuilder::createVertexBuffer()
+	void ModelComponentBuilder::createVertexBuffer(size_t bufferSize)
 	{
-		targetComponent->vertexCount = static_cast<uint32_t>(vertices.size());
-		assert(targetComponent->vertexCount >= 3 && "Vertex count must be at least 3");
-		VkDeviceSize bufferSize = sizeof(vertices[0]) * targetComponent->vertexCount;
-		//uint32_t vertexSize = sizeof(vertices[0]);
-		std::cout << "Vertex Count: " << targetComponent->vertexCount << "\n";
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingMemory;
 		void* mapped;
-		//bufferSize = vertexSize * targetComponent->vertexCount;
-		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
+		bglDevice.createBuffer(
+			bufferSize, 
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+			stagingBuffer, 
+			stagingMemory);
 		vkMapMemory(BGLDevice::device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
 		//Write Vertex data to stagingBuffer
 		assert(mapped && "Cannot copy to unmapped buffer");
@@ -359,21 +422,15 @@ namespace bagel {
 
 	}
 
-	void ModelDescriptionComponentBuilder::createIndexBuffer()
+	void ModelComponentBuilder::createIndexBuffer(size_t bufferSize)
 	{
-		targetComponent->indexCount = static_cast<uint32_t>(indices.size());
-		std::cout << "Index Buffer length: " << targetComponent->indexCount << "\n";
-		assert(targetComponent->indexCount >= 3 && "Vertex count must be at least 3");
-		std::cout << "Checking\n";
-		VkDeviceSize bufferSize = sizeof(indices[0]) * targetComponent->indexCount;
-
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingMemory;
 		void* mapped;
-		//bufferSize = indexSize * targetComponent->indexCount;
 		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
 		vkMapMemory(BGLDevice::device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
 		//Write Index data to stagingBuffer
+		std::cout << "Writing Index data to stagingBuffer\n";
 		assert(mapped && "Cannot copy to unmapped buffer");
 		memcpy(mapped, (void*)indices.data(), bufferSize);
 

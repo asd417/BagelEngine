@@ -66,6 +66,39 @@ namespace bagel {
             {translation.x + localTranslation.x, translation.y + localTranslation.y, translation.z + localTranslation.z, 1.0f} };
     }
 
+    glm::mat4 TransformComponent::mat4Scaled(glm::vec3 scale)
+    {
+        //X1Y2Z3 
+        //Jolt Quaternion returns XYZ rotation
+        const float c3 = glm::cos(rotation.z + localRotation.z);
+        const float s3 = glm::sin(rotation.z + localRotation.z);
+        const float c2 = glm::cos(rotation.y + localRotation.y);
+        const float s2 = glm::sin(rotation.y + localRotation.y);
+        const float c1 = glm::cos(rotation.x + localRotation.x);
+        const float s1 = glm::sin(rotation.x + localRotation.x);
+
+        return glm::mat4{
+            {
+                scale.x * (c2 * c3),
+                scale.x * (c1 * s3 + c3 * s1 * s2),
+                scale.x * (s1 * s3 - c1 * c3 * s2),
+                0.0f,   
+            },          
+            {           
+                scale.y * (-c2 * s3),
+                scale.y * (c1 * c3 - s1 * s2 * s3),
+                scale.y * (c3 * s1 + c1 * s2 * s3),
+                0.0f,   
+            },          
+            {           
+                scale.z * (s2),
+                scale.z * (scale.z * localScale.z) * (-c2 * s1),
+                scale.z * (scale.z * localScale.z) * (c1 * c2),
+                0.0f,
+            },
+            {translation.x + localTranslation.x, translation.y + localTranslation.y, translation.z + localTranslation.z, 1.0f} };
+    }
+
     glm::mat3 TransformComponent::normalMatrix()
     {
         const float c3 = glm::cos(rotation.z + localRotation.z);

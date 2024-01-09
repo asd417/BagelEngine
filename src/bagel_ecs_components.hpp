@@ -40,6 +40,7 @@ namespace bagel {
 		TransformComponent(float x, float y, float z) { translation = { x,y,z }; }
 		TransformComponent(glm::vec4 pos) { translation = glm::vec3(pos); }
 		glm::mat4	mat4();
+		glm::mat4	mat4Scaled(glm::vec3 scale);
 		glm::mat3	normalMatrix();
 
 		glm::vec3	getTranslation() const;
@@ -138,6 +139,7 @@ namespace bagel {
 		glm::vec4 color = { 1.0f,1.0f,1.0f,1.0f }; //4th is strength
 		float radius = 1.0f;
 	};
+
 	struct ModelDescriptionComponent {
 		enum TextureCompositeFlag {
 			DIFFUSE =	0b0000'0001,
@@ -150,28 +152,11 @@ namespace bagel {
 		uint32_t indexCount = 0;
 		uint8_t textureMapFlag;
 	};
-	struct GeneratedWireframeComponent {
-		VkBuffer vertexBuffer = nullptr;
-		VkDeviceMemory vertexMemory = nullptr;
+
+	struct WireframeComponent {
+		std::string modelName = "";
 		uint32_t vertexCount = 0;
-
-		bool hasIndexBuffer = false;
-		VkBuffer indexBuffer = nullptr;
-		VkDeviceMemory indexMemory = nullptr;
 		uint32_t indexCount = 0;
-
-		bool mapped = false;
-
-		GeneratedWireframeComponent() = default;
-		~GeneratedWireframeComponent() {
-			std::cout << "Destroying Model Description Component" << "\n";
-			if (vertexBuffer != nullptr) vkDestroyBuffer(BGLDevice::device(), vertexBuffer, nullptr);
-			if (vertexMemory != nullptr) vkFreeMemory(BGLDevice::device(), vertexMemory, nullptr);
-			if (hasIndexBuffer) {
-				if (indexBuffer != nullptr) vkDestroyBuffer(BGLDevice::device(), indexBuffer, nullptr);
-				if (indexMemory != nullptr) vkFreeMemory(BGLDevice::device(), indexMemory, nullptr);
-			}
-		};
 	};
 
 	struct TextureComponent {
@@ -213,44 +198,16 @@ namespace bagel {
 		JPH::BodyID bodyID;
 		MoveMode moveMode = MoveMode::PHYSICAL;
 	};
-	
-#ifdef PHYSICSTEST
-	struct PhysicsComponent {
-		glm::vec3 velocity;
-		glm::vec3 angularVelocity;
-		glm::vec3 COM;
-		float mass = 1.0f;
-		float bounciness = 0.8f;
-		bool gravity = true;
-		uint8_t colliderTypeFlag;
-		glm::vec3 frameVelocity = { 0.0f,0.0f,0.0f };
+
+	struct CollisionModelComponent {
+		std::string modelName = "";
+		uint32_t vertexCount = 0;
+		uint32_t indexCount = 0;
+		glm::vec3 collisionScale = { 1.0,1.0,1.0 };
 	};
 
-	struct SphereColliderComponent {
-		uint8_t colliderCount = 0;
-		// Center of sphere in object space
-		std::array<glm::vec3, COLLIDER_PER_ENT> center;
-		std::array<float, COLLIDER_PER_ENT> radius;
-		void AddCollider(glm::vec3 c, float r) {
-			center[colliderCount] = c;
-			radius[colliderCount] = r;
-			colliderCount++;
-		}
+	struct InfoComponent {
+		bool a;
 	};
-
-	struct PlaneColliderComponent {
-		uint8_t colliderCount = 0;
-		std::array<glm::vec3, COLLIDER_PER_ENT> normal;
-		std::array<float, COLLIDER_PER_ENT> distance;
-	};
-
-	struct CapsuleColliderComponent {
-		uint8_t colliderCount = 0;
-		std::array<glm::vec3, COLLIDER_PER_ENT> center1;
-		std::array<glm::vec3, COLLIDER_PER_ENT> center2;
-		std::array<glm::vec3, COLLIDER_PER_ENT> c1c2;
-		std::array<float, COLLIDER_PER_ENT> radius;
-	};
-#endif
 	
 }

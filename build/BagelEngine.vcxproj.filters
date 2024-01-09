@@ -183,6 +183,9 @@
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\physics\bagel_physics.hpp">
       <Filter>Physics</Filter>
     </ClInclude>
+    <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\src\math\bagel_math.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
     <ClInclude Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\Dependencies\imgui\imconfig.h">
       <Filter>Imgui</Filter>
     </ClInclude>
@@ -214,6 +217,9 @@
     </Filter>
     <Filter Include="Imgui">
       <UniqueIdentifier>{D357D79B-519A-352E-822E-76D57094E48C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Math">
+      <UniqueIdentifier>{37D3CF02-90C7-3C02-B915-756ECC05A52A}</UniqueIdentifier>
     </Filter>
     <Filter Include="Physics">
       <UniqueIdentifier>{54E67D90-CF23-36AC-8628-0A713F02A6E0}</UniqueIdentifier>

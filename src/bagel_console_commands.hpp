@@ -19,12 +19,6 @@ namespace ConsoleCommand {
 		if (app->runPhys) return "Free fly acivated";
 		else return "Free fly deacivated";
 	}
-	char* ResetScene(void* ptr) {
-		FirstApp* app = static_cast<FirstApp*>(ptr);
-		app->runPhys = false;
-		app->resetScene();
-		return "Reset scene and paused physics";
-	}
 	char* RotateLight(void* ptr) {
 		FirstApp* app = static_cast<FirstApp*>(ptr);
 		app->rotateLight = !app->rotateLight;

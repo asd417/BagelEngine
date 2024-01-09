@@ -10,11 +10,55 @@
 #include <map>
 #include <functional>
 
+#include "entt.hpp"
+#include <glm/glm.hpp>
+#include "bagel_ecs_components.hpp"
+
 namespace bagel {
 
     char* ClearConsole(void* ptr);
     char* HelpCommand(void* ptr);
     char* HistoryCommand(void* ptr);
+
+    //Shows various infos of entities.
+    //Currently only shows World Position and World Rotation
+    inline void DrawInfoPanels(entt::registry& registry, uint32_t extentWidth, uint32_t extentHeight, glm::mat4 projectionMat, glm::mat4 viewMat) {
+        ImGuiWindowFlags window_flags = 0;
+        //window_flags |= ImGuiWindowFlags_NoTitleBar;
+        window_flags |= ImGuiWindowFlags_NoScrollbar;
+        window_flags |= ImGuiWindowFlags_NoMove;
+        window_flags |= ImGuiWindowFlags_NoResize;
+        window_flags |= ImGuiWindowFlags_NoCollapse;
+        window_flags |= ImGuiWindowFlags_NoNav;
+        window_flags |= ImGuiWindowFlags_NoBackground;
+        window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
+        window_flags |= ImGuiWindowFlags_NoMouseInputs;
+        window_flags |= ImGuiWindowFlags_NoDecoration;
+
+        auto& view = registry.view<InfoComponent, TransformComponent>();
+        uint32_t infoPanelID = 0;
+        std::string panelName = "InfoPanel";
+        for (auto [ent, info, trans] : view.each()) {
+            glm::vec3 pos = trans.getWorldTranslation();
+            glm::vec4 screenSpace = projectionMat * viewMat * glm::vec4(pos, 1.0);
+            glm::vec3 normalizedDeviceCoordinate = { screenSpace.x / screenSpace.w,screenSpace.y / screenSpace.w, screenSpace.z / screenSpace.w };
+            if (screenSpace.z < 0) {
+                continue;
+            }
+            float screenX = (normalizedDeviceCoordinate.x + 1.0) * 0.5 * extentWidth;
+            float screenY = (normalizedDeviceCoordinate.y + 1.0) * 0.5 * extentHeight;
+
+            ImGui::Begin((panelName + std::to_string(infoPanelID)).c_str(), nullptr, window_flags);
+
+            ImGui::SetWindowPos({ screenX,screenY }, ImGuiCond_Always);
+            ImGui::SetWindowSize({ 500,500 }, ImGuiCond_Once);
+            glm::vec3 p = trans.getWorldTranslation();
+            ImGui::Text("Position (%.2f) (%.2f) (%.2f)", p.x, p.y, p.z);
+            ImGui::Text("Rotation (%.2f) (%.2f) (%.2f)", trans.getWorldRotation().x, trans.getWorldRotation().y, trans.getWorldRotation().z);
+            ImGui::End();
+            infoPanelID++;
+        }
+    }
 
     struct ConsoleApp
     {

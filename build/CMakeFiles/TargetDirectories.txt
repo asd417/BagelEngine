@@ -1,3 +1,5 @@
 C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/CMakeFiles/BagelEngine.dir
 C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/CMakeFiles/Shaders.dir
 C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/Dependencies/tinygltf/CMakeFiles/loader_example.dir
+C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/Dependencies/tinygltf/CMakeFiles/ALL_BUILD.dir

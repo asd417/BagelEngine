@@ -251,6 +251,7 @@ namespace bagel {
 
     void BGLBindlessDescriptorManager::createBindlessDescriptorSet(uint32_t descriptorCount)
     {
+        // One descriptorSet per swapchain count
         // Create three bindings: storage buffer,
         // uniform buffer, and combined image sampler
 
@@ -291,14 +292,16 @@ namespace bagel {
 
         // Create layout
         VK_CHECK(vkCreateDescriptorSetLayout(BGLDevice::device(), &createInfo, nullptr, &bindlessSetLayout));
-        globalPool.allocateDescriptor(bindlessSetLayout, bindlessDescriptorSet);
+        // Create Descriptor Sets with the layout, one per swapchain
+        for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+            globalPool.allocateDescriptor(bindlessSetLayout, bindlessDescriptorSet[i]);
+        }
     }
 
     void BGLBindlessDescriptorManager::storeUBO(VkDescriptorBufferInfo bufferInfo)
     {
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.dstSet = bindlessDescriptorSet;
         // Write one buffer that is being added
         write.descriptorCount = 1;
         // The array element that we are going to write to
@@ -308,8 +311,10 @@ namespace bagel {
 
         write.dstBinding = BINDINGS::UNIFORM;
         write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
-        vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+            write.dstSet = bindlessDescriptorSet[i];
+            vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        }
     }
 
     uint32_t BGLBindlessDescriptorManager::storeBuffer(VkDescriptorBufferInfo bufferInfo, const char* name = NULL)
@@ -321,14 +326,17 @@ namespace bagel {
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         write.dstBinding = BINDINGS::BUFFER;
-        write.dstSet = bindlessDescriptorSet;
 
         // Write one buffer that is being added
         write.descriptorCount = 1;
         write.pBufferInfo = &bufferInfo;
         write.dstArrayElement = newHandle;
 
-        vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+            write.dstSet = bindlessDescriptorSet[i];
+            vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        }
+
         if (name != NULL) {
             bufferIndexMap.emplace(std::string(name), newHandle);
         }
@@ -349,7 +357,6 @@ namespace bagel {
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         write.dstBinding = BINDINGS::TEXTURE;
-        write.dstSet = bindlessDescriptorSet;
         // Write one texture that is being added
         write.descriptorCount = 1;
         // The array element that we are going to write to
@@ -357,7 +364,11 @@ namespace bagel {
         write.dstArrayElement = newHandle;
         write.pImageInfo = &imageInfo;
 
-        vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+            write.dstSet = bindlessDescriptorSet[i];
+            vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        }
+
         if (name != NULL) {
             textureIndexMap.emplace(std::string(name), newHandle);
         }

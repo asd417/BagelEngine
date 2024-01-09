@@ -57,7 +57,24 @@ namespace bagel {
 		VkCommandBuffer& commandBuffer,
 		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager,
 		const BGLModelBufferManager::BufferHandlePair& handles,
-		ModelDescriptionComponent& comp,
+		WireframeComponent& comp,
+		uint32_t instanceCount)
+	{
+		if (comp.indexCount > 0) {
+			const VkBuffer& ibuffer = modelBufferManager->GetIndexBufferHandle(handles);
+			vkCmdBindIndexBuffer(commandBuffer, ibuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdDrawIndexed(commandBuffer, comp.indexCount, instanceCount, 0, 0, 0);
+		}
+		else {
+			vkCmdDraw(commandBuffer, comp.vertexCount, instanceCount, 0, 0);
+		}
+	}
+
+	inline void BindAppropriateModelBuffer(
+		VkCommandBuffer& commandBuffer,
+		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager,
+		const BGLModelBufferManager::BufferHandlePair& handles,
+		CollisionModelComponent& comp,
 		uint32_t instanceCount)
 	{
 		if (comp.indexCount > 0) {
@@ -72,7 +89,8 @@ namespace bagel {
 
 	void pipelineConfigModifier(PipelineConfigInfo& pipelineConfig) {
 		pipelineConfig.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
-		//pipelineConfig.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
+		pipelineConfig.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+		pipelineConfig.rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
 		pipelineConfig.rasterizationInfo.lineWidth = 1.0f;
 	}
 
@@ -107,7 +125,7 @@ namespace bagel {
 			0, nullptr);
 
 		VkDeviceSize offsets[] = { 0 };
-		auto transformCompView = registry.view<TransformComponent, ModelDescriptionComponent>();
+		auto transformCompView = registry.view<TransformComponent, WireframeComponent>();
 		for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
 			//VkBuffer buffers[] = { modelDescComp.vertexBuffer };
 			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelDescComp.modelName);
@@ -124,7 +142,7 @@ namespace bagel {
 			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, modelDescComp, 1);
 		}
 
-		auto instancedRenderView = registry.view<TransformArrayComponent, ModelDescriptionComponent>();
+		auto instancedRenderView = registry.view<TransformArrayComponent, WireframeComponent>();
 		for (auto [entity, transformComp, modelDescComp] : instancedRenderView.each()) {
 			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelDescComp.modelName);
 			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
@@ -142,6 +160,22 @@ namespace bagel {
 
 			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, modelDescComp, 1);
+		}
+		if (!drawCollision) return;
+		auto collisionModelView = registry.view<TransformComponent, CollisionModelComponent>();
+		for (auto [entity, transformComp, collisionModelComp] : collisionModelView.each()) {
+			//VkBuffer buffers[] = { modelDescComp.vertexBuffer };
+			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(collisionModelComp.modelName);
+			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &vbuffer, offsets);
+
+			WireframePushConstantData push{};
+			push.UsesBufferedTransform = 0;
+			push.modelMatrix = transformComp.mat4Scaled(collisionModelComp.collisionScale);
+			push.normalMatrix = transformComp.normalMatrix();
+
+			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, collisionModelComp, 1);
 		}
 	}
 }

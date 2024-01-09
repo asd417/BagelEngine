@@ -15,6 +15,12 @@
 
 namespace bagel {
 	class BGLRenderer {
+		// Framebuffer for offscreen rendering
+		struct FrameBufferAttachment {
+			VkImage image;
+			VkDeviceMemory mem;
+			VkImageView view;
+		};
 	public:
 		BGLRenderer(BGLWindow& w, BGLDevice& d);
 		~BGLRenderer();
@@ -25,11 +31,8 @@ namespace bagel {
 		VkCommandBuffer beginPrimaryCMD();
 		void endPrimaryCMD();
 
-		VkCommandBuffer beginSecondaryCMD();
-		void endSecondaryCMD();
-
 		void beginSwapChainRenderPass(VkCommandBuffer commandBuffer);
-		void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
+		void endCurrentRenderPass(VkCommandBuffer commandBuffer);
 
 		bool isFrameInProgress() const { return isFrameStarted; }
 		VkCommandBuffer getCurrentCommandBuffer() const {
@@ -40,26 +43,51 @@ namespace bagel {
 		size_t getSwapChainImageCount() const { return bglSwapChain->imageCount(); }
 		VkRenderPass getSwapChainRenderPass() const { return bglSwapChain->getRenderPass(); }
 		float getAspectRatio() const { return bglSwapChain->extentAspectRatio(); }
+		VkExtent2D getExtent() const { return bglSwapChain->getSwapChainExtent(); };
 
 		int getFrameIndex() const {
 			assert(isFrameStarted && "Cannot get frame index when frame not in progress");
 			return currentFrameIndex;
 		}
+
+		//Offscreen Render tasks
+		void createOffScreenRenderPass();
+		void beginOffScreenRenderPass(VkCommandBuffer commandBuffer);
+		// Store this ImageView in descriptor manager to include in the descriptor set
+		VkImageView getOffscreenRenderImageView() const { return offscreenPass.color.view; };
+		// Store this Sampler in descriptor manager to include in the descriptor set
+		VkSampler getOffscreenRenderSampler() const { return offscreenPass.sampler; };
+
 	private:
+		struct OffscreenPass {
+			uint32_t width, height;
+			VkFramebuffer frameBuffer;
+			FrameBufferAttachment color, depth;
+			VkRenderPass renderPass;
+			VkSampler sampler;
+		} offscreenPass;
 
 		uint32_t currentImageIndex = 0;
 		int currentFrameIndex = 0; //Between 0 and Max_Frames_In_Flight, not tied to image index
 		bool isFrameStarted = false;
+
 		//Renderer tasks
 		void createCommandBuffers();
 		void freeCommandBuffers();
 		void recreateSwapChain();
 
+		//Offscreen Render tasks
+		void createOffscreenColorAttachment();
+		void createOffscreenDepthsAttachment(VkFormat& depthsFormat);
+		void createOffscreenAttachmentDescriptors(std::array<VkAttachmentDescription,2>& descriptors, VkFormat& depthsFormat);
+		void createOffscreenSubpassDependencies(std::array<VkSubpassDependency, 2>& dependencies);
+		void createOffscreenFrameBuffer();
+
 		BGLWindow& bglWindow;
 		BGLDevice& bglDevice;
 		std::unique_ptr<BGLSwapChain> bglSwapChain;
 		std::vector<VkCommandBuffer> commandBuffers;
-		VkCommandBuffer secondaryCommandBuffer;
+		//VkCommandBuffer secondaryCommandBuffer;
 	};
 
 }

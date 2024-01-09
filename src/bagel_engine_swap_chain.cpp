@@ -11,8 +11,8 @@
 #include <set>
 #include <stdexcept>
 
-namespace bagel {
 
+namespace bagel {
     BGLSwapChain::BGLSwapChain(BGLDevice &deviceRef, VkExtent2D extent)
         : device{deviceRef}, windowExtent{extent} {
         init();
@@ -119,7 +119,9 @@ namespace bagel {
         auto result = vkQueuePresentKHR(device.presentQueue(), &presentInfo);
 
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-
+#ifndef SYNC_DEVICEWAITIDLE
+        vkQueueWaitIdle(device.presentQueue());
+#endif
         return result;
     }
 

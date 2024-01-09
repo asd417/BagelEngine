@@ -34,12 +34,12 @@ namespace bagel {
 			ConsoleApp& consoleApp);
 
 		void renderEntities(FrameInfo& frameInfo);
-
-		bool stopBinding = false;
 	private:
 		entt::registry& registry;
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
 		std::unique_ptr<BGLModelBufferManager> const& modelBufferManager;
+
+		bool drawCollision = true;
 	};
 
 }

@@ -52,10 +52,7 @@ namespace bagel {
 		FirstApp& operator=(const FirstApp&) = delete;
 
 		void run();
-		entt::entity loadECSObjects();
-		void resetScene();
 		entt::registry& getRegistry() { return registry; }
-		//Physics::PhysicsSystem& getPhysicsSystem() { return physicsSystem; }
 
 		//Command variables
 		bool freeFly = true;
@@ -65,6 +62,10 @@ namespace bagel {
 		ConsoleApp console{};
 
 	private:
+		entt::entity loadECSObjects();
+		entt::entity makeTestEntity(glm::vec3 translation);
+		void makeGrid();
+		entt::entity makeAxisModel(glm::vec3 pos);
 		BGLWindow bglWindow{ WIDTH, HEIGHT, "Bagel Engine" };
 		BGLDevice bglDevice{ bglWindow };
 		BGLRenderer bglRenderer{ bglWindow,bglDevice };

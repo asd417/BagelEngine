@@ -4,6 +4,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ALL_BUILD", "ALL_BUILD.vcxproj", "{92E4DB32-5574-3C7B-831A-752AB9967CB5}"
 	ProjectSection(ProjectDependencies) = postProject
 		{9158E101-C663-30E2-9E6C-F21356BF6F50} = {9158E101-C663-30E2-9E6C-F21356BF6F50}
+		{A96679A2-683A-37D7-9E1E-5E0644B9AB37} = {A96679A2-683A-37D7-9E1E-5E0644B9AB37}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BagelEngine", "BagelEngine.vcxproj", "{9158E101-C663-30E2-9E6C-F21356BF6F50}"
@@ -11,6 +12,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BagelEngine", "BagelEngine.
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Shaders", "Shaders.vcxproj", "{6B0548E1-1C3C-388B-8BA1-0EE83E72E676}"
+	ProjectSection(ProjectDependencies) = postProject
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "loader_example", "Dependencies\tinygltf\loader_example.vcxproj", "{A96679A2-683A-37D7-9E1E-5E0644B9AB37}"
 	ProjectSection(ProjectDependencies) = postProject
 	EndProjectSection
 EndProject
@@ -38,6 +43,14 @@ Global
 		{6B0548E1-1C3C-388B-8BA1-0EE83E72E676}.Release|x64.ActiveCfg = Release|x64
 		{6B0548E1-1C3C-388B-8BA1-0EE83E72E676}.MinSizeRel|x64.ActiveCfg = MinSizeRel|x64
 		{6B0548E1-1C3C-388B-8BA1-0EE83E72E676}.RelWithDebInfo|x64.ActiveCfg = RelWithDebInfo|x64
+		{A96679A2-683A-37D7-9E1E-5E0644B9AB37}.Debug|x64.ActiveCfg = Debug|x64
+		{A96679A2-683A-37D7-9E1E-5E0644B9AB37}.Debug|x64.Build.0 = Debug|x64
+		{A96679A2-683A-37D7-9E1E-5E0644B9AB37}.Release|x64.ActiveCfg = Release|x64
+		{A96679A2-683A-37D7-9E1E-5E0644B9AB37}.Release|x64.Build.0 = Release|x64
+		{A96679A2-683A-37D7-9E1E-5E0644B9AB37}.MinSizeRel|x64.ActiveCfg = MinSizeRel|x64
+		{A96679A2-683A-37D7-9E1E-5E0644B9AB37}.MinSizeRel|x64.Build.0 = MinSizeRel|x64
+		{A96679A2-683A-37D7-9E1E-5E0644B9AB37}.RelWithDebInfo|x64.ActiveCfg = RelWithDebInfo|x64
+		{A96679A2-683A-37D7-9E1E-5E0644B9AB37}.RelWithDebInfo|x64.Build.0 = RelWithDebInfo|x64
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {EF66387A-EDED-3335-9A41-4CBEF974F4E6}

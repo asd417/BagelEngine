@@ -91,6 +91,8 @@ namespace bagel {
         VkPhysicalDeviceFeatures supportedFeatures;
         VkPhysicalDeviceProperties properties;
 
+        VkBool32 getSupportedDepthsFormat(VkFormat* depthFormat);
+
         static VkDevice& device() { return _device; }
 
     private:

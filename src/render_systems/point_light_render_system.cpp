@@ -23,7 +23,7 @@ namespace bagel {
 		auto view = registry.view<TransformComponent, PointLightComponent>();
 		for (auto [entity, transformComp, pointLightComp] : view.each()) {
 			auto rotateLight = glm::rotate(glm::mat4(1.0f), frameTime,{ 0.f,-1.f,0.f }); //axis of rotation
-			transformComp.setTranslation(rotateLight * (glm::vec4(transformComp.getTranslation(), 1.f) - glm::vec4(0.f, 0.f, 5.0f, 1.0f)) + glm::vec4(0.f, 0.f, 5.0f, 1.0f));
+			transformComp.setTranslation(rotateLight * (glm::vec4(transformComp.getTranslation(), 1.f)));
 			
 			ubo.pointLights[lightIndex].position = glm::vec4(transformComp.getTranslation(), 1.f);
 			ubo.pointLights[lightIndex].color = glm::vec4(pointLightComp.color);

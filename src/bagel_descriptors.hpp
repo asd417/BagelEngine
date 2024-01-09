@@ -2,11 +2,13 @@
 
 #include "bagel_engine_device.hpp"
 #include "bagel_buffer.hpp"
+#include "bagel_engine_swap_chain.hpp"
 // std
 #include <map>
 #include <memory>
 #include <unordered_map>
 #include <vector>
+#include <array>
 
 namespace bagel {
 
@@ -130,7 +132,7 @@ namespace bagel {
         uint32_t getLastTextureHandle() { return textures.size() - 1; };
 
         VkDescriptorSetLayout getDescriptorSetLayout() const { return bindlessSetLayout; }
-        VkDescriptorSet getDescriptorSet() const { return bindlessDescriptorSet; }
+        VkDescriptorSet getDescriptorSet(int i) const { return bindlessDescriptorSet[i]; }
     private:
         BGLDevice& bglDevice;
         BGLDescriptorPool& globalPool;
@@ -141,6 +143,6 @@ namespace bagel {
         std::unordered_map<std::string, uint32_t> textureIndexMap;
 
         VkDescriptorSetLayout bindlessSetLayout = nullptr;
-        VkDescriptorSet bindlessDescriptorSet = nullptr;
+        std::array<VkDescriptorSet, BGLSwapChain::MAX_FRAMES_IN_FLIGHT> bindlessDescriptorSet = std::array<VkDescriptorSet, BGLSwapChain::MAX_FRAMES_IN_FLIGHT>();
     };
 }  // namespace lve

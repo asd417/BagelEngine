@@ -67,6 +67,13 @@ void bagel::BGLCamera::setViewYXZ(glm::vec3 position, glm::vec3 rotation){
     setViewInverseView(position, u, v, w);
 }
 
+bool bagel::BGLCamera::isPointInViewFrustum(glm::vec3 screenspaceCoord)
+{
+    
+    // Point is inside or on the frustum
+    return false;
+}
+
 void bagel::BGLCamera::setViewInverseView(glm::vec3 position, glm::vec3 u, glm::vec3 v, glm::vec3 w)
 {
     viewMatrix = glm::mat4{ 1.f };

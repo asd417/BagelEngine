@@ -18,12 +18,11 @@
 #include <ostream>
 #include <functional>
 namespace bagel {
-	// Magic hash function from boost
-	template<typename T>
-	inline void Hash(std::size_t& seed, const T& v)
+	// Magic hash function from boost, modified to return same value for same vertex
+	inline void Hash(std::size_t& seed, const float& v)
 	{
-		std::hash<T> hasher;
-		seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+		//std::hash<T> hasher;
+		seed ^= static_cast<uint32_t>(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 	}
 
 	// The purpose of this class is to be able to take vertex data on cpu, allocate memory and copy it over to gpu device
@@ -68,28 +67,28 @@ namespace bagel {
 			size_t operator()(const Vertex& a) const
 			{
 				size_t seed{};
-				Hash<float>(seed, a.position.x);
-				Hash<float>(seed, a.position.y);
-				Hash<float>(seed, a.position.z);
-				Hash<float>(seed, a.normal.x);
-				Hash<float>(seed, a.normal.y);
-				Hash<float>(seed, a.normal.z);
+				Hash(seed, a.position.x);
+				Hash(seed, a.position.y);
+				Hash(seed, a.position.z);
+				Hash(seed, a.normal.x);
+				Hash(seed, a.normal.y);
+				Hash(seed, a.normal.z);
 				return seed;
 			}
 		};
 
-		//We assume that two vertices with same vertex normal at same position are same vertices.
-		//Change this if there are models that use two vertices with same position and normal but different uv coordinate. 
-		//I don't know if that is possible to make in blender
+		//We assume that two vertices with same vertex normal and same uv coordinate at same position are same vertices 
 		struct VertexEquals
 		{
 			bool operator()(const Vertex& a, const Vertex& b) const
 			{
 				return std::tie(
 					a.position.x, a.position.y, a.position.z,
-					a.normal.x, a.normal.y, a.normal.z)
+					a.normal.x, a.normal.y, a.normal.z,
+					a.uv.x,a.uv.y)
 					== std::tie(b.position.x, b.position.y, b.position.z,
-						b.normal.x, b.normal.y, b.normal.z);
+						b.normal.x, b.normal.y, b.normal.z,
+						b.uv.x, b.uv.y);
 			}
 		};
 		template<typename T>
@@ -244,40 +243,25 @@ namespace bagel {
 		std::vector<VkDeviceMemory>	IndexBufferMemoryArray;
 	};
 
-	class ModelDescriptionComponentBuilder {
+	//Component Build Mode
+	enum ComponentBuildMode {
+		FACES,
+		LINES
+	};
+	//Component builder for generic model components
+	class ModelComponentBuilder {
 	public:
-		ModelDescriptionComponentBuilder(BGLDevice& bglDevice, const std::unique_ptr<BGLModelBufferManager>& modelBufferManager);
-		void setBuildTarget(ModelDescriptionComponent* _tC) { targetComponent = _tC; }
-		void buildComponent(const std::string& filename);
-		void loadModel(const std::string& filename);
+		ModelComponentBuilder(BGLDevice& bglDevice, const std::unique_ptr<BGLModelBufferManager>& modelBufferManager);
+		virtual void buildComponent(const std::string& filename, ComponentBuildMode buildmode, std::string& outModelName, uint32_t& outVertexCount, uint32_t& outIndexCount);
+
+	protected:
+		virtual void loadModel(const std::string& filename, bool loadLines);
 		void printVertexArray();
 		void printIndexArray();
-		void createVertexBuffer();
-		void createIndexBuffer();
-
-	private:
-		ModelDescriptionComponent* targetComponent = nullptr;
+		void createVertexBuffer(size_t bufferSize);
+		void createIndexBuffer(size_t bufferSize);
 		BGLDevice& bglDevice;
 		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager;
-		std::vector<BGLModel::Vertex> vertices{};
-		std::vector<uint32_t> indices{};
-	};
-
-	class GeneratedWireframeComponentBuilder : ModelDescriptionComponentBuilder {
-	public:
-		GeneratedWireframeComponentBuilder(BGLDevice& _device);
-		void setBuildTarget(GeneratedWireframeComponent* _tC) { targetComponent = _tC; }
-		void buildComponent(const std::string& filename);
-		void loadModel(const std::string& filename);
-		void printVertexArray();
-		void printIndexArray();
-		void createVertexBuffer();
-		void createIndexBuffer();
-
-	private:
-		GeneratedWireframeComponent* targetComponent = nullptr;
-		BGLDevice& bglDevice;
-
 		std::vector<BGLModel::Vertex> vertices{};
 		std::vector<uint32_t> indices{};
 	};

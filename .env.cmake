@@ -1,3 +1,4 @@
+set(TINYGLTF_PATH       C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/tinygltf)
 set(TINYOBJ_PATH        C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/tinyobjloader)
 set(GLFW_PATH           C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64)
 set(GLM_PATH            C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glm)

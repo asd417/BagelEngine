@@ -60,8 +60,8 @@ layout(push_constant) uniform Push {
 void main() {
 	vec4 positionWorld;
 	vec3 graphicsPos = vec3(position.x,position.y,position.z);
-	//Converts vertex position to world position
 	if(push.UsesBufferedTransform != 0){
+		//Converts vertex position to world position	
 		mat4 modelMatrix = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].modelMatrix;
 		positionWorld = modelMatrix * vec4(graphicsPos,1.0);
 		//Converts vertex position to screen space

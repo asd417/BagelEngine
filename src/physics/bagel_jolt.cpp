@@ -1,10 +1,12 @@
 #include "physics/bagel_jolt.hpp"
 #include "bagel_ecs_components.hpp"
+#include "../bgl_model.hpp"
+#include "../bagel_util.hpp"
 
 namespace bagel {
 	BGLJolt* BGLJolt::instance = nullptr;
 
-	BGLJolt::BGLJolt(entt::registry& r) : registry{ r }{
+	BGLJolt::BGLJolt(BGLDevice& _bglDevice, entt::registry& r, const std::unique_ptr<BGLModelBufferManager>& _m) : registry{ r }, bglDevice{ _bglDevice }, modelBufferManager{_m} {
 		physicsSystem.Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, broad_phase_layer_interface, object_vs_broadphase_layer_filter, object_vs_object_layer_filter);
 		physicsSystem.SetBodyActivationListener(&body_activation_listener);
 		physicsSystem.SetContactListener(&contact_listener);
@@ -100,6 +102,9 @@ namespace bagel {
 			JPH::RVec3 newEuler = newQuat.GetEulerAngles();
 			glm::vec3 newRot = { newEuler.GetX(), newEuler.GetY(), newEuler.GetZ() };
 
+			glm::qua<float> q{ newQuat.GetW(), newQuat.GetX(),newQuat.GetY(), newQuat.GetZ() };
+			glm::vec3 gvec = glm::eulerAngles(q);
+
 			transComp.setTranslation(newVec);
 			transComp.setRotation(newRot);
 		}
@@ -109,14 +114,18 @@ namespace bagel {
 		JPH::EActivation activity = info.activate ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
 		JPH::BodyCreationSettings sphereSettings(new JPH::SphereShape(radius), JPH::RVec3(info.pos.x, info.pos.y, info.pos.z), JPH::Quat::sEulerAngles({ info.rot.x,info.rot.y,info.rot.z }), (JPH::EMotionType)info.physicsType, info.layer);
 		if (info.physicsType == PhysicsType::KINEMATIC) {
-			auto& jpc = registry.emplace<bagel::JoltKinematicComponent>(ent);
+			auto& jpc = registry.emplace<JoltKinematicComponent>(ent);
 			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
 		}
 		else {
-			auto& jpc = registry.emplace<bagel::JoltPhysicsComponent>(ent);
+			auto& jpc = registry.emplace<JoltPhysicsComponent>(ent);
 			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
 		}
-		
+		auto& wfc = registry.emplace<CollisionModelComponent>(ent);
+		wfc.collisionScale = glm::vec3(radius);
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
+		modelBuilder->buildComponent(util::enginePath("/models/wiresphere.obj"),ComponentBuildMode::LINES, wfc.modelName,wfc.vertexCount,wfc.indexCount);
+		delete modelBuilder;
 	}
 
 	void BGLJolt::AddBox(entt::entity ent, glm::vec3 halfExtent, PhysicsBodyCreationInfo& info) {
@@ -131,6 +140,11 @@ namespace bagel {
 			auto& jpc = registry.emplace<bagel::JoltPhysicsComponent>(ent);
 			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
 		}
+		auto& wfc = registry.emplace<CollisionModelComponent>(ent);
+		wfc.collisionScale = glm::vec3({ halfExtent.x,halfExtent.y,halfExtent.z });
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
+		modelBuilder->buildComponent(util::enginePath("/models/wirecube.obj"), ComponentBuildMode::LINES, wfc.modelName, wfc.vertexCount, wfc.indexCount);
+		delete modelBuilder;
 	}
 	glm::vec3 BGLJolt::GetGravity()
 	{
