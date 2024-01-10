@@ -122,7 +122,7 @@ namespace bagel {
 			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
 		}
 		auto& wfc = registry.emplace<CollisionModelComponent>(ent);
-		wfc.collisionScale = glm::vec3(radius);
+		wfc.collisionScale = {radius,radius,radius};
 		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
 		modelBuilder->buildComponent(util::enginePath("/models/wiresphere.obj"),ComponentBuildMode::LINES, wfc.modelName,wfc.vertexCount,wfc.indexCount);
 		delete modelBuilder;

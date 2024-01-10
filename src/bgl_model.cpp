@@ -151,6 +151,9 @@ namespace bagel {
 					//vertices.push_back(vertex);
 					indices.push_back(index);
 				}
+				for (const auto& mat : shape.mesh.material_ids) {
+
+				}
 			}
 		}
 		else {

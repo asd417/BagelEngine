@@ -38,11 +38,8 @@ namespace bagel {
 
 	};
 
-	void populateBufferCopyRegion(std::vector<VkBufferImageCopy>& buffer_copy_regions, ktxTexture* ktx_texture, uint32_t mip_levels);
+	inline void populateBufferCopyRegionKTX(std::vector<VkBufferImageCopy>& buffer_copy_regions, ktxTexture* ktx_texture, uint32_t mip_levels);
 	
-	//Prototype function. Will be deprecated
-	bool load_image_from_file(BGLDevice& bglDevice, const char* file, BGLTexture::BGLTextureInfoComponent& texture);
-
 	static constexpr uint32_t UniformBinding = 0;
 	static constexpr uint32_t StorageBinding = 1;
 	static constexpr uint32_t TextureBinding = 2;
@@ -65,6 +62,7 @@ namespace bagel {
 		void buildComponent(const char* filePath, VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB);
 
 	private:
+		void loadSTBImageInStagingBuffer(const char* filePath, VkFormat format);
 		void loadKTXImageInStagingBuffer(const char* filePath, VkFormat format);
 		void generateImageCreateInfo(VkFormat imageFormat);
 		void generateSubresRange();
@@ -80,7 +78,7 @@ namespace bagel {
 
 		std::string lastBoundTextureName = "";
 
-		ktx_size_t   ktxTextureSize = 0;
+		size_t imageSize = 0;
 
 		VkImageSubresourceRange subresRange{};
 		std::vector<VkBufferImageCopy> buffCpyRegions{};

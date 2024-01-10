@@ -71,6 +71,8 @@ file(GLOB IMGUI_SRC "${IMGUI}/*.cpp" "${IMGUI}/*.h")
 file(GLOB IMGUI_BCKEND_vk ${IMGUI}/backends/imgui_impl_vulkan.*)
 file(GLOB IMGUI_BCKEND_glfw ${IMGUI}/backends/imgui_impl_glfw.*)
 
+file(GLOB TINYGLTF "${TINYGLTF_PATH}/tiny_gltf.h")
+
 add_executable(${PROJECT_NAME} 
 	${SOURCES} 
 	${RENDERSYSTEM}
@@ -78,7 +80,8 @@ add_executable(${PROJECT_NAME}
 	${MATH}
 	${IMGUI_SRC} 
 	${IMGUI_BCKEND_vk} 
-	${IMGUI_BCKEND_glfw} )
+	${IMGUI_BCKEND_glfw}
+	${TINYGLTF})
 
 source_group("Render Systems"	FILES ${RENDERSYSTEM})
 source_group("Physics"		FILES ${PHYSICS})
@@ -128,10 +131,6 @@ if (WIN32)
 	$<$<CONFIG:Release>:${JOLT}/Build/VS2022_CL/Release>)
 
   target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1 ktx Jolt)
-
-  set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
-  set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
-  add_subdirectory(${TINYGLTF_PATH})
 
 endif()
 

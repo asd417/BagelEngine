@@ -114,10 +114,6 @@
       <Project>{9158E101-C663-30E2-9E6C-F21356BF6F50}</Project>
       <Name>BagelEngine</Name>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\locti\OneDrive\Documents\VisualStudioProjects\VulkanEngine\build\Dependencies\tinygltf\loader_example.vcxproj">
-      <Project>{A96679A2-683A-37D7-9E1E-5E0644B9AB37}</Project>
-      <Name>loader_example</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

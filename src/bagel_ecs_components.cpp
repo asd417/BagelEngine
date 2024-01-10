@@ -92,8 +92,8 @@ namespace bagel {
             },          
             {           
                 scale.z * (s2),
-                scale.z * (scale.z * localScale.z) * (-c2 * s1),
-                scale.z * (scale.z * localScale.z) * (c1 * c2),
+                scale.z * (-c2 * s1),
+                scale.z * (c1 * c2),
                 0.0f,
             },
             {translation.x + localTranslation.x, translation.y + localTranslation.y, translation.z + localTranslation.z, 1.0f} };

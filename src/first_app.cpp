@@ -20,7 +20,7 @@
 #include "backends/imgui_impl_vulkan.h"
 
 #define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
+#define TINYGLTF_NO_STB_IMAGE
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 // #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
 #include "tiny_gltf.h"
@@ -547,8 +547,8 @@ namespace bagel {
 			textureBuilder->setBuildTarget(&tc1);
 			tfc1.setScale({ 5.0,5.0,5.0 });
 			tfc1.setTranslation({ 6.0,6.0,6.0 });
-			std::cout << "Designating offscreenRenderTarget as texture\n";
-			textureBuilder->buildComponent("OffscreenRenderTarget");
+			std::cout << "Designating OffscreenRenderTarget as texture\n";
+			textureBuilder->buildComponent("/materials/texture.jpg");
 		}
 		delete modelBuilder;
 		delete textureBuilder;
