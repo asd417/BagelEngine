@@ -66,6 +66,7 @@ namespace bagel {
 		entt::entity makeTestEntity(glm::vec3 translation);
 		void makeGrid();
 		entt::entity makeAxisModel(glm::vec3 pos);
+		void createMonitor();
 		BGLWindow bglWindow{ WIDTH, HEIGHT, "Bagel Engine" };
 		BGLDevice bglDevice{ bglWindow };
 		BGLRenderer bglRenderer{ bglWindow,bglDevice };

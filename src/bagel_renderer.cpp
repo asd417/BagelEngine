@@ -27,6 +27,19 @@ namespace bagel {
 	BGLRenderer::~BGLRenderer()
 	{
 		freeCommandBuffers();
+
+		vkDestroyImageView(BGLDevice::device(), offscreenPass.color.view, nullptr);
+		vkDestroyImage(BGLDevice::device(), offscreenPass.color.image, nullptr);
+		vkDestroySampler(BGLDevice::device(), offscreenPass.sampler, nullptr);
+		vkFreeMemory(BGLDevice::device(), offscreenPass.color.mem, nullptr);
+
+		vkDestroyImageView(BGLDevice::device(), offscreenPass.depth.view, nullptr);
+		vkDestroyImage(BGLDevice::device(), offscreenPass.depth.image, nullptr);
+		vkFreeMemory(BGLDevice::device(), offscreenPass.depth.mem, nullptr);
+		
+		vkDestroyRenderPass(BGLDevice::device(), offscreenPass.renderPass, nullptr);
+		vkDestroyFramebuffer(BGLDevice::device(), offscreenPass.frameBuffer, nullptr);
+
 	}
 
 	VkCommandBuffer BGLRenderer::beginPrimaryCMD()
@@ -157,6 +170,7 @@ namespace bagel {
 		// VK_SUBPASS_CONTENTS_INLINE indicate that no secondary command buffers are in use
 
 		VkViewport viewport{};
+
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
 		viewport.width = static_cast<float>(offscreenPass.width);
@@ -194,9 +208,16 @@ namespace bagel {
 		// if render pass is compatible do nothing else
 	}
 
-	void BGLRenderer::createOffScreenRenderPass()
+	void BGLRenderer::setUpOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight)
 	{
+		createOffScreenRenderPass(textureWidth, textureHeight);
+		createOffscreenFrameBuffer();
+	}
 
+	void BGLRenderer::createOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight)
+	{
+		offscreenPass.width = textureWidth;
+		offscreenPass.height = textureHeight;
 		// Depth stencil attachment
 		VkFormat fbDepthFormat;
 		VkBool32 validDepthFormat = bglDevice.getSupportedDepthsFormat(&fbDepthFormat);
@@ -218,7 +239,7 @@ namespace bagel {
 
 		std::array<VkSubpassDependency, 2> dependencies{};
 		createOffscreenSubpassDependencies(dependencies);
-
+		
 		// Create the actual renderpass
 		VkRenderPassCreateInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -246,6 +267,7 @@ namespace bagel {
 		image.arrayLayers = 1;
 		image.samples = VK_SAMPLE_COUNT_1_BIT;
 		image.tiling = VK_IMAGE_TILING_OPTIMAL;
+		image.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
 		VkMemoryAllocateInfo memAlloc{};
 		memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -294,7 +316,7 @@ namespace bagel {
 		VkImageCreateInfo image{};
 		image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		image.imageType = VK_IMAGE_TYPE_2D;
-		image.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
+		image.format = depthsFormat;
 		image.extent.width = offscreenPass.width;
 		image.extent.height = offscreenPass.height;
 		image.extent.depth = 1;
@@ -302,21 +324,11 @@ namespace bagel {
 		image.arrayLayers = 1;
 		image.samples = VK_SAMPLE_COUNT_1_BIT;
 		image.tiling = VK_IMAGE_TILING_OPTIMAL;
+		image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
 		VkMemoryAllocateInfo memAlloc{};
 		memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		VkMemoryRequirements memReqs;
-
-		VK_CHECK(vkCreateImage(BGLDevice::device(), &image, nullptr, &offscreenPass.color.image));
-		vkGetImageMemoryRequirements(BGLDevice::device(), offscreenPass.color.image, &memReqs);
-		memAlloc.allocationSize = memReqs.size;
-		memAlloc.memoryTypeIndex = bglDevice.findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		VK_CHECK(vkAllocateMemory(BGLDevice::device(), &memAlloc, nullptr, &offscreenPass.color.mem));
-		VK_CHECK(vkBindImageMemory(BGLDevice::device(), offscreenPass.color.image, offscreenPass.color.mem, 0));
-
-		image.format = depthsFormat;
-		image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
 		VK_CHECK(vkCreateImage(BGLDevice::device(), &image, nullptr, &offscreenPass.depth.image));
 		vkGetImageMemoryRequirements(BGLDevice::device(), offscreenPass.depth.image, &memReqs);
@@ -394,6 +406,7 @@ namespace bagel {
 		attachments[1] = offscreenPass.depth.view;
 
 		VkFramebufferCreateInfo fbufCreateInfo{};
+		fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		fbufCreateInfo.renderPass = offscreenPass.renderPass;
 		fbufCreateInfo.attachmentCount = 2;
 		fbufCreateInfo.pAttachments = attachments;

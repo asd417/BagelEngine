@@ -51,12 +51,14 @@ namespace bagel {
 		}
 
 		//Offscreen Render tasks
-		void createOffScreenRenderPass();
+		void setUpOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight);
+		void createOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight);
 		void beginOffScreenRenderPass(VkCommandBuffer commandBuffer);
 		// Store this ImageView in descriptor manager to include in the descriptor set
 		VkImageView getOffscreenRenderImageView() const { return offscreenPass.color.view; };
 		// Store this Sampler in descriptor manager to include in the descriptor set
 		VkSampler getOffscreenRenderSampler() const { return offscreenPass.sampler; };
+		VkRenderPass getOffscreenRenderPass() const { return offscreenPass.renderPass; };
 
 	private:
 		struct OffscreenPass {
@@ -65,6 +67,7 @@ namespace bagel {
 			FrameBufferAttachment color, depth;
 			VkRenderPass renderPass;
 			VkSampler sampler;
+			uint32_t renderTargetHandle;
 		} offscreenPass;
 
 		uint32_t currentImageIndex = 0;

@@ -27,7 +27,6 @@ namespace bagel {
 		BGLGameObject(BGLGameObject&&) = default;
 		BGLGameObject& operator=(BGLGameObject&&) = default;
 
-		std::shared_ptr<BGLModel> model{};
 		glm::vec3 color{};
 		//TransformComponent transform{};
 		//void addTransformComponent(TransformComponent tr) { transform.push_back(tr); }

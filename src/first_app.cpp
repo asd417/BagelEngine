@@ -141,6 +141,13 @@ namespace bagel {
 		VkDescriptorBufferInfo bufferInfo = uboBuffers->descriptorInfo();
 		descriptorManager->storeUBO(bufferInfo);
 		
+		bglRenderer.setUpOffScreenRenderPass(WIDTH / 2, HEIGHT / 2);
+
+		uint32_t offscreenRenderTargetHandle = descriptorManager->storeTexture(
+			bglRenderer.getOffscreenRenderImageView(),
+			bglRenderer.getOffscreenRenderSampler(),
+			"OffscreenRenderTarget"); // Use this name to access
+
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { descriptorManager->getDescriptorSetLayout() };
 
 		ModelRenderSystem modelRenderSystem{
@@ -161,6 +168,20 @@ namespace bagel {
 
 		PointLightSystem pointLightSystem{
 			bglRenderer.getSwapChainRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager,
+			registry };
+
+		ModelRenderSystem modelRenderSystemOffscreen{
+			bglRenderer.getOffscreenRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager,
+			modelBufferManager,
+			registry,
+			console };
+
+		PointLightSystem pointLightSystemOffscreen{
+			bglRenderer.getOffscreenRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
 			registry };
@@ -188,11 +209,13 @@ namespace bagel {
 		}
 		entt::entity axis1 = makeAxisModel({ 1.0,0.5,2.0 }); 
 		makeGrid();
-		//------------------------------------------------------
 
 		BGLJolt::GetInstance()->SetGravity({0,-0.0f,0});
 		BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
 		
+		
+		createMonitor();
+		//------------------------------------------------------
 		// Game loop
 		while (!bglWindow.shouldClose())
 		{
@@ -282,15 +305,13 @@ namespace bagel {
 			VkExtent2D ext = bglRenderer.getExtent();
 
 			//imgui draw commands
-			DrawInfoPanels(registry, ext.width, ext.height, camera.getProjection(), camera.getView());
+			//DrawInfoPanels(registry, ext.width, ext.height, camera.getProjection(), camera.getView());
 			console.Draw("Console", nullptr);
 			ImGui::ShowMetricsWindow();
 			ImGui::Render();
 			
 			// bglRenderer.beginFrame returns nullptr if the swapchain needs to be recreated
 			if (auto primaryCommandBuffer = bglRenderer.beginPrimaryCMD()) {
-				//Render
-				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
 				
 				// Frame info hold secondary commandBuffer because that's where it will be recorded
 				// Only the ImGUI will be recorded to the primary commandBuffer
@@ -301,11 +322,19 @@ namespace bagel {
 					descriptorManager->getDescriptorSet(bglRenderer.getFrameIndex()),
 					registry
 				};
-				
+
 				//Apply UBO changes to buffer
 				uboBuffers->writeToBuffer(&ubo);
 				uboBuffers->flush();
+				
+				//Offscreen Render
+				bglRenderer.beginOffScreenRenderPass(primaryCommandBuffer);
+				modelRenderSystemOffscreen.renderEntities(frameInfo);
+				pointLightSystemOffscreen.render(frameInfo);
+				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 
+
+				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
 				//always render solid objects before rendering transparent objects
 				modelRenderSystem.renderEntities(frameInfo);
 				wireframeRenderSystem.renderEntities(frameInfo);
@@ -505,7 +534,25 @@ namespace bagel {
 
 		return e1;
 	}
-
+	void FirstApp::createMonitor() {
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
+		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
+		{
+			auto e1 = registry.create();
+			auto& tfc1 = registry.emplace<TransformComponent>(e1);
+			auto& mdc1 = registry.emplace<ModelDescriptionComponent>(e1);
+			auto& tc1 = registry.emplace<DiffuseTextureComponent>(e1);
+			modelBuilder->buildComponent(util::enginePath("/models/floor.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
+			textureBuilder->setBuildTarget(&tc1);
+			tfc1.setScale({ 5.0,5.0,5.0 });
+			tfc1.setTranslation({ 6.0,6.0,6.0 });
+			std::cout << "Designating offscreenRenderTarget as texture\n";
+			textureBuilder->buildComponent("OffscreenRenderTarget");
+		}
+		delete modelBuilder;
+		delete textureBuilder;
+	}
 	void FirstApp::initCommand()
 	{
 		console.AddCommand("FREEFLY", this, ConsoleCommand::ToggleFly);
