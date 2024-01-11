@@ -66,6 +66,30 @@ namespace bagel {
 		}
 	}
 
+	void BGLJolt::SetComponentActivityAll(bool activity)
+	{
+		auto& viewPhysics = registry.view<JoltPhysicsComponent>();
+		for (auto [ent,comp] : viewPhysics.each()) {
+			if (activity) bodyInterface->ActivateBody(comp.bodyID);
+			else bodyInterface->DeactivateBody(comp.bodyID);
+		}
+		auto& viewKinematic = registry.view<JoltKinematicComponent>();
+		for (auto [ent, comp] : viewKinematic.each()) {
+			if (activity) bodyInterface->ActivateBody(comp.bodyID);
+			else bodyInterface->DeactivateBody(comp.bodyID);
+		}
+	}
+
+	//Assumes that an entity either has JoltPhysicsComponent or JoltKinematicComponent
+	void BGLJolt::SetComponentActivity(entt::entity ent, bool activity)
+	{
+		auto comp = registry.try_get<JoltPhysicsComponent>(ent);
+		if (comp == nullptr) auto comp = registry.try_get<JoltKinematicComponent>(ent);
+		if (comp == nullptr) return;
+		if(activity) bodyInterface->ActivateBody(comp->bodyID);
+		else bodyInterface->DeactivateBody(comp->bodyID);
+	}
+
 	void BGLJolt::ApplyTransformToKinematic(float dt)
 	{
 		auto entView = registry.view<TransformComponent, JoltKinematicComponent>();

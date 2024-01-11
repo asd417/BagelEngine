@@ -247,6 +247,15 @@ namespace bagel {
     BGLBindlessDescriptorManager::~BGLBindlessDescriptorManager()
     {
         vkDestroyDescriptorSetLayout(BGLDevice::device(), bindlessSetLayout, nullptr);
+        for (auto& bufferInfo : buffers) {
+            vkDestroyBuffer(BGLDevice::device(), bufferInfo.buffer, nullptr);
+        }
+        for (auto& package : textures) {
+            vkDestroyImageView(BGLDevice::device(), package.imageInfo.imageView, nullptr);
+            vkDestroySampler(BGLDevice::device(), package.imageInfo.sampler, nullptr);
+            vkDestroyImage(BGLDevice::device(), package.image, nullptr);
+            vkFreeMemory(BGLDevice::device(), package.memory, nullptr);
+        }
     }
 
     void BGLBindlessDescriptorManager::createBindlessDescriptorSet(uint32_t descriptorCount)
@@ -343,15 +352,21 @@ namespace bagel {
         return newHandle;
     }
 
-    uint32_t BGLBindlessDescriptorManager::storeTexture(VkImageView imageView, VkSampler sampler, const char* name = NULL)
+    uint32_t BGLBindlessDescriptorManager::storeTexture(
+        VkSampler sampler, 
+        VkImageView imageView, 
+        VkDeviceMemory memory, 
+        VkImage image, 
+        const char* name, 
+        VkImageLayout imageLayout)
     {
-        size_t newHandle = textures.size();
-        textures.push_back(imageView);
-
         VkDescriptorImageInfo imageInfo{};
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = imageView;
         imageInfo.sampler = sampler;
+        imageInfo.imageView = imageView;
+        imageInfo.imageLayout = imageLayout;
+
+        size_t newHandle = textures.size();
+        textures.push_back({imageInfo, memory, image});
 
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

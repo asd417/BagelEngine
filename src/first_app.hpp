@@ -59,6 +59,7 @@ namespace bagel {
 		bool runPhys = false;
 		bool rotateLight = false;
 		bool showFPS = false;
+		bool showInfo = true;
 		ConsoleApp console{};
 
 	private:
@@ -79,7 +80,6 @@ namespace bagel {
 		std::unique_ptr<BGLModelBufferManager> modelBufferManager;
 		entt::registry registry;
 
-		void initRenderSystems();
 		void initCommand();
 		//External System inits
 		void initJolt();

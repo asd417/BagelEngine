@@ -233,16 +233,4 @@ namespace bagel {
         bufferHandle = bufferComponent.getBufferHandle();
         usingBuffer = true;
     }
-
-    TextureComponent::~TextureComponent()
-    {
-        if (!duplicate) 
-        {
-            vkDestroyImageView(BGLDevice::device(), view, nullptr);
-            vkDestroyImage(BGLDevice::device(), image, nullptr);
-            vkDestroySampler(BGLDevice::device(), sampler, nullptr);
-            vkFreeMemory(BGLDevice::device(), device_memory, nullptr);
-        }
-    }
-
 }

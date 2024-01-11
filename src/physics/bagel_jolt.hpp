@@ -241,6 +241,8 @@ namespace bagel {
 		}
 		JPH::BodyInterface& GetBodyInterface() const { return *bodyInterface; }
 		void Step(float dt, JPH::uint stepCount = 1);
+		void SetComponentActivityAll(bool activity);
+		void SetComponentActivity(entt::entity ent, bool activity);
 		void ApplyTransformToKinematic(float dt);
 		void ApplyPhysicsTransform();
 		void AddSphere(entt::entity ent, float radius, PhysicsBodyCreationInfo &info);

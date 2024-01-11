@@ -27,11 +27,11 @@ namespace bagel {
 	BGLRenderer::~BGLRenderer()
 	{
 		freeCommandBuffers();
-
-		vkDestroyImageView(BGLDevice::device(), offscreenPass.color.view, nullptr);
-		vkDestroyImage(BGLDevice::device(), offscreenPass.color.image, nullptr);
+		// Color attachment destruction is a responsibility of the BGLBindlessDescriptorManager 
+		/*vkDestroyImageView(BGLDevice::device(), offscreenPass.color.view, nullptr);
 		vkDestroySampler(BGLDevice::device(), offscreenPass.sampler, nullptr);
-		vkFreeMemory(BGLDevice::device(), offscreenPass.color.mem, nullptr);
+		vkDestroyImage(BGLDevice::device(), offscreenPass.color.image, nullptr);
+		vkFreeMemory(BGLDevice::device(), offscreenPass.color.mem, nullptr);*/
 
 		vkDestroyImageView(BGLDevice::device(), offscreenPass.depth.view, nullptr);
 		vkDestroyImage(BGLDevice::device(), offscreenPass.depth.image, nullptr);

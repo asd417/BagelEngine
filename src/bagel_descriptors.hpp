@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <vector>
 #include <array>
+#include <iostream>
 
 namespace bagel {
 
@@ -111,6 +112,11 @@ namespace bagel {
             BUFFER,
             TEXTURE
         };
+        struct TexturePackage {
+            VkDescriptorImageInfo imageInfo;
+            VkDeviceMemory memory;
+            VkImage image;
+        };
     public:
         BGLBindlessDescriptorManager(BGLDevice& bglDevice, BGLDescriptorPool& globalPool);
         ~BGLBindlessDescriptorManager();
@@ -122,7 +128,13 @@ namespace bagel {
 
         void storeUBO(VkDescriptorBufferInfo bufferInfo);
         uint32_t storeBuffer(VkDescriptorBufferInfo bufferInfo, const char* name);
-        uint32_t storeTexture(VkImageView imageView, VkSampler sampler, const char* name);
+        uint32_t storeTexture(
+            VkSampler sampler, 
+            VkImageView imageView, 
+            VkDeviceMemory memory, 
+            VkImage image,
+            const char* name, 
+            VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
         uint32_t searchBufferName(std::string bufferName);
         uint32_t searchTextureName(std::string textureName);
@@ -137,7 +149,7 @@ namespace bagel {
         BGLDevice& bglDevice;
         BGLDescriptorPool& globalPool;
         std::vector<VkDescriptorBufferInfo> buffers{};
-        std::vector<VkImageView> textures{};
+        std::vector<TexturePackage> textures{};
 
         std::unordered_map<std::string, uint32_t> bufferIndexMap;
         std::unordered_map<std::string, uint32_t> textureIndexMap;

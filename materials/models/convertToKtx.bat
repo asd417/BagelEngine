@@ -1,1 +1,0 @@
-toktx --target_type rgba axis.ktx axis.png 

@@ -54,20 +54,25 @@ namespace bagel {
 		void setUpOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight);
 		void createOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight);
 		void beginOffScreenRenderPass(VkCommandBuffer commandBuffer);
-		// Store this ImageView in descriptor manager to include in the descriptor set
-		VkImageView getOffscreenRenderImageView() const { return offscreenPass.color.view; };
-		// Store this Sampler in descriptor manager to include in the descriptor set
-		VkSampler getOffscreenRenderSampler() const { return offscreenPass.sampler; };
+		// Store this VkDescriptorImageInfo in descriptor manager to include in the descriptor set
+		VkSampler getOffscreenSampler() const{ return offscreenPass.sampler; }
+		VkImageView getOffscreenImageView() const { return offscreenPass.color.view; }
+		// Store this image as well
+		VkImage getOffscreenImage() const { return offscreenPass.color.image; }
+		// ... and this memory
+		VkDeviceMemory getOffscreenMemory() const { return offscreenPass.color.mem; }
 		VkRenderPass getOffscreenRenderPass() const { return offscreenPass.renderPass; };
 
 	private:
 		struct OffscreenPass {
 			uint32_t width, height;
 			VkFramebuffer frameBuffer;
-			FrameBufferAttachment color, depth;
+			FrameBufferAttachment color;
+			FrameBufferAttachment depth;
 			VkRenderPass renderPass;
 			VkSampler sampler;
 			uint32_t renderTargetHandle;
+			VkDescriptorImageInfo colorImageInfo;
 		} offscreenPass;
 
 		uint32_t currentImageIndex = 0;

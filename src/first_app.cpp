@@ -144,8 +144,10 @@ namespace bagel {
 		bglRenderer.setUpOffScreenRenderPass(WIDTH / 2, HEIGHT / 2);
 
 		uint32_t offscreenRenderTargetHandle = descriptorManager->storeTexture(
-			bglRenderer.getOffscreenRenderImageView(),
-			bglRenderer.getOffscreenRenderSampler(),
+			bglRenderer.getOffscreenSampler(),
+			bglRenderer.getOffscreenImageView(),
+			bglRenderer.getOffscreenMemory(),
+			bglRenderer.getOffscreenImage(),
 			"OffscreenRenderTarget"); // Use this name to access
 
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { descriptorManager->getDescriptorSetLayout() };
@@ -212,8 +214,7 @@ namespace bagel {
 
 		BGLJolt::GetInstance()->SetGravity({0,-0.0f,0});
 		BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
-		
-		
+		BGLJolt::GetInstance()->SetComponentActivityAll(true);
 		createMonitor();
 		//------------------------------------------------------
 		// Game loop
@@ -305,7 +306,7 @@ namespace bagel {
 			VkExtent2D ext = bglRenderer.getExtent();
 
 			//imgui draw commands
-			//DrawInfoPanels(registry, ext.width, ext.height, camera.getProjection(), camera.getView());
+			if(showInfo) DrawInfoPanels(registry, ext.width, ext.height, camera.getProjection(), camera.getView());
 			console.Draw("Console", nullptr);
 			ImGui::ShowMetricsWindow();
 			ImGui::Render();
@@ -370,13 +371,13 @@ namespace bagel {
 			tfc1.setTranslation({ 0.55f,5.3f,0.0 });
 
 			BGLJolt::PhysicsBodyCreationInfo info3{
-				tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, true, PhysicsLayers::MOVING
+				tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
 			};
 			BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
-			modelBuilder->buildComponent(util::enginePath("/models/rocketlauncher.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+			modelBuilder->buildComponent(util::enginePath("/models/cube.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 			textureBuilder->setBuildTarget(&tc1);
-			textureBuilder->buildComponent("/materials/models/rocketlauncher.ktx");
+			textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
 		}
 
 		{
@@ -387,13 +388,13 @@ namespace bagel {
 			tfc1.setTranslation({ -0.55f,5.3f,0.0 });
 
 			BGLJolt::PhysicsBodyCreationInfo info3{
-				tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, true, PhysicsLayers::MOVING
+				tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
 			};
 			BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
-			modelBuilder->buildComponent(util::enginePath("/models/rocketlauncher.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+			modelBuilder->buildComponent(util::enginePath("/models/cube.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 			textureBuilder->setBuildTarget(&tc1);
-			textureBuilder->buildComponent("/materials/models/rocketlauncher.ktx");
+			textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
 		}
 		auto e1 = registry.create();
 		auto& tfc1 = registry.emplace<TransformComponent>(e1);
@@ -402,7 +403,7 @@ namespace bagel {
 		tfc1.setLocalTranslation({ 0.3f,0.5f,0.0 });
 
 		BGLJolt::PhysicsBodyCreationInfo info{
-			{0,0,0},{0,0,0},PhysicsType::KINEMATIC, true, PhysicsLayers::MOVING
+			{0,0,0},{0,0,0},PhysicsType::KINEMATIC, false, PhysicsLayers::MOVING
 		};
 		BGLJolt::GetInstance()->AddSphere(e1, 0.3f, info);
 
@@ -413,19 +414,19 @@ namespace bagel {
 		tfc2.setTranslation({ 0.0f, -0.5f, 0.0f });
 
 		BGLJolt::PhysicsBodyCreationInfo info2{
-			tfc2.getTranslation(),tfc2.getRotation(),PhysicsType::DYNAMIC, true, PhysicsLayers::MOVING
+			tfc2.getTranslation(),tfc2.getRotation(),PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
 		};
 		BGLJolt::GetInstance()->AddSphere(e2, 0.5f, info2);
 
 		mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 		mdc2.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 
-		modelBuilder->buildComponent(util::enginePath("/models/rocketlauncher.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+		modelBuilder->buildComponent(util::enginePath("/models/cube.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 		textureBuilder->setBuildTarget(&tc1);
-		textureBuilder->buildComponent("/materials/models/rocketlauncher.ktx");
-		modelBuilder->buildComponent(util::enginePath("/models/rocketlauncher.obj"), ComponentBuildMode::FACES, mdc2.modelName, mdc2.vertexCount, mdc2.indexCount);
+		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
+		modelBuilder->buildComponent(util::enginePath("/models/cube.obj"), ComponentBuildMode::FACES, mdc2.modelName, mdc2.vertexCount, mdc2.indexCount);
 		textureBuilder->setBuildTarget(&tc2);
-		textureBuilder->buildComponent("/materials/models/rocketlauncher.ktx");
+		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
 		
 		auto e_axis = registry.create();
 		auto& tfc3 = registry.emplace<bagel::TransformComponent>(e_axis);
@@ -476,13 +477,13 @@ namespace bagel {
 		tfc1.setTranslation(translation);
 
 		BGLJolt::PhysicsBodyCreationInfo info3{
-			tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, true, PhysicsLayers::MOVING
+			tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
 		};
 		BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
-		modelBuilder->buildComponent(util::enginePath("/models/rocketlauncher.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+		modelBuilder->buildComponent(util::enginePath("/models/cube.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 		mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 		textureBuilder->setBuildTarget(&tc1);
-		textureBuilder->buildComponent("/materials/models/rocketlauncher.ktx");
+		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
 		
 		delete modelBuilder;
 		delete textureBuilder;
@@ -548,7 +549,7 @@ namespace bagel {
 			tfc1.setScale({ 5.0,5.0,5.0 });
 			tfc1.setTranslation({ 6.0,6.0,6.0 });
 			std::cout << "Designating OffscreenRenderTarget as texture\n";
-			textureBuilder->buildComponent("/materials/texture.jpg");
+			textureBuilder->buildComponent("OffscreenRenderTarget");  // "/materials/texture.jpg"
 		}
 		delete modelBuilder;
 		delete textureBuilder;
@@ -559,6 +560,7 @@ namespace bagel {
 		console.AddCommand("TOGGLEPHYSICS", this, ConsoleCommand::TogglePhys);
 		console.AddCommand("ROTATELIGHT", this, ConsoleCommand::RotateLight);
 		console.AddCommand("SHOWFPS", this, ConsoleCommand::ShowFPS);
+		console.AddCommand("SHOWINFO", this, ConsoleCommand::ShowInfo);
 	}
 
 	void FirstApp::initJolt()

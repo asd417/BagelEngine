@@ -16,8 +16,8 @@ namespace ConsoleCommand {
 	char* TogglePhys(void* ptr) {
 		FirstApp* app = static_cast<FirstApp*>(ptr);
 		app->runPhys = !app->runPhys;
-		if (app->runPhys) return "Free fly acivated";
-		else return "Free fly deacivated";
+		if (app->runPhys) return "Physics acivated";
+		else return "Physics deacivated";
 	}
 	char* RotateLight(void* ptr) {
 		FirstApp* app = static_cast<FirstApp*>(ptr);
@@ -32,6 +32,12 @@ namespace ConsoleCommand {
 		if (app->showFPS) return "Printing FPS. FPS will tank";
 		else return "Printing FPS";
 	}
-
+	char* ShowInfo(void* ptr)
+	{
+		FirstApp* app = static_cast<FirstApp*>(ptr);
+		app->showInfo = !app->showInfo;
+		if (app->showInfo) return "Displaying debug info of all entities";
+		else return "Stopped displaying debug info";
+	}
 }
 }

@@ -160,19 +160,14 @@ namespace bagel {
 	};
 
 	struct TextureComponent {
-		VkSampler      sampler;
-		VkImage        image;
-		VkImageLayout  image_layout;
-		VkDeviceMemory device_memory;
-		VkImageView    view;
-		uint32_t       width, height;
-		uint32_t       mip_levels;
-		uint32_t textureHandle;
-		bool duplicate = false;
-
-		TextureComponent() = default;
-		~TextureComponent();
-		VkDescriptorImageInfo getDescriptorImageInfo() const { return { sampler , view , image_layout }; }
+		/// <summary>
+		/// Since descriptors are handled by descriptor manager, rendering only requires texture handle.
+		/// This allows component to be as compact as possible
+		/// </summary>
+		std::string textureName = "";
+		uint32_t    width, height;
+		uint32_t    mip_levels;
+		uint32_t	textureHandle;
 	};
 
 	struct DiffuseTextureComponent : TextureComponent {};

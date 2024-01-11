@@ -296,6 +296,7 @@ namespace bagel {
 	// filePath relative to engine path starting with /
 	void TextureComponentBuilder::buildComponent(const char* filePath, VkFormat imageFormat)
 	{
+		targetComponent->textureName = filePath;
 		uint32_t storedIndex = descriptorManager.searchTextureName(filePath);
 		if (storedIndex != std::numeric_limits<uint32_t>::max())
 		{
@@ -311,16 +312,22 @@ namespace bagel {
 		} else {
 			loadSTBImageInStagingBuffer(util::enginePath(filePath).c_str(), imageFormat);
 		}
+
+		VkSampler sampler;
+		VkImageView imageView;
+		VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		VkImage image;
+		VkDeviceMemory memory;
+
 		generateImageCreateInfo(imageFormat);
-		//VK_CHECK(vkCreateImage(bglDevice.device(), &imageCreateInfo, nullptr, &targetComponent.image));
-		bglDevice.createImageWithInfo(imageCreateInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, targetComponent->image, targetComponent->device_memory);
+		bglDevice.createImageWithInfo(imageCreateInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image, memory);
 		generateSubresRange();
-		setImageLayoutTransfer(targetComponent->image);
+		setImageLayoutTransfer(image);
 
 		VkCommandBuffer cpyCmd = bglDevice.beginSingleTimeCommands();
 
 		vkCmdPipelineBarrier(cpyCmd,VK_PIPELINE_STAGE_HOST_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0, nullptr,0, nullptr,1, &imageMemBarrier);
-		vkCmdCopyBufferToImage(cpyCmd, stagingBuffer->getBuffer(),targetComponent->image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,static_cast<uint32_t>(buffCpyRegions.size()),buffCpyRegions.data());
+		vkCmdCopyBufferToImage(cpyCmd, stagingBuffer->getBuffer(), image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(buffCpyRegions.size()), buffCpyRegions.data());
 		
 		// Once the data has been uploaded we transfer to the texture image to the shader read layout, so it can be sampled from
 		setImageLayoutShaderRead();
@@ -328,15 +335,13 @@ namespace bagel {
 		
 		bglDevice.endSingleTimeCommands(cpyCmd);
 
-		targetComponent->image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
 		generateSamplerCreateInfo();
-		VK_CHECK(vkCreateSampler(BGLDevice::device(), &samplerCreateInfo, nullptr, &targetComponent->sampler));
+		VK_CHECK(vkCreateSampler(BGLDevice::device(), &samplerCreateInfo, nullptr, &sampler));
 
-		generateImageViewCreateInfo(imageFormat, targetComponent->image);
-		VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageViewCreateInfo, nullptr, &targetComponent->view));
+		generateImageViewCreateInfo(imageFormat, image);
+		VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageViewCreateInfo, nullptr, &imageView));
 		
-		targetComponent->textureHandle = descriptorManager.storeTexture(targetComponent->view, targetComponent->sampler, filePath);
+		targetComponent->textureHandle = descriptorManager.storeTexture(sampler, imageView, memory, image, filePath);
 		delete stagingBuffer;
 		buffCpyRegions.clear();
 	}
