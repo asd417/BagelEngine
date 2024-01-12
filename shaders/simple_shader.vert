@@ -28,7 +28,7 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
 	mat4 inverseViewMatrix;
 	vec4 ambientLightColor;
 	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
-	int numLights;
+	uint numLights;
 } ubo;
 
 struct ObjectData{

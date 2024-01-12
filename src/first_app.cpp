@@ -19,13 +19,6 @@
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
 
-#define TINYGLTF_IMPLEMENTATION
-#define TINYGLTF_NO_STB_IMAGE
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-// #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
-#include "tiny_gltf.h"
-
-
 #include "bagel_frame_info.hpp"
 #include "bagel_buffer.hpp"
 #include "bgl_camera.hpp"
@@ -102,32 +95,6 @@ namespace bagel {
 
 	void FirstApp::run()
 	{	
-		{
-			std::cout << "gfTF Load Test\n";
-			tinygltf::Model model;
-			tinygltf::TinyGLTF loader;
-			std::string err;
-			std::string warn;
-			bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, util::enginePath("/models/monkey_scene.gltf"));
-
-			if (!warn.empty()) {
-				printf("Warn: %s\n", warn.c_str());
-			}
-
-			if (!err.empty()) {
-				printf("Err: %s\n", err.c_str());
-			}
-
-			if (!ret) {
-				printf("Failed to parse glTF\n");
-				throw("Failed to parse glTF");
-			}
-
-			std::cout << "\t/models/monkey_scene.gltf has " << model.animations.size() << " animations\n";
-			std::cout << "\t/models/monkey_scene.gltf has " << model.meshes.size() << " meshes\n";
-
-		}
-		
 		//Create UBO buffer. Single for bindless design
 		std::unique_ptr<BGLBuffer> uboBuffers;
 		uboBuffers = std::make_unique<BGLBuffer>(
@@ -144,11 +111,10 @@ namespace bagel {
 		bglRenderer.setUpOffScreenRenderPass(WIDTH / 2, HEIGHT / 2);
 
 		uint32_t offscreenRenderTargetHandle = descriptorManager->storeTexture(
-			bglRenderer.getOffscreenSampler(),
-			bglRenderer.getOffscreenImageView(),
+			bglRenderer.getOffscreenImageInfo(),
 			bglRenderer.getOffscreenMemory(),
 			bglRenderer.getOffscreenImage(),
-			"OffscreenRenderTarget"); // Use this name to access
+			"OffscreenRenderTarget", false, 0); // Use this name to access
 
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { descriptorManager->getDescriptorSetLayout() };
 
@@ -374,7 +340,7 @@ namespace bagel {
 				tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
 			};
 			BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
-			modelBuilder->buildComponent(util::enginePath("/models/cube.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+			modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 			textureBuilder->setBuildTarget(&tc1);
 			textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
@@ -391,7 +357,7 @@ namespace bagel {
 				tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
 			};
 			BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
-			modelBuilder->buildComponent(util::enginePath("/models/cube.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+			modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 			textureBuilder->setBuildTarget(&tc1);
 			textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
@@ -421,10 +387,10 @@ namespace bagel {
 		mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 		mdc2.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 
-		modelBuilder->buildComponent(util::enginePath("/models/cube.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+		modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 		textureBuilder->setBuildTarget(&tc1);
 		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
-		modelBuilder->buildComponent(util::enginePath("/models/cube.obj"), ComponentBuildMode::FACES, mdc2.modelName, mdc2.vertexCount, mdc2.indexCount);
+		modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc2.modelName, mdc2.vertexCount, mdc2.indexCount);
 		textureBuilder->setBuildTarget(&tc2);
 		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
 		
@@ -432,7 +398,7 @@ namespace bagel {
 		auto& tfc3 = registry.emplace<bagel::TransformComponent>(e_axis);
 		auto& mdc3 = registry.emplace<bagel::ModelDescriptionComponent>(e_axis);
 		auto& tc3 = registry.emplace<bagel::DiffuseTextureComponent>(e_axis);
-		modelBuilder->buildComponent(util::enginePath("/models/axis.obj"), ComponentBuildMode::FACES, mdc3.modelName, mdc3.vertexCount, mdc3.indexCount);
+		modelBuilder->buildComponent("/models/axis.obj", ComponentBuildMode::FACES, mdc3.modelName, mdc3.vertexCount, mdc3.indexCount);
 		textureBuilder->setBuildTarget(&tc3);
 		textureBuilder->buildComponent("/materials/models/axis.ktx");
 		mdc3.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
@@ -480,7 +446,7 @@ namespace bagel {
 			tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
 		};
 		BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
-		modelBuilder->buildComponent(util::enginePath("/models/cube.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+		modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 		mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 		textureBuilder->setBuildTarget(&tc1);
 		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
@@ -508,7 +474,7 @@ namespace bagel {
 			auto& mdc1 = registry.emplace<bagel::WireframeComponent>(e1);
 			std::cout << "Set Wire Sphere target\n";
 			std::cout << "building Sphere\n";
-			modelBuilder->buildComponent(util::enginePath("/models/wiresphere.obj"), ComponentBuildMode::LINES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+			modelBuilder->buildComponent("/models/wiresphere.obj", ComponentBuildMode::LINES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 		}
 
 		delete modelBuilder;
@@ -524,7 +490,7 @@ namespace bagel {
 		auto& tc1 = registry.emplace<bagel::DiffuseTextureComponent>(e1);
 		tfc1.setTranslation(pos);
 
-		modelBuilder->buildComponent(util::enginePath("/models/axis.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+		modelBuilder->buildComponent("/models/axis.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 		textureBuilder->setBuildTarget(&tc1);
 		textureBuilder->buildComponent("/materials/models/axis.ktx");
 
@@ -543,7 +509,7 @@ namespace bagel {
 			auto& tfc1 = registry.emplace<TransformComponent>(e1);
 			auto& mdc1 = registry.emplace<ModelDescriptionComponent>(e1);
 			auto& tc1 = registry.emplace<DiffuseTextureComponent>(e1);
-			modelBuilder->buildComponent(util::enginePath("/models/floor.obj"), ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+			modelBuilder->buildComponent("/models/floor.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
 			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
 			textureBuilder->setBuildTarget(&tc1);
 			tfc1.setScale({ 5.0,5.0,5.0 });

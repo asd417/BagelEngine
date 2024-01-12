@@ -116,6 +116,9 @@ namespace bagel {
             VkDescriptorImageInfo imageInfo;
             VkDeviceMemory memory;
             VkImage image;
+            // Texture can only be missing when it's bound but it's using temporary texture
+            // Or when marked as missing so that it can be overriden
+            bool isMissing = false;
         };
     public:
         BGLBindlessDescriptorManager(BGLDevice& bglDevice, BGLDescriptorPool& globalPool);
@@ -128,13 +131,15 @@ namespace bagel {
 
         void storeUBO(VkDescriptorBufferInfo bufferInfo);
         uint32_t storeBuffer(VkDescriptorBufferInfo bufferInfo, const char* name);
+        //If useDesignatedHandle == true, write to the specified descriptor array element, overriding existing texture. 
+        //Existing texture sampler, view, etc are all destroyed.
         uint32_t storeTexture(
-            VkSampler sampler, 
-            VkImageView imageView, 
+            VkDescriptorImageInfo imageInfo,
             VkDeviceMemory memory, 
             VkImage image,
             const char* name, 
-            VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            bool useDesignatedHandle,
+            uint32_t handle = 0);
 
         uint32_t searchBufferName(std::string bufferName);
         uint32_t searchTextureName(std::string textureName);
@@ -143,11 +148,21 @@ namespace bagel {
         uint32_t getLastBufferHandle() { return textures.size() - 1; };
         uint32_t getLastTextureHandle() { return textures.size() - 1; };
 
+        //Check if texture is missing
+        //When loading model, missing textures will be loaded in place of the real textures before texture allocation
+        bool checkMissingTexture(uint32_t index);
+
         VkDescriptorSetLayout getDescriptorSetLayout() const { return bindlessSetLayout; }
         VkDescriptorSet getDescriptorSet(int i) const { return bindlessDescriptorSet[i]; }
     private:
         BGLDevice& bglDevice;
         BGLDescriptorPool& globalPool;
+        
+        //Never remove elements that is NOT the last element in these vectors.
+        //Removing an element in the middle of these vectors will cause storeBuffer/storeTexture 
+        // functions to write to descriptor index that is already being used by another undeleted buffer/image.
+        //It is valid to clear these vectors (for example when loading new scene) although in that case offscreen renderpass 
+        // and its attachments (or other non-dynamically created resources) will have to be remade.
         std::vector<VkDescriptorBufferInfo> buffers{};
         std::vector<TexturePackage> textures{};
 

@@ -10,8 +10,16 @@
 #include <map>
 
 #include "bagel_engine_device.hpp"
-
+#include "bagel_util.hpp"
 //lib
+
+
+#define TINYGLTF_IMPLEMENTATION
+//#define TINYGLTF_NO_STB_IMAGE
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "tiny_gltf.h"
+// #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
@@ -65,7 +73,7 @@ namespace bagel {
 
 	// ComponentBuildMode::LINES is for wireframe rendering
 	// ComponentBuildMode::FACES is for pbr rendering
-	void ModelComponentBuilder::buildComponent(const std::string& modelFilename, ComponentBuildMode buildmode, std::string& outModelName, uint32_t& outVertexCount, uint32_t& outIndexCount)
+	void ModelComponentBuilder::buildComponent(const char* modelFilename, ComponentBuildMode buildmode, std::string& outModelName, uint32_t& outVertexCount, uint32_t& outIndexCount)
 	{
 		outModelName = modelFilename;
 		if (modelBufferManager->CheckAllocationByModelName(modelFilename)) {
@@ -92,8 +100,49 @@ namespace bagel {
 		std::cout << "Finished building Component\n";
 	}
 
-	void ModelComponentBuilder::loadModel(const std::string& filename, bool loadLines) {
-		if (filename == "grid") {
+	void ModelComponentBuilder::loadGLTF(const char* filename)
+	{
+	
+		std::cout << "loading gfTF model " << filename << "\n";
+		tinygltf::Model model;
+		tinygltf::TinyGLTF loader;
+		std::string err;
+		std::string warn;
+		bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, util::enginePath(filename));
+
+		if (!warn.empty()) {
+			printf("Warn: %s\n", warn.c_str());
+		}
+
+		if (!err.empty()) {
+			printf("Err: %s\n", err.c_str());
+		}
+
+		if (!ret) {
+			printf("Failed to parse glTF\n");
+			throw("Failed to parse glTF");
+		}
+
+		std::cout << "\t" << filename << " has " << model.animations.size() << " animations\n";
+		std::cout << "\t" << filename << " has " << model.meshes.size() << " meshes\n";
+
+		for (size_t i = 0; i < model.bufferViews.size(); ++i) {
+			const tinygltf::BufferView& bufferView = model.bufferViews[i];
+			if (bufferView.target == 0) {  // TODO impl drawarrays
+				std::cout << "WARN: bufferView.target is zero" << std::endl;
+				continue;  // Unsupported bufferView.
+			}
+			const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
+			std::cout << "bufferview.target " << bufferView.target << std::endl;
+			bufferView.byteLength;
+			bufferView.byteOffset;
+			createVertexBuffer(bufferView.target);
+		}
+
+	}
+
+	void ModelComponentBuilder::loadModel(const char* filename, bool loadLines) {
+		if (strcmp(filename, "grid")==0) {
 			for (int i = 0; i < 101; i++) {
 				BGLModel::Vertex vertex1{};
 				vertex1.position = { i - 50, 0, -50 };
@@ -111,12 +160,13 @@ namespace bagel {
 			}
 			return;
 		}
+		std::string fullPath = util::enginePath(filename);
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
 		std::string warn, error;
 
-		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, filename.c_str())) {
+		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, fullPath.c_str())) {
 			throw std::runtime_error(warn + error);
 		}
 		std::unordered_map<BGLModel::Vertex, uint32_t, BGLModel::VertexHasher, BGLModel::VertexEquals> vertexMap{};
@@ -271,4 +321,6 @@ namespace bagel {
 		vkFreeMemory(BGLDevice::device(), stagingMemory, nullptr);
 		mapped = nullptr;
 	}
+
+
 }

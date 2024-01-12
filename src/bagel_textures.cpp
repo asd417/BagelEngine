@@ -296,15 +296,22 @@ namespace bagel {
 	// filePath relative to engine path starting with /
 	void TextureComponentBuilder::buildComponent(const char* filePath, VkFormat imageFormat)
 	{
+		assert(targetComponent != nullptr && "No targetComponent set for TextureComponentBuilder");
 		targetComponent->textureName = filePath;
 		uint32_t storedIndex = descriptorManager.searchTextureName(filePath);
+		bool designatedIndex = false;
 		if (storedIndex != std::numeric_limits<uint32_t>::max())
 		{
-			std::cout << filePath << " Texture already bound\n";
-			targetComponent->textureHandle = storedIndex;
-			return;
+			if (!descriptorManager.checkMissingTexture(storedIndex))
+			{
+				std::cout << filePath << " Texture already bound\n";
+				targetComponent->textureHandle = storedIndex;
+				return;
+			}
+			std::cout << filePath << " Texture is bound but considered missing\n";
+			std::cout << "Overriding texture " << filePath << "...\n";
+			designatedIndex = true;
 		}
-		assert(targetComponent != nullptr && "No targetComponent set for TextureComponentBuilder");
 		// Staging Buffer is created here
 		const char* filetype = strrchr(filePath, '.');
 		if (strcmp(filetype, ".ktx") == 0) {
@@ -340,8 +347,15 @@ namespace bagel {
 
 		generateImageViewCreateInfo(imageFormat, image);
 		VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageViewCreateInfo, nullptr, &imageView));
-		
-		targetComponent->textureHandle = descriptorManager.storeTexture(sampler, imageView, memory, image, filePath);
+
+		targetComponent->textureHandle = descriptorManager.storeTexture(
+			{ sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, 
+			memory, 
+			image, 
+			filePath, 
+			designatedIndex, 
+			storedIndex);
+
 		delete stagingBuffer;
 		buffCpyRegions.clear();
 	}

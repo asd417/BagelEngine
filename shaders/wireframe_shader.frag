@@ -35,11 +35,11 @@ struct ObjectData{
 	mat4 normalMatrix;
 };
 
-layout (set = 0, binding = 1) readonly buffer objTransform {
-	ObjectData objects[];
-} objTransformArray[];
+// layout (set = 0, binding = 1) readonly buffer objTransform {
+// 	ObjectData objects[];
+// } objTransformArray[];
 
-layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
+// layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
 //layout (set = 1, binding = 0) uniform sampler2D samplerModelColor;
 
 layout(push_constant) uniform Push {

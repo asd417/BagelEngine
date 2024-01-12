@@ -353,20 +353,30 @@ namespace bagel {
     }
 
     uint32_t BGLBindlessDescriptorManager::storeTexture(
-        VkSampler sampler, 
-        VkImageView imageView, 
+        VkDescriptorImageInfo imageInfo,
         VkDeviceMemory memory, 
         VkImage image, 
         const char* name, 
-        VkImageLayout imageLayout)
+        bool useDesignatedHandle,
+        uint32_t _handle)
     {
-        VkDescriptorImageInfo imageInfo{};
-        imageInfo.sampler = sampler;
-        imageInfo.imageView = imageView;
-        imageInfo.imageLayout = imageLayout;
+        size_t handle;
+        if (useDesignatedHandle) {
+            handle = _handle;
+            vkDestroyImageView(BGLDevice::device(), textures[handle].imageInfo.imageView, nullptr);
+            vkDestroySampler(BGLDevice::device(), textures[handle].imageInfo.sampler, nullptr);
+            vkDestroyImage(BGLDevice::device(), textures[handle].image, nullptr);
+            vkFreeMemory(BGLDevice::device(), textures[handle].memory, nullptr);
 
-        size_t newHandle = textures.size();
-        textures.push_back({imageInfo, memory, image});
+            textures[handle].imageInfo = imageInfo;
+            textures[handle].memory = memory;
+            textures[handle].image = image;
+            textures[handle].isMissing = false;
+        }
+        else {
+            handle = textures.size();
+            textures.push_back({ imageInfo, memory, image });
+        }
 
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -376,7 +386,7 @@ namespace bagel {
         write.descriptorCount = 1;
         // The array element that we are going to write to
         // is the index, which we refer to as our handles
-        write.dstArrayElement = newHandle;
+        write.dstArrayElement = handle;
         write.pImageInfo = &imageInfo;
 
         for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -385,9 +395,9 @@ namespace bagel {
         }
 
         if (name != NULL) {
-            textureIndexMap.emplace(std::string(name), newHandle);
+            textureIndexMap.emplace(std::string(name), handle);
         }
-        return newHandle;
+        return handle;
     }
 
     uint32_t BGLBindlessDescriptorManager::searchBufferName(std::string bufferName)
@@ -402,5 +412,15 @@ namespace bagel {
         auto it = textureIndexMap.find(textureName);
         if (it == textureIndexMap.end()) return std::numeric_limits<uint32_t>::max();
         return it->second;
+    }
+    //Returns true if the texture at index is considered 'missing'
+    //A texture isn't missing if the index is bigger than the texture vector: it's simply not bound
+    //A texture that is bound, during model loading process, with placeholder texture is considered missing
+    //Because 'missing' is when thing that is supposed to be there isn't there
+    //Like, a hamburger can be missing a petty but can't be missing a Ford GT
+    bool BGLBindlessDescriptorManager::checkMissingTexture(uint32_t index)
+    {
+        if (textures.size() <= index) return false;
+        return textures[index].isMissing;
     }
 }

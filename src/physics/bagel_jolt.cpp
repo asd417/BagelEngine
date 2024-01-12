@@ -148,7 +148,7 @@ namespace bagel {
 		auto& wfc = registry.emplace<CollisionModelComponent>(ent);
 		wfc.collisionScale = {radius,radius,radius};
 		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
-		modelBuilder->buildComponent(util::enginePath("/models/wiresphere.obj"),ComponentBuildMode::LINES, wfc.modelName,wfc.vertexCount,wfc.indexCount);
+		modelBuilder->buildComponent("/models/wiresphere.obj",ComponentBuildMode::LINES, wfc.modelName,wfc.vertexCount,wfc.indexCount);
 		delete modelBuilder;
 	}
 
@@ -167,7 +167,7 @@ namespace bagel {
 		auto& wfc = registry.emplace<CollisionModelComponent>(ent);
 		wfc.collisionScale = glm::vec3({ halfExtent.x,halfExtent.y,halfExtent.z });
 		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
-		modelBuilder->buildComponent(util::enginePath("/models/wirecube.obj"), ComponentBuildMode::LINES, wfc.modelName, wfc.vertexCount, wfc.indexCount);
+		modelBuilder->buildComponent("/models/wirecube.obj", ComponentBuildMode::LINES, wfc.modelName, wfc.vertexCount, wfc.indexCount);
 		delete modelBuilder;
 	}
 	glm::vec3 BGLJolt::GetGravity()

@@ -57,6 +57,7 @@ namespace bagel {
 		// Store this VkDescriptorImageInfo in descriptor manager to include in the descriptor set
 		VkSampler getOffscreenSampler() const{ return offscreenPass.sampler; }
 		VkImageView getOffscreenImageView() const { return offscreenPass.color.view; }
+		VkDescriptorImageInfo getOffscreenImageInfo() const { return { offscreenPass.sampler, offscreenPass.color.view,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }; }
 		// Store this image as well
 		VkImage getOffscreenImage() const { return offscreenPass.color.image; }
 		// ... and this memory

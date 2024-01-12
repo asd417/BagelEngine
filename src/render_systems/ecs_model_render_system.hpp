@@ -19,7 +19,6 @@ namespace bagel {
 	struct ECSPushConstantData {
 		glm::mat4 modelMatrix{ 1.0f };
 		glm::mat4 normalMatrix{ 1.0f };
-
 		uint32_t diffuseTextureHandle;
 		uint32_t emissionTextureHandle;
 		uint32_t normalTextureHandle;
