@@ -3,10 +3,13 @@
 #include "../bgl_model.hpp"
 #include "../bagel_util.hpp"
 
+#include "bagel_imgui.hpp"
+#define CONSOLE ConsoleApp::Instance()
+
 namespace bagel {
 	BGLJolt* BGLJolt::instance = nullptr;
 
-	BGLJolt::BGLJolt(BGLDevice& _bglDevice, entt::registry& r, const std::unique_ptr<BGLModelBufferManager>& _m) : registry{ r }, bglDevice{ _bglDevice }, modelBufferManager{_m} {
+	BGLJolt::BGLJolt(BGLDevice& _bglDevice, entt::registry& r ) : registry{ r }, bglDevice{ _bglDevice } {
 		physicsSystem.Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, broad_phase_layer_interface, object_vs_broadphase_layer_filter, object_vs_object_layer_filter);
 		physicsSystem.SetBodyActivationListener(&body_activation_listener);
 		physicsSystem.SetContactListener(&contact_listener);
@@ -15,20 +18,6 @@ namespace bagel {
 		// variant of this. We're going to use the locking version (even though we're not planning to access bodies from multiple threads)
 		bodyInterface = &physicsSystem.GetBodyInterface();
 
-		// Next we can create a rigid body to serve as the floor, we make a large box
-		// Create the settings for the collision volume (the shape).
-		// Note that for simple shapes (like boxes) you can also directly construct a BoxShape.
-		//BoxShapeSettings floor_shape_settings(Vec3(100.0f, 1.0f, 100.0f));
-
-		// Now create a dynamic body to bounce on the floor
-		// Note that this uses the shorthand version of creating and adding a body to the world
-		//BodyCreationSettings sphere_settings(new SphereShape(0.5f), RVec3(0.0_r, 2.0_r, 0.0_r), Quat::sIdentity(), EMotionType::Dynamic, Layers::MOVING);
-		//BodyID sphere_id = bodyInterface->CreateAndAddBody(sphere_settings, EActivation::Activate);
-
-		// Now you can interact with the dynamic body, in this case we're going to give it a velocity.
-		// (note that if we had used CreateBody then we could have set the velocity straight on the body before adding it to the physics system)
-		//bodyInterface->SetLinearVelocity(sphere_id, Vec3(0.0f, -5.0f, 0.0f));
-	
 		// Optional step: Before starting the physics simulation you can optimize the broad phase. This improves collision detection performance (it's pointless here because we only have 2 bodies).
 		// You should definitely not call this every frame or when e.g. streaming in a new level section as it is an expensive operation.
 		// Instead insert all new objects in batches instead of 1 at a time to keep the broad phase efficient.
@@ -37,16 +26,6 @@ namespace bagel {
 
 	BGLJolt::~BGLJolt()
 	{
-		// Remove the sphere from the physics system. Note that the sphere itself keeps all of its state and can be re-added at any time.
-		// body_interface.RemoveBody(sphere_id);
-
-		// Destroy the sphere. After this the sphere ID is no longer valid.
-		// body_interface.DestroyBody(sphere_id);
-
-		// Remove and destroy the floor
-		// body_interface.RemoveBody(floor->GetID());
-		// body_interface.DestroyBody(floor->GetID());
-
 		// Unregisters all types with the factory and cleans up the default material
 		JPH::UnregisterTypes();
 
@@ -145,10 +124,11 @@ namespace bagel {
 			auto& jpc = registry.emplace<JoltPhysicsComponent>(ent);
 			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
 		}
-		auto& wfc = registry.emplace<CollisionModelComponent>(ent);
+		
+		//Create collision model
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
+		CollisionModelComponent& wfc = modelBuilder->buildComponent<CollisionModelComponent>(ent, "/models/wiresphere.obj", ComponentBuildMode::LINES);
 		wfc.collisionScale = {radius,radius,radius};
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
-		modelBuilder->buildComponent("/models/wiresphere.obj",ComponentBuildMode::LINES, wfc.modelName,wfc.vertexCount,wfc.indexCount);
 		delete modelBuilder;
 	}
 
@@ -164,10 +144,11 @@ namespace bagel {
 			auto& jpc = registry.emplace<bagel::JoltPhysicsComponent>(ent);
 			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
 		}
-		auto& wfc = registry.emplace<CollisionModelComponent>(ent);
+
+		//Create collision model
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
+		CollisionModelComponent& wfc = modelBuilder->buildComponent<CollisionModelComponent>(ent, "/models/wirecube.obj", ComponentBuildMode::LINES);
 		wfc.collisionScale = glm::vec3({ halfExtent.x,halfExtent.y,halfExtent.z });
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
-		modelBuilder->buildComponent("/models/wirecube.obj", ComponentBuildMode::LINES, wfc.modelName, wfc.vertexCount, wfc.indexCount);
 		delete modelBuilder;
 	}
 	glm::vec3 BGLJolt::GetGravity()
@@ -178,5 +159,23 @@ namespace bagel {
 	void BGLJolt::SetGravity(glm::vec3 gravity)
 	{
 		physicsSystem.SetGravity({ gravity.x,gravity.y,gravity.z });
+	}
+	inline void MyContactListener::OnContactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2, const JPH::ContactManifold& inManifold, JPH::ContactSettings& ioSettings)
+	{
+		auto& v = inManifold.GetWorldSpaceContactPointOn1(0);
+		std::string contactSTR = "Contact on ";
+		char storage[32];
+		sprintf(storage, " %.2f %.2f %.2f", v.GetX(), v.GetY(), v.GetZ());
+		contactSTR += std::string(storage);
+		CONSOLE->Log("BGLJolt", contactSTR);
+		CONSOLE->Log("BGLJolt", "A contact was added");
+	}
+	inline void MyBodyActivationListener::OnBodyActivated(const JPH::BodyID& inBodyID, JPH::uint64 inBodyUserData)
+	{
+		CONSOLE->Log("BGLJolt", "Body Activated");
+	}
+	inline void MyBodyActivationListener::OnBodyDeactivated(const JPH::BodyID& inBodyID, JPH::uint64 inBodyUserData)
+	{
+		CONSOLE->Log("BGLJolt", "A body went to sleep");
 	}
 }

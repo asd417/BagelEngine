@@ -4,6 +4,7 @@
 #include "bagel_ecs_components.hpp"
 #include "bagel_descriptors.hpp"
 
+
 #include <ktx.h>
 #include <memory>
 

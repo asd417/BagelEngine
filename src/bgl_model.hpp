@@ -32,9 +32,10 @@ namespace bagel {
 			glm::vec3 position;
 			glm::vec3 color;
 			glm::vec3 normal;
+			glm::vec3 tangent{ 0.0f,0.0f,0.0f };
+			glm::vec3 bitangent{ 0.0f,0.0f,0.0f };
 			glm::vec2 uv;
-			uint32_t texture_index;
-
+			
 			static std::vector<VkVertexInputBindingDescription> getBindingDescriptions();
 			static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
 
@@ -59,7 +60,7 @@ namespace bagel {
 					> std::tie(other.position.x, other.position.y, other.position.z,
 						other.normal.x, other.normal.y, other.normal.z);
 			}
-
+			
 		};
 		
 		struct VertexHasher
@@ -93,6 +94,7 @@ namespace bagel {
 		};
 	};
 
+#ifdef old
 	class BGLModelBufferManager {
 	public:
 		struct BufferHandlePair {
@@ -190,8 +192,9 @@ namespace bagel {
 		std::vector<VkBuffer>		indexBufferArray;
 		std::vector<VkDeviceMemory>	IndexBufferMemoryArray;
 	};
-
-	//Component Build Mode
+#endif
+	//Model-related Component Build Mode
+	//Determines the vertex buffer layout
 	enum ComponentBuildMode {
 		FACES,
 		LINES
@@ -199,19 +202,86 @@ namespace bagel {
 	//Component builder for generic model components
 	class ModelComponentBuilder {
 	public:
-		ModelComponentBuilder(BGLDevice& bglDevice, const std::unique_ptr<BGLModelBufferManager>& modelBufferManager);
-		virtual void buildComponent(const char* filename, ComponentBuildMode buildmode, std::string& outModelName, uint32_t& outVertexCount, uint32_t& outIndexCount);
-		void loadGLTF(const char* filename);
+		ModelComponentBuilder(BGLDevice& bglDevice, entt::registry& registry);
+		//Using entt::entity and registry, this component builder will create components in the registry
+		// ComponentBuildMode::LINES is for wireframe rendering
+		// ComponentBuildMode::FACES is for pbr rendering
+		template<typename T>
+		T& buildComponent(entt::entity targetEnt, const char* modelFileName, ComponentBuildMode buildmode)
+		{
+			//Check through registry if the model was already loaded by another entity
+			auto& regView = registry.view<T>();
+			for (auto [entity, comp] : regView.each()) {
+				//Already loaded. Copy over vk handles and mark as duplicate
+				if (comp.modelName == std::string(modelFileName))
+				{
+					T& newComp = registry.emplace<T>(targetEnt);
+					newComp.modelName = std::string(modelFileName);
+					newComp.origin = &comp;
+					comp.origin = &comp;
+
+					//copy over everything
+					for (ModelComponent::Submesh& const submesh : comp.submeshes) {
+						newComp.submeshes.push_back(submesh);
+					}
+					newComp.vertexBuffer = comp.vertexBuffer;
+					newComp.indexBuffer = comp.indexBuffer;
+					newComp.vertexMemory = comp.vertexMemory;
+					newComp.indexMemory = comp.indexMemory;
+
+					return newComp;
+				}
+			}
+			T& comp = registry.emplace<T>(targetEnt);
+
+			loadModel(modelFileName, buildmode == LINES);
+
+			//Not supported in lines mode. There is no concept of face in lines mode and vertex array can be smaller than 3
+			if(buildmode != LINES) calculateTangent();
+
+			createVertexBuffer(sizeof(BGLModel::Vertex) * vertices.size(), comp.vertexBuffer, comp.vertexMemory);
+			if (indices.size() > 0) {
+				std::cout << "Model has Index Buffer. Allocating...\n";
+				createIndexBuffer(sizeof(uint32_t) * indices.size(), comp.indexBuffer, comp.indexMemory);
+			}
+			for (auto smi : submeshes) {
+				ModelComponent::Submesh sm{};
+				sm.firstIndex = sm.firstIndex;
+				sm.indexCount = sm.indexCount;
+				sm.materialIndex = sm.materialIndex;
+				comp.submeshes.push_back(sm);
+			}
+			comp.indexCount = indices.size();
+			comp.vertexCount = vertices.size();
+			submeshes.clear();
+			vertices.clear();
+			indices.clear();
+			std::cout << "Finished building Component\n";
+			return comp;
+		}
 
 	protected:
-		virtual void loadModel(const char* filename, bool loadLines);
-		void printVertexArray();
-		void printIndexArray();
-		void createVertexBuffer(size_t bufferSize);
-		void createIndexBuffer(size_t bufferSize);
+		struct SubmeshInfo {
+			uint32_t firstIndex;
+			uint32_t indexCount;
+			uint32_t materialIndex;
+			//For creating TransparentModelComponent as part of this entity
+			bool transparentMaterial = false;
+		};
+
+		void loadGLTFModel(const char* filename);
+		void loadGLTFMesh(tinygltf::Model model, tinygltf::Mesh mesh);
+		void loadOBJModel(const char* filename, bool loadLines);
+		void loadModel(const char* filename, bool loadLines);
+		void calculateTangent();
+		void createVertexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst);
+		void createIndexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst);
 		BGLDevice& bglDevice;
-		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager;
+		
+		std::vector<SubmeshInfo> submeshes{};
 		std::vector<BGLModel::Vertex> vertices{};
 		std::vector<uint32_t> indices{};
+
+		entt::registry& registry;
 	};
 }

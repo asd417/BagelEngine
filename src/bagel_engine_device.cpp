@@ -132,7 +132,7 @@ namespace bagel {
         {
             throw std::runtime_error("Failed to find GPUs with Vulkan support!");
         }
-        std::cout << "Device count: " << deviceCount << std::endl;
+        std::cout << "Physical Device count: " << deviceCount << std::endl;
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
@@ -151,9 +151,7 @@ namespace bagel {
         }
 
         vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-#ifdef PRINT_PHYSICAL_DEVICE:
-        std::cout << "physical device: " << properties.deviceName << std::endl;
-#endif
+        std::cout << "Using Physical Device: " << properties.deviceName << std::endl;
     }
 
     void BGLDevice::createLogicalDevice() {
@@ -482,7 +480,7 @@ namespace bagel {
         if (vkCreateBuffer(_device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to create buffer!");
         }
-        //std::cout << "Created Buffer of size " << size << "\n";
+
         VkMemoryRequirements memRequirements;
         vkGetBufferMemoryRequirements(_device, buffer, &memRequirements);
 
@@ -490,7 +488,7 @@ namespace bagel {
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-        //std::cout << "Allocating memory of size " << memRequirements.size << "\n";
+
         if (vkAllocateMemory(_device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
             throw std::runtime_error("Failed to allocate buffer!");
         }

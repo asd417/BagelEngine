@@ -6,8 +6,7 @@
 layout(location=0) in vec3 fragPosWorld;
 layout(location=1) in vec3 fragNormalWorld;
 layout(location=2) in vec2 fragUV;
-layout(location=3) flat in int fragIndex;
-layout(location=4) flat in int isInstancedTransform;
+layout(location=3) flat in int isInstancedTransform;
 
 
 layout(location=0) out vec4 outColor;
@@ -44,7 +43,7 @@ struct ObjectData{
 
 layout(push_constant) uniform Push {
 	mat4 modelMatrix;
-	mat4 normalMatrix;
+	vec4 scale;
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
 } push;

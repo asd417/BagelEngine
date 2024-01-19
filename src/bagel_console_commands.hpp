@@ -39,5 +39,12 @@ namespace ConsoleCommand {
 		if (app->showInfo) return "Displaying debug info of all entities";
 		else return "Stopped displaying debug info";
 	}
+	char* ShowWireframe(void* ptr) 
+	{
+		FirstApp* app = static_cast<FirstApp*>(ptr);
+		app->showWireframe = !app->showWireframe;
+		if (app->showWireframe) return "Enabled wireframe renderer";
+		else return "Disabled wireframe renderer";
+	}
 }
 }

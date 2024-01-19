@@ -1,6 +1,8 @@
 #include "bagel_imgui.hpp"
 
 namespace bagel {
+    ConsoleApp* ConsoleApp::instance = nullptr;
+
     //Default Console Callbacks
     char* ClearConsole(void* ptr) {
         ConsoleApp* console = static_cast<ConsoleApp*>(ptr);

@@ -50,8 +50,9 @@ namespace bagel {
 		attributeDescriptions.push_back({ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex,position) }); //location, binding, format, offset
 		attributeDescriptions.push_back({ 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex,color) });
 		attributeDescriptions.push_back({ 2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex,normal) });
-		attributeDescriptions.push_back({ 3, 0, VK_FORMAT_R32G32_SFLOAT,	offsetof(Vertex,uv) }); 
-		attributeDescriptions.push_back({ 4, 0, VK_FORMAT_R32_SINT ,	offsetof(Vertex,texture_index) });
+		attributeDescriptions.push_back({ 3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex,tangent) });
+		attributeDescriptions.push_back({ 4, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex,bitangent) });
+		attributeDescriptions.push_back({ 5, 0, VK_FORMAT_R32G32_SFLOAT,	offsetof(Vertex,uv) }); 
 		
 		//offsetof macro calculates the byte offset of color member in the Vertex struct
 
@@ -66,43 +67,13 @@ namespace bagel {
 
 	ModelComponentBuilder::ModelComponentBuilder(
 		BGLDevice& _bglDevice, 
-		const std::unique_ptr<BGLModelBufferManager>& _modelBufferManager) : 
+		entt::registry& _r) : 
 		bglDevice{_bglDevice},
-		modelBufferManager{ _modelBufferManager }
+		registry{ _r }
 	{}
 
-	// ComponentBuildMode::LINES is for wireframe rendering
-	// ComponentBuildMode::FACES is for pbr rendering
-	void ModelComponentBuilder::buildComponent(const char* modelFilename, ComponentBuildMode buildmode, std::string& outModelName, uint32_t& outVertexCount, uint32_t& outIndexCount)
+	void ModelComponentBuilder::loadGLTFModel(const char* filename)
 	{
-		outModelName = modelFilename;
-		if (modelBufferManager->CheckAllocationByModelName(modelFilename)) {
-			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelFilename);
-			outVertexCount = handles.vertexCount;
-			outIndexCount = handles.indexCount;
-			return;
-		}
-		loadModel(modelFilename, buildmode == LINES);
-		outVertexCount = static_cast<uint32_t>(vertices.size());
-		createVertexBuffer(sizeof(vertices[0]) * vertices.size());
-		if (indices.size() > 0) {
-			std::cout << "Model has Index Buffer. Allocating...\n";
-			outIndexCount = static_cast<uint32_t>(indices.size());
-			std::cout << "Index Buffer length: " << outIndexCount << "\n";
-			createIndexBuffer(sizeof(indices[0]) * indices.size());
-			modelBufferManager->EmplaceAllocatedModelAll(modelFilename, outVertexCount, outIndexCount);
-		}
-		else {
-			modelBufferManager->EmplaceAllocatedModelVertexOnly(modelFilename, outVertexCount);
-		}
-		vertices.clear();
-		indices.clear();
-		std::cout << "Finished building Component\n";
-	}
-
-	void ModelComponentBuilder::loadGLTF(const char* filename)
-	{
-	
 		std::cout << "loading gfTF model " << filename << "\n";
 		tinygltf::Model model;
 		tinygltf::TinyGLTF loader;
@@ -126,40 +97,107 @@ namespace bagel {
 		std::cout << "\t" << filename << " has " << model.animations.size() << " animations\n";
 		std::cout << "\t" << filename << " has " << model.meshes.size() << " meshes\n";
 
-		for (size_t i = 0; i < model.bufferViews.size(); ++i) {
-			const tinygltf::BufferView& bufferView = model.bufferViews[i];
-			if (bufferView.target == 0) {  // TODO impl drawarrays
-				std::cout << "WARN: bufferView.target is zero" << std::endl;
-				continue;  // Unsupported bufferView.
-			}
-			const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
-			std::cout << "bufferview.target " << bufferView.target << std::endl;
-			bufferView.byteLength;
-			bufferView.byteOffset;
-			createVertexBuffer(bufferView.target);
+		//const tinygltf::Scene& scene = model.scenes[0];
+		for (tinygltf::Mesh mesh :  model.meshes) {
+			loadGLTFMesh(model, mesh);
 		}
 
 	}
 
-	void ModelComponentBuilder::loadModel(const char* filename, bool loadLines) {
-		if (strcmp(filename, "grid")==0) {
-			for (int i = 0; i < 101; i++) {
-				BGLModel::Vertex vertex1{};
-				vertex1.position = { i - 50, 0, -50 };
-				vertices.push_back(vertex1);
-				BGLModel::Vertex vertex2{};
-				vertex2.position = { i - 50, 0, 50 };
-				vertices.push_back(vertex2);
+	void ModelComponentBuilder::loadGLTFMesh(tinygltf::Model model, tinygltf::Mesh mesh)
+	{
+		//Reads all submeshes inside all meshes in the scene, effectively merging all meshes from the file into one model
+		for (size_t i = 0; i < mesh.primitives.size(); i++) {
+			SubmeshInfo smi{};
+			uint32_t firstIndex = static_cast<uint32_t>(indices.size());
+			uint32_t vertexStart = static_cast<uint32_t>(vertices.size());
+			const tinygltf::Primitive& glTFPrimitive = mesh.primitives[i];
+			uint32_t indexCount = 0;
+			{
+				//Vertices
+				const float* positionBuffer = nullptr;
+				const float* normalsBuffer = nullptr;
+				const float* texCoordsBuffer = nullptr;
+				size_t vertexCount = 0;
 
-				BGLModel::Vertex vertex4{};
-				vertex4.position = { -50, 0, i - 50 };
-				vertices.push_back(vertex4);
-				BGLModel::Vertex vertex5{};
-				vertex5.position = { 50, 0, i - 50 };
-				vertices.push_back(vertex5);
+				// Get buffer data for vertex positions
+				if (glTFPrimitive.attributes.find("POSITION") != glTFPrimitive.attributes.end()) {
+					const tinygltf::Accessor& accessor = model.accessors[glTFPrimitive.attributes.find("POSITION")->second];
+					const tinygltf::BufferView& view = model.bufferViews[accessor.bufferView];
+					positionBuffer = reinterpret_cast<const float*>(&(model.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+					vertexCount = accessor.count;
+				}
+				// Get buffer data for vertex normals
+				if (glTFPrimitive.attributes.find("NORMAL") != glTFPrimitive.attributes.end()) {
+					const tinygltf::Accessor& accessor = model.accessors[glTFPrimitive.attributes.find("NORMAL")->second];
+					const tinygltf::BufferView& view = model.bufferViews[accessor.bufferView];
+					normalsBuffer = reinterpret_cast<const float*>(&(model.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+				}
+				// Get buffer data for vertex texture coordinates
+				// glTF supports multiple sets, we only load the first one
+				if (glTFPrimitive.attributes.find("TEXCOORD_0") != glTFPrimitive.attributes.end()) {
+					const tinygltf::Accessor& accessor = model.accessors[glTFPrimitive.attributes.find("TEXCOORD_0")->second];
+					const tinygltf::BufferView& view = model.bufferViews[accessor.bufferView];
+					texCoordsBuffer = reinterpret_cast<const float*>(&(model.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+				}
+
+				// Append data to model's vertex buffer
+				for (size_t v = 0; v < vertexCount; v++) {
+					BGLModel::Vertex vert{};
+					vert.position = glm::vec3(positionBuffer[v * 3], positionBuffer[v * 3 + 1], positionBuffer[v * 3 + 2]);
+					vert.normal = glm::normalize(normalsBuffer ? glm::vec3(normalsBuffer[v * 3], normalsBuffer[v * 3 + 1], normalsBuffer[v * 3 + 2]) : glm::vec3(0.0f));
+					vert.uv = texCoordsBuffer ? glm::vec2(texCoordsBuffer[v * 2], texCoordsBuffer[v * 2 + 1]) : glm::vec2(0.0f);
+					vert.color = glm::vec3(1.0f);
+					vertices.push_back(vert);
+				}
+			
+				//Indices
+				const tinygltf::Accessor& accessor = model.accessors[glTFPrimitive.indices];
+				const tinygltf::BufferView& bufferView = model.bufferViews[accessor.bufferView];
+				const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
+
+				indexCount = static_cast<uint32_t>(accessor.count);
+
+				// glTF supports different component types of indices
+				switch (accessor.componentType) {
+				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT: {
+					const uint32_t* buf = reinterpret_cast<const uint32_t*>(&buffer.data[accessor.byteOffset + bufferView.byteOffset]);
+					for (size_t index = 0; index < accessor.count; index++) {
+						indices.push_back(buf[index] + vertexStart);
+					}
+					break;
+				}
+				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT: {
+					const uint16_t* buf = reinterpret_cast<const uint16_t*>(&buffer.data[accessor.byteOffset + bufferView.byteOffset]);
+					for (size_t index = 0; index < accessor.count; index++) {
+						indices.push_back(static_cast<uint32_t>(buf[index]) + vertexStart);
+					}
+					break;
+				}
+				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE: {
+					const uint8_t* buf = reinterpret_cast<const uint8_t*>(&buffer.data[accessor.byteOffset + bufferView.byteOffset]);
+					for (size_t index = 0; index < accessor.count; index++) {
+						indices.push_back(static_cast<uint32_t>(buf[index]) + vertexStart);
+					}
+					break;
+				}
+				default:
+					std::cerr << "Index component type " << accessor.componentType << " not supported!" << std::endl;
+					return;
+				}
 			}
-			return;
+			smi.firstIndex = firstIndex;
+			smi.indexCount = indexCount;
+			smi.materialIndex = glTFPrimitive.material;
+			submeshes.push_back(smi);
 		}
+	}
+
+	void ModelComponentBuilder::loadOBJModel(const char* filename, bool loadLines)
+	{
+		//For now, we do not use mtl files to load material info therefore we only make 1 submesh. let's keep it simple
+		SubmeshInfo submesh{};
+
 		std::string fullPath = util::enginePath(filename);
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
@@ -191,7 +229,8 @@ namespace bagel {
 					if (auto search = vertexMap.find(vertex); search != vertexMap.end()) {
 						//vertex already exists in map
 						index = search->second;
-					} else {
+					}
+					else {
 						//new vertex
 						vertexMap.emplace(vertex, vertInt);
 						index = vertInt;
@@ -201,12 +240,10 @@ namespace bagel {
 					//vertices.push_back(vertex);
 					indices.push_back(index);
 				}
-				for (const auto& mat : shape.mesh.material_ids) {
-
-				}
 			}
 		}
 		else {
+			//When loading model as wireframe
 			for (const auto& shape : shapes) {
 				for (const auto& index : shape.lines.indices) {
 					BGLModel::Vertex vertex{};
@@ -242,25 +279,149 @@ namespace bagel {
 		std::cout << "Model Loader looped through " << vertInt << "\n";
 		std::cout << "Vertex Buffer size " << vertices.size() << "\n";
 		std::cout << "Index Buffer size " << indices.size() << "\n";
+		submesh.firstIndex = 0;
+		submesh.indexCount = indices.size();
+		submeshes.push_back(submesh);
 	}
 
-	void ModelComponentBuilder::printVertexArray() {
-		std::cout << "[ ";
-		for (auto i : vertices) {
-			std::cout << i << ", ";
+	void ModelComponentBuilder::loadModel(const char* filename, bool loadLines) {
+		//Load generated models here
+		if (strcmp(filename, "grid")==0) {
+			SubmeshInfo gridMesh{};
+			for (int i = 0; i < 101; i++) {
+				BGLModel::Vertex vertex1{};
+				vertex1.position = { i - 50, 0, -50 };
+				vertices.push_back(vertex1);
+				BGLModel::Vertex vertex2{};
+				vertex2.position = { i - 50, 0, 50 };
+				vertices.push_back(vertex2);
+
+				BGLModel::Vertex vertex4{};
+				vertex4.position = { -50, 0, i - 50 };
+				vertices.push_back(vertex4);
+				BGLModel::Vertex vertex5{};
+				vertex5.position = { 50, 0, i - 50 };
+				vertices.push_back(vertex5);
+			}
+			gridMesh.firstIndex = 0;
+			gridMesh.indexCount = indices.size();
+			submeshes.push_back(gridMesh);
+			return;
 		}
-		std::cout << "]\n";
-	}
 
-	void ModelComponentBuilder::printIndexArray() {
-		std::cout << "[ ";
-		for (auto i : indices) {
-			std::cout << i << " ";
+		//Load model by filetype
+		//Only requirement for each model-loading function is to separate model into submeshes by material
+		// and populate std::vector<SubmeshInfo> submeshes 
+		const char* filetype = strrchr(filename, '.');
+		if (strcmp(filetype, ".gltf") == 0) {
+			loadGLTFModel(filename); 
 		}
-		std::cout << "]\n";
+		else if (strcmp(filetype, ".obj") == 0) {
+			loadOBJModel(filename, loadLines);
+		}
 	}
 
-	void ModelComponentBuilder::createVertexBuffer(size_t bufferSize)
+	void ModelComponentBuilder::calculateTangent()
+	{
+		//At this point, vertices are stored in the vertices vector and indices are stored in the indices vector
+		//using the indices vector, we visit each vertices per triangle.
+		//Then we calculate tangent vector and average with existing calculated result
+		if (indices.size() <= 0) {
+			for (int i = 0; i < vertices.size(); i += 3) {
+				glm::vec3 pos1 = vertices[i].position;
+				glm::vec3 pos2 = vertices[i + 1].position;
+				glm::vec3 pos3 = vertices[i + 2].position;
+
+				glm::vec2 uv1 = vertices[i].uv;
+				glm::vec2 uv2 = vertices[i + 1].uv;
+				glm::vec2 uv3 = vertices[i + 2].uv;
+
+				glm::vec3 edge1 = pos2 - pos1;
+				glm::vec3 edge2 = pos3 - pos1;
+				glm::vec2 deltaUV1 = uv2 - uv1;
+				glm::vec2 deltaUV2 = uv3 - uv1;
+
+				float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+				for (int vi = 0; vi < 3; vi++) {
+					glm::vec3& tangent = vertices[i + vi].tangent;
+					glm::vec3& bitangent = vertices[i + vi].bitangent;
+					if (tangent.x == tangent.y == tangent.z == 0.0f) {
+						//Dont average. This is the first time
+						tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+						tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+						tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+						bitangent.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+						bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+						bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+					}
+					else {
+						//Average with existing tangent
+						tangent.x += f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+						tangent.y += f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+						tangent.z += f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+						bitangent.x += f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+						bitangent.y += f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+						bitangent.z += f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+						tangent.x /= 2;
+						tangent.y /= 2;
+						tangent.z /= 2;
+						bitangent.x /= 2;
+						bitangent.y /= 2;
+						bitangent.z /= 2;
+					}
+				}
+			}
+		}
+		else {
+			for (int i = 0; i < indices.size(); i += 3) {
+			
+				glm::vec3 pos1 = vertices[indices[ i ]].position;
+				glm::vec3 pos2 = vertices[indices[ i + 1 ]].position;
+				glm::vec3 pos3 = vertices[indices[ i + 2 ]].position;
+
+				glm::vec2 uv1 = vertices[indices[ i ]].uv;
+				glm::vec2 uv2 = vertices[indices[ i + 1]].uv;
+				glm::vec2 uv3 = vertices[indices[ i + 2]].uv;
+
+				glm::vec3 edge1 = pos2 - pos1;
+				glm::vec3 edge2 = pos3 - pos1;
+				glm::vec2 deltaUV1 = uv2 - uv1;
+				glm::vec2 deltaUV2 = uv3 - uv1;
+
+				float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+				for (int vi = 0; vi < 3;vi++) {	
+					glm::vec3& tangent = vertices[indices[i+vi]].tangent;
+					glm::vec3& bitangent = vertices[indices[i + vi]].bitangent;
+					if (tangent.x == tangent.y == tangent.z == 0.0f) {
+						//Dont average. This is the first time
+						tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+						tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+						tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+						bitangent.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+						bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+						bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+					}
+					else {
+						//Average with existing tangent
+						tangent.x += f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+						tangent.y += f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+						tangent.z += f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+						bitangent.x += f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+						bitangent.y += f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+						bitangent.z += f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+						tangent.x /= 2;
+						tangent.y /= 2;
+						tangent.z /= 2;
+						bitangent.x /= 2;
+						bitangent.y /= 2;
+						bitangent.z /= 2;
+					}
+				}
+			}
+		}
+	}
+
+	void ModelComponentBuilder::createVertexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst)
 	{
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingMemory;
@@ -280,11 +441,11 @@ namespace bagel {
 			bufferSize, 
 			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-			modelBufferManager->GetVertexBufferDst(), 
-			modelBufferManager->GetVertexMemoryDst());
+			bufferDst,
+			memoryDst);
 
 		// Finished Mapping vertex buffer to staging buffer inside device
-		bglDevice.copyBuffer(stagingBuffer, modelBufferManager->GetAllocatedVertexBuffer(), bufferSize);
+		bglDevice.copyBuffer(stagingBuffer, bufferDst, bufferSize);
 
 		// Finished Mapping device staging buffer to device vertex buffer. Destroy staging buffer.
 		vkUnmapMemory(BGLDevice::device(), stagingMemory);
@@ -294,7 +455,7 @@ namespace bagel {
 
 	}
 
-	void ModelComponentBuilder::createIndexBuffer(size_t bufferSize)
+	void ModelComponentBuilder::createIndexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst)
 	{
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingMemory;
@@ -309,11 +470,11 @@ namespace bagel {
 		bglDevice.createBuffer(bufferSize, 
 			VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-			modelBufferManager->GetIndexBufferDst(),
-			modelBufferManager->GetIndexMemoryDst());
+			bufferDst,
+			memoryDst);
 
 		// Map index buffer to staging buffer inside device
-		bglDevice.copyBuffer(stagingBuffer, modelBufferManager->GetAllocatedIndexBuffer(), bufferSize);
+		bglDevice.copyBuffer(stagingBuffer, bufferDst, bufferSize);
 
 		// Finished Mapping device staging buffer to device index buffer due to VK_BUFFER_USAGE_TRANSFER_DST_BIT. Destroy staging buffer.
 		vkUnmapMemory(BGLDevice::device(), stagingMemory);

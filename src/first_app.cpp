@@ -27,9 +27,11 @@
 #include "bagel_console_commands.hpp"
 #include "bagel_hierachy.hpp"
 #include "bagel_util.hpp"
+#include "bagel_imgui.hpp"
 
 #include "physics/bagel_jolt.hpp"
 #include "math/bagel_math.hpp"
+
 
 #include "Jolt/Jolt.h"
 
@@ -38,6 +40,7 @@
 
 //#define INSTANCERENDERTEST
 //#define PHYSICSTEST
+
 
 namespace bagel {
 	// PushConstantData is a performant and simple way to send data to vertex and fragment shader
@@ -72,17 +75,17 @@ namespace bagel {
 
 		descriptorManager = std::make_unique<BGLBindlessDescriptorManager>(bglDevice, *globalPool);
 		descriptorManager->createBindlessDescriptorSet(GLOBAL_DESCRIPTOR_COUNT);
-		modelBufferManager = std::make_unique<BGLModelBufferManager>();
 
-		std::cout << "Finished Creating Global Pool\n";
 
-		std::cout << "Initializing ENTT Registry\n";
+		CONSOLE->Log("FirstApp", "Finished Creating Global Pool");
+
+		CONSOLE->Log("FirstApp", "Initializing ENTT Registry");
 		registry = entt::registry{};
 
-		std::cout << "Initializing IMGUI\n";
+		CONSOLE->Log("FirstApp", "Initializing IMGUI");
 		initImgui();
 
-		std::cout << "Initializing Jolt Physics Engine\n";
+		CONSOLE->Log("FirstApp", "Initializing Jolt Physics Engine");
 		initJolt();
 	}
 
@@ -122,17 +125,13 @@ namespace bagel {
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			modelBufferManager,
-			registry,
-			console};
+			registry};
 
 		WireframeRenderSystem wireframeRenderSystem{
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			modelBufferManager,
-			registry,
-			console };
+			registry};
 
 		PointLightSystem pointLightSystem{
 			bglRenderer.getSwapChainRenderPass(),
@@ -144,9 +143,7 @@ namespace bagel {
 			bglRenderer.getOffscreenRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			modelBufferManager,
-			registry,
-			console };
+			registry};
 
 		PointLightSystem pointLightSystemOffscreen{
 			bglRenderer.getOffscreenRenderPass(),
@@ -166,7 +163,7 @@ namespace bagel {
 		initCommand();
 
 		//TEST codes-------------------------------------------
-		bool moveF = true;
+		/*bool moveF = true;
 		entt::entity moved = loadECSObjects();
 		registry.emplace<InfoComponent>(moved);
 		entt::entity pointerAxis = makeAxisModel({ 0.0,0.0,0.0 });
@@ -176,12 +173,14 @@ namespace bagel {
 			registry.emplace<InfoComponent>(pointerAxis);
 		}
 		entt::entity axis1 = makeAxisModel({ 1.0,0.5,2.0 }); 
+		*/
 		makeGrid();
-
 		BGLJolt::GetInstance()->SetGravity({0,-0.0f,0});
 		BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
 		BGLJolt::GetInstance()->SetComponentActivityAll(true);
-		createMonitor();
+		entt::entity monitor = createMonitor();
+		createChineseDragon();
+		createLights();
 		//------------------------------------------------------
 		// Game loop
 		while (!bglWindow.shouldClose())
@@ -204,7 +203,7 @@ namespace bagel {
 			camera.setViewYXZ(viewerObject.transform.getTranslation(), viewerObject.transform.getRotation());
 			float aspect = bglRenderer.getAspectRatio();
 			camera.setPerspectiveProjection(glm::radians(100.0f), aspect, 0.1f, 300.0f);
-			{
+			/*{
 				auto& tfc = registry.get<TransformComponent>(moved);
 				glm::vec3 posKinematic = tfc.getTranslation();
 				static bool moveForward = true;
@@ -225,7 +224,7 @@ namespace bagel {
 			{
 				auto& tfc2 = registry.get<TransformComponent>(pointerAxis);
 				glm::vec3 pos = tfc2.getWorldTranslation();
-				//std::cout << "Position " << pos.x << " " << pos.y << " " << pos.z << "\n";
+
 				static bool moveForward = false;
 				if (pos.x < 0.0f) {
 					moveForward = true;
@@ -243,8 +242,10 @@ namespace bagel {
 				glm::vec3 targetRot{ 1.0f, 2.0f, 3.0f };
 				tfc2.setRotation(GetLookVector(pos, target, {0,1,0}));
 				tfc2.setTranslation(pos);
-			}
-			
+			}*/
+			auto& monitorTransform = registry.get<TransformComponent>(monitor);
+			glm::vec3 pos = monitorTransform.getWorldTranslation();
+			monitorTransform.setRotation(GetLookVector(pos, camera.getPosition(), {0,1,0}));
 			// -----------------------------------------------------------------------------------------------------------
 			
 			//Hierarchy Update
@@ -273,7 +274,7 @@ namespace bagel {
 
 			//imgui draw commands
 			if(showInfo) DrawInfoPanels(registry, ext.width, ext.height, camera.getProjection(), camera.getView());
-			console.Draw("Console", nullptr);
+			ConsoleApp::Instance()->Draw("Console", nullptr);
 			ImGui::ShowMetricsWindow();
 			ImGui::Render();
 			
@@ -304,7 +305,7 @@ namespace bagel {
 				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
 				//always render solid objects before rendering transparent objects
 				modelRenderSystem.renderEntities(frameInfo);
-				wireframeRenderSystem.renderEntities(frameInfo);
+				if(showWireframe) wireframeRenderSystem.renderEntities(frameInfo);
 				pointLightSystem.render(frameInfo);
 				
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), primaryCommandBuffer);
@@ -316,7 +317,6 @@ namespace bagel {
 			auto stop = std::chrono::high_resolution_clock::now();
 			prevFrameTime = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
-			//std::cout << 1.0f / frameTime << "fps\n";
 			if(showFPS) std::cout << (long long)1000000/ prevFrameTime.count() << "fps\n";
 
 		}
@@ -327,12 +327,11 @@ namespace bagel {
 	}
 	// Creates entities for test purpose
 	entt::entity FirstApp::loadECSObjects() {
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
 		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
 		{
 			auto e1 = registry.create();
 			auto& tfc1 = registry.emplace<TransformComponent>(e1);
-			auto& mdc1 = registry.emplace<ModelDescriptionComponent>(e1);
 			auto& tc1 = registry.emplace<DiffuseTextureComponent>(e1);
 			tfc1.setTranslation({ 0.55f,5.3f,0.0 });
 
@@ -340,16 +339,16 @@ namespace bagel {
 				tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
 			};
 			BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
-			modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
-			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
+			ModelComponent& comp = modelBuilder->buildComponent<ModelComponent>(e1, "/models/cube.obj", ComponentBuildMode::FACES);
+			//mdc1.textureMapFlag |= ModelComponent::TextureCompositeFlag::DIFFUSE;
 			textureBuilder->setBuildTarget(&tc1);
 			textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
+			comp.setDiffuseTextureToSubmesh(0, tc1.textureHandle[0]);
 		}
 
 		{
 			auto e1 = registry.create();
 			auto& tfc1 = registry.emplace<TransformComponent>(e1);
-			auto& mdc1 = registry.emplace<ModelDescriptionComponent>(e1);
 			auto& tc1 = registry.emplace<DiffuseTextureComponent>(e1);
 			tfc1.setTranslation({ -0.55f,5.3f,0.0 });
 
@@ -357,14 +356,13 @@ namespace bagel {
 				tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
 			};
 			BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
-			modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
-			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
+			ModelComponent& comp = modelBuilder->buildComponent<ModelComponent>(e1, "/models/cube.obj", ComponentBuildMode::FACES);
 			textureBuilder->setBuildTarget(&tc1);
 			textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
+			comp.setDiffuseTextureToSubmesh(0, tc1.textureHandle[0]);
 		}
 		auto e1 = registry.create();
 		auto& tfc1 = registry.emplace<TransformComponent>(e1);
-		auto& mdc1 = registry.emplace<ModelDescriptionComponent>(e1);
 		auto& tc1 = registry.emplace<DiffuseTextureComponent>(e1);
 		tfc1.setLocalTranslation({ 0.3f,0.5f,0.0 });
 
@@ -375,8 +373,9 @@ namespace bagel {
 
 		auto e2 = registry.create();
 		auto& tfc2 = registry.emplace<TransformComponent>(e2);
-		auto& mdc2 = registry.emplace<ModelDescriptionComponent>(e2);
 		auto& tc2 = registry.emplace<DiffuseTextureComponent>(e2);
+		tfc2.setScale({ 0.2f,0.2f,0.2f });
+		tfc2.setRotation({ glm::pi<float>()/2,0,0});
 		tfc2.setTranslation({ 0.0f, -0.5f, 0.0f });
 
 		BGLJolt::PhysicsBodyCreationInfo info2{
@@ -384,32 +383,132 @@ namespace bagel {
 		};
 		BGLJolt::GetInstance()->AddSphere(e2, 0.5f, info2);
 
-		mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
-		mdc2.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
-
-		modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+		ModelComponent& comp1 = modelBuilder->buildComponent<ModelComponent>(e1, "/models/cube.obj", ComponentBuildMode::FACES);
+		ModelComponent& comp2 = modelBuilder->buildComponent<ModelComponent>(e2, "/models/cube.obj", ComponentBuildMode::FACES);
 		textureBuilder->setBuildTarget(&tc1);
 		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
-		modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc2.modelName, mdc2.vertexCount, mdc2.indexCount);
 		textureBuilder->setBuildTarget(&tc2);
 		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
+		comp1.setDiffuseTextureToSubmesh(0, tc1.textureHandle[0]);
+		comp2.setDiffuseTextureToSubmesh(1, tc2.textureHandle[0]);
 		
 		auto e_axis = registry.create();
 		auto& tfc3 = registry.emplace<bagel::TransformComponent>(e_axis);
-		auto& mdc3 = registry.emplace<bagel::ModelDescriptionComponent>(e_axis);
 		auto& tc3 = registry.emplace<bagel::DiffuseTextureComponent>(e_axis);
-		modelBuilder->buildComponent("/models/axis.obj", ComponentBuildMode::FACES, mdc3.modelName, mdc3.vertexCount, mdc3.indexCount);
+		//auto& mdc3 = registry.emplace<bagel::ModelComponent>(e_axis);
+		//modelBuilder->buildComponent("/models/axis.obj", ComponentBuildMode::FACES, mdc3.modelName, mdc3.vertexCount, mdc3.indexCount);
+		ModelComponent& axisComp = modelBuilder->buildComponent<ModelComponent>(e_axis, "/models/axis.obj", ComponentBuildMode::FACES);
 		textureBuilder->setBuildTarget(&tc3);
 		textureBuilder->buildComponent("/materials/models/axis.ktx");
-		mdc3.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
+		axisComp.setDiffuseTextureToSubmesh(0,tc3.textureHandle[0]);
+
 		tfc3.setScale({ 1.0f,1.0f, 1.0f });
-		//tfc3.setLocalRotation({ 0.3f,0.5f,0.3f });
+
+		//Parent e1 to e_axis
 		HierachySystem hs(registry);
 		hs.CreateHierachy(e_axis, e1);
 		
 		delete modelBuilder;
 		delete textureBuilder;
 
+		return e_axis;
+	}
+	
+	entt::entity FirstApp::makeTestEntity(glm::vec3 translation) {
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
+		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
+
+		auto e1 = registry.create();
+		auto& tfc1 = registry.emplace<TransformComponent>(e1);
+		registry.emplace<InfoComponent>(e1);
+		//auto& mdc1 = registry.emplace<ModelComponent>(e1);
+		auto& tc1 = registry.emplace<DiffuseTextureComponent>(e1);
+		tfc1.setTranslation(translation);
+
+		BGLJolt::PhysicsBodyCreationInfo info3{
+			tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
+		};
+		BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
+		//modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+		ModelComponent& comp1 = modelBuilder->buildComponent<ModelComponent>(e1, "/models/cube.obj", ComponentBuildMode::FACES);
+		//mdc1.textureMapFlag |= ModelComponent::TextureCompositeFlag::DIFFUSE;
+		textureBuilder->setBuildTarget(&tc1);
+		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
+		
+		delete modelBuilder;
+		delete textureBuilder;
+		
+		return e1;
+	}
+	void FirstApp::makeGrid() {
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
+		{
+			auto e1 = registry.create();
+			auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
+			tfc1.setScale({ 1,1,1 });
+
+			CONSOLE->Log("FirstApp::makeGrid", "Building Grid");
+			modelBuilder->buildComponent<WireframeComponent>(e1, "grid", ComponentBuildMode::LINES);
+		}
+		{
+			auto e1 = registry.create();
+			auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
+			tfc1.setScale({ 1,1,1 });
+			
+			CONSOLE->Log("FirstApp::makeGrid", "Building Wiresphere");
+			modelBuilder->buildComponent<WireframeComponent>(e1, "/models/wiresphere.obj", ComponentBuildMode::LINES);
+		}
+
+		delete modelBuilder;
+	}
+	entt::entity FirstApp::makeAxisModel(glm::vec3 pos)
+	{
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
+		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
+
+		auto e1 = registry.create();
+		auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
+		auto& tc1 = registry.emplace<bagel::DiffuseTextureComponent>(e1);
+		tfc1.setTranslation(pos);
+
+		//auto& mdc1 = registry.emplace<bagel::ModelComponent>(e1);
+		//modelBuilder->buildComponent("/models/axis.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+		ModelComponent& comp1 = modelBuilder->buildComponent<ModelComponent>(e1, "/models/axis.obj", ComponentBuildMode::FACES);
+		textureBuilder->setBuildTarget(&tc1);
+		textureBuilder->buildComponent("/materials/models/axis.ktx");
+		comp1.setDiffuseTextureToSubmesh(0, tc1.textureHandle[0]);
+		//mdc1.textureMapFlag |= ModelComponent::TextureCompositeFlag::DIFFUSE;
+
+		delete modelBuilder;
+		delete textureBuilder;
+
+		return e1;
+	}
+	entt::entity FirstApp::createMonitor() {
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
+		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
+		
+		auto e1 = registry.create();
+		auto& tfc1 = registry.emplace<TransformComponent>(e1);
+		auto& tc1 = registry.emplace<DiffuseTextureComponent>(e1);
+		//auto& mdc1 = registry.emplace<ModelComponent>(e1);
+		//modelBuilder->buildComponent("/models/floor.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
+		ModelComponent& comp1 = modelBuilder->buildComponent<ModelComponent>(e1, "/models/floor.obj", ComponentBuildMode::FACES);
+		//mdc1.textureMapFlag |= ModelComponent::TextureCompositeFlag::DIFFUSE;
+
+		textureBuilder->setBuildTarget(&tc1);
+		textureBuilder->buildComponent("OffscreenRenderTarget");  // "/materials/texture.jpg"
+		comp1.setDiffuseTextureToSubmesh(0, tc1.textureHandle[0]);
+		tfc1.setScale({ 5.0,5.0,5.0 });
+		tfc1.setTranslation({ 6.0,6.0,6.0 });
+		CONSOLE->Log("FirstApp::createMonitor", "Designating OffscreenRenderTarget as texture");
+		
+		delete modelBuilder;
+		delete textureBuilder;
+		return e1;
+	}
+	void FirstApp::createLights()
+	{
 		std::vector<glm::vec3> lightColors{
 			 {1.f, .1f, .1f},
 			 {.1f, .1f, 1.f},
@@ -427,111 +526,51 @@ namespace bagel {
 			registry.emplace<TransformComponent>(entity, (rotateLight * glm::vec4(glm::vec3{ 3.f,1.0f,0.0f }, 1.0f)));
 			registry.emplace<InfoComponent>(entity);
 			auto& light = registry.emplace<PointLightComponent>(entity);
-			light.color = glm::vec4(lightColors[i],4.0f);
+			light.color = glm::vec4(lightColors[i], 4.0f);
 		}
-		return e_axis;
 	}
-	entt::entity FirstApp::makeTestEntity(glm::vec3 translation) {
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
-		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
-
-		auto e1 = registry.create();
-		auto& tfc1 = registry.emplace<TransformComponent>(e1);
-		registry.emplace<InfoComponent>(e1);
-		auto& mdc1 = registry.emplace<ModelDescriptionComponent>(e1);
-		auto& tc1 = registry.emplace<DiffuseTextureComponent>(e1);
-		tfc1.setTranslation(translation);
-
-		BGLJolt::PhysicsBodyCreationInfo info3{
-			tfc1.getTranslation(),{0,0,0},PhysicsType::DYNAMIC, false, PhysicsLayers::MOVING
-		};
-		BGLJolt::GetInstance()->AddSphere(e1, 0.5f, info3);
-		modelBuilder->buildComponent("/models/cube.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
-		mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
-		textureBuilder->setBuildTarget(&tc1);
-		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
-		
-		delete modelBuilder;
-		delete textureBuilder;
-		
-		return e1;
-	}
-	void FirstApp::makeGrid() {
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
-		{
-			auto e1 = registry.create();
-			auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
-			tfc1.setScale({ 1,1,1 });
-			auto& mdc1 = registry.emplace<bagel::WireframeComponent>(e1);
-			std::cout << "Set Grid build target\n";
-			std::cout << "building grid\n";
-			modelBuilder->buildComponent("grid", ComponentBuildMode::LINES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
-		}
-		{
-			auto e1 = registry.create();
-			auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
-			tfc1.setScale({ 1,1,1 });
-			auto& mdc1 = registry.emplace<bagel::WireframeComponent>(e1);
-			std::cout << "Set Wire Sphere target\n";
-			std::cout << "building Sphere\n";
-			modelBuilder->buildComponent("/models/wiresphere.obj", ComponentBuildMode::LINES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
-		}
-
-		delete modelBuilder;
-	}
-	entt::entity FirstApp::makeAxisModel(glm::vec3 pos)
+	void FirstApp::createChineseDragon()
 	{
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
 		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
+		
+		entt::entity entity = registry.create();
+		ModelComponent& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/flatfaces.obj", ComponentBuildMode::FACES);
+		auto& tfc = registry.emplace<TransformComponent>(entity);
+		tfc.setScale({ 2.0f,2.0f,2.0f });
+		//tfc.setScale({ 0.2f,0.2f,0.2f });
+		//tfc.setRotation({ glm::pi<float>() / 2,0,0 });
 
-		auto e1 = registry.create();
-		auto& tfc1 = registry.emplace<bagel::TransformComponent>(e1);
-		auto& mdc1 = registry.emplace<bagel::ModelDescriptionComponent>(e1);
-		auto& tc1 = registry.emplace<bagel::DiffuseTextureComponent>(e1);
-		tfc1.setTranslation(pos);
+		auto& dc = registry.emplace<DiffuseTextureComponent>(entity);
+		auto& nc = registry.emplace<NormalTextureComponent>(entity);
+		auto& rc = registry.emplace<RoughnessMetalTextureComponent>(entity);
+		textureBuilder->setBuildTarget(&dc);
+		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
+		textureBuilder->setBuildTarget(&nc);
+		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_NormalGL.png");
+		textureBuilder->setBuildTarget(&rc);
+		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Roughness.png");
 
-		modelBuilder->buildComponent("/models/axis.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
-		textureBuilder->setBuildTarget(&tc1);
-		textureBuilder->buildComponent("/materials/models/axis.ktx");
-
-		mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
-
-		delete modelBuilder;
-		delete textureBuilder;
-
-		return e1;
-	}
-	void FirstApp::createMonitor() {
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, modelBufferManager);
-		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
-		{
-			auto e1 = registry.create();
-			auto& tfc1 = registry.emplace<TransformComponent>(e1);
-			auto& mdc1 = registry.emplace<ModelDescriptionComponent>(e1);
-			auto& tc1 = registry.emplace<DiffuseTextureComponent>(e1);
-			modelBuilder->buildComponent("/models/floor.obj", ComponentBuildMode::FACES, mdc1.modelName, mdc1.vertexCount, mdc1.indexCount);
-			mdc1.textureMapFlag |= ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE;
-			textureBuilder->setBuildTarget(&tc1);
-			tfc1.setScale({ 5.0,5.0,5.0 });
-			tfc1.setTranslation({ 6.0,6.0,6.0 });
-			std::cout << "Designating OffscreenRenderTarget as texture\n";
-			textureBuilder->buildComponent("OffscreenRenderTarget");  // "/materials/texture.jpg"
-		}
+		model.useDiffuseComponent(dc);
+		model.useNormalComponent(nc);
+		model.useRoughMetalComponent(rc);
+		model.setRoughMetalMultiplier(0, { 1.0f,0.0f,0.0f,0.0f });
 		delete modelBuilder;
 		delete textureBuilder;
 	}
 	void FirstApp::initCommand()
 	{
-		console.AddCommand("FREEFLY", this, ConsoleCommand::ToggleFly);
-		console.AddCommand("TOGGLEPHYSICS", this, ConsoleCommand::TogglePhys);
-		console.AddCommand("ROTATELIGHT", this, ConsoleCommand::RotateLight);
-		console.AddCommand("SHOWFPS", this, ConsoleCommand::ShowFPS);
-		console.AddCommand("SHOWINFO", this, ConsoleCommand::ShowInfo);
+		CONSOLE->AddCommand("FREEFLY", this, ConsoleCommand::ToggleFly);
+		CONSOLE->AddCommand("TOGGLEPHYSICS", this, ConsoleCommand::TogglePhys);
+		CONSOLE->AddCommand("ROTATELIGHT", this, ConsoleCommand::RotateLight);
+		CONSOLE->AddCommand("SHOWFPS", this, ConsoleCommand::ShowFPS);
+		CONSOLE->AddCommand("SHOWINFO", this, ConsoleCommand::ShowInfo);
+		CONSOLE->AddCommand("SHOWWIREFRAME", this, ConsoleCommand::ShowWireframe);
 	}
 
 	void FirstApp::initJolt()
 	{
-		BGLJolt::Initialize(bglDevice, registry, modelBufferManager);
+		BGLJolt::Initialize(bglDevice, registry);
 	}
 
 	void FirstApp::initImgui()

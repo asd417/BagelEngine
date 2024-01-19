@@ -39,14 +39,8 @@ namespace bagel {
 
 
 	namespace ConsoleCommand {
-		//ModelRenderSystem controllers
-		char* StopBind(void* ptr)
-		{
-			ModelRenderSystem* mrs = static_cast<ModelRenderSystem*>(ptr);
-			mrs->stopBinding = !mrs->stopBinding;
-			if (mrs->stopBinding) return "Stopped binding descriptorSet";
-			else return "Binding descriptorSet";
-		}
+		//ModelRenderSystem console command functions here
+
 	}
 	inline void SendPushConstantData(VkCommandBuffer cmdBuffer, VkPipelineLayout pipelineLayout, ECSPushConstantData& push)
 	{
@@ -59,45 +53,24 @@ namespace bagel {
 			&push);
 	}
 
-	inline void FillPushConstantData(ECSPushConstantData& push, const ModelDescriptionComponent& comp, const entt::registry& r, const entt::entity& ent) {
-		if (comp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::DIFFUSE)		push.diffuseTextureHandle =		r.get<DiffuseTextureComponent>(ent).textureHandle;
-		if (comp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::EMISSION)	push.emissionTextureHandle =	r.get<EmissionTextureComponent>(ent).textureHandle;
-		if (comp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::NORMAL)		push.normalTextureHandle =		r.get<NormalTextureComponent>(ent).textureHandle;
-		if (comp.textureMapFlag & ModelDescriptionComponent::TextureCompositeFlag::ROUGHMETAL)	push.roughmetalTextureHandle =	r.get<RoughnessMetalTextureComponent>(ent).textureHandle;
-		push.textureMapFlag = comp.textureMapFlag;
-	}
-
-	inline void BindAppropriateModelBuffer(
-		VkCommandBuffer& commandBuffer, 
-		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager, 
-		const BGLModelBufferManager::BufferHandlePair& handles, 
-		ModelDescriptionComponent& comp, 
-		uint32_t instanceCount)
-	{
-		if (comp.indexCount > 0) {
-			const VkBuffer& ibuffer = modelBufferManager->GetIndexBufferHandle(handles);
-			vkCmdBindIndexBuffer(commandBuffer, ibuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(commandBuffer, comp.indexCount, instanceCount, 0, 0, 0);
-		}
-		else {
-			vkCmdDraw(commandBuffer, comp.vertexCount, instanceCount, 0, 0);
-		}
+	inline void FillPushConstantData(ECSPushConstantData& push, ModelComponent::Submesh sm, const entt::registry& r, const entt::entity& ent) {
+		if (sm.textureMapFlag & ModelComponent::TextureCompositeFlag::DIFFUSE)		push.diffuseTextureHandle =		sm.diffuseTextureHandle;
+		if (sm.textureMapFlag & ModelComponent::TextureCompositeFlag::EMISSION)	push.emissionTextureHandle =	sm.emissionTextureHandle;
+		if (sm.textureMapFlag & ModelComponent::TextureCompositeFlag::NORMAL)		push.normalTextureHandle =		sm.normalTextureHandle;
+		if (sm.textureMapFlag & ModelComponent::TextureCompositeFlag::ROUGHMETAL)	push.roughmetalTextureHandle =	sm.roughmetalTextureHandle;
+		push.textureMapFlag = sm.textureMapFlag;
 	}
 
 	ModelRenderSystem::ModelRenderSystem(
 		VkRenderPass renderPass,
 		std::vector<VkDescriptorSetLayout> setLayouts,
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-		std::unique_ptr<BGLModelBufferManager> const& _modelBufferManager,
-		entt::registry& _registry,
-		ConsoleApp& consoleApp) :
+		entt::registry& _registry) :
 		BGLRenderSystem{ renderPass, setLayouts, sizeof(ECSPushConstantData) },
 		descriptorManager{ _descriptorManager },
-		modelBufferManager{ _modelBufferManager },
 		registry{ _registry }
 	{
 		std::cout << "Creating Model Render System\n";
-		consoleApp.AddCommand("STOPBINDING", this, ConsoleCommand::StopBind);
 		createPipeline(renderPass, "/shaders/simple_shader.vert.spv", "/shaders/simple_shader.frag.spv", nullptr);
 	}
 
@@ -114,43 +87,62 @@ namespace bagel {
 			0, nullptr);
 		
 		VkDeviceSize offsets[] = { 0 };
-		auto transformCompView = registry.view<TransformComponent, ModelDescriptionComponent>();
-		for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
-			//VkBuffer buffers[] = { modelDescComp.vertexBuffer };
-			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelDescComp.modelName);
-			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &vbuffer, offsets);
+		//auto transformCompView = registry.view<TransformComponent, ModelComponent>();
+		//for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
+		auto transformCompGroup = registry.group<>(entt::get<TransformComponent, ModelComponent>);
+		for(auto [entity, transformComp, modelDescComp] : transformCompGroup.each()) {
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &modelDescComp.vertexBuffer, offsets);
+			if (modelDescComp.indexCount > 0) vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-			ECSPushConstantData push{};
-			FillPushConstantData(push, modelDescComp,registry,entity);
+			//Send pushconstant per submesh
+			for (const auto& sm : modelDescComp.submeshes) {
+				ECSPushConstantData push{};
+				FillPushConstantData(push, sm, registry, entity);
 
-			push.UsesBufferedTransform = 0;
-			push.modelMatrix = transformComp.mat4();
-			push.normalMatrix = transformComp.normalMatrix();
+				push.UsesBufferedTransform = 0;
+				push.modelMatrix = transformComp.mat4();
+				push.scale = glm::vec4{ transformComp.getWorldScale(), 1.0 };
+				push.roughmetalmultiplier = sm.roughmetalmultiplier;
 
-			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, modelDescComp, 1);
+				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+
+				if (modelDescComp.indexCount > 0) {
+					vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, 1, sm.firstIndex, 0, 0);
+				}
+				else {
+					vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, sm.firstIndex, 0);
+				}
+			}
 		}
 
-		auto instancedRenderView = registry.view<TransformArrayComponent, ModelDescriptionComponent>();
-		for (auto [entity, transformComp, modelDescComp] : instancedRenderView.each()) {
-			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelDescComp.modelName);
-			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &vbuffer, offsets);
+		auto transformArrayCompGroup = registry.group<>(entt::get<TransformArrayComponent, ModelComponent>);
+		for (auto [entity, transformComp, modelDescComp] : transformArrayCompGroup.each()) {
 
-			ECSPushConstantData push{};
-			FillPushConstantData(push, modelDescComp, registry, entity);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &modelDescComp.vertexBuffer, offsets);
+			if (modelDescComp.indexCount > 0) vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-			push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
-			push.BufferedTransformHandle = transformComp.bufferHandle;
+			//Send pushconstant per submesh
+			for (auto sm : modelDescComp.submeshes) {
+				ECSPushConstantData push{};
+				FillPushConstantData(push, sm, registry, entity);
 
-			if (!transformComp.useBuffer()) {
-				push.modelMatrix = transformComp.mat4(0);
-				push.normalMatrix = transformComp.normalMatrix(0);
+				push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
+				push.BufferedTransformHandle = transformComp.bufferHandle;
+
+				if (!transformComp.useBuffer()) {
+					push.modelMatrix = transformComp.mat4(0);
+					push.scale = glm::vec4{ transformComp.getWorldScale(0), 1.0 };
+				}
+
+				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+
+				if (modelDescComp.indexCount > 0) {
+					vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.count(), sm.firstIndex, 0, 0);
+				}
+				else {
+					vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.count(), sm.firstIndex, 0);
+				}
 			}
-
-			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, modelDescComp, 1);
 		}
 	}
 

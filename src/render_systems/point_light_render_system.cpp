@@ -20,8 +20,8 @@ namespace bagel {
 	{
 		// Copy all point light information into the globalubo point light information
 		int lightIndex = 0;
-		auto view = registry.view<TransformComponent, PointLightComponent>();
-		for (auto [entity, transformComp, pointLightComp] : view.each()) {
+		auto group = registry.group<>(entt::get<TransformComponent, PointLightComponent>);
+		for (auto [entity, transformComp, pointLightComp] : group.each()) {
 			auto rotateLight = glm::rotate(glm::mat4(1.0f), frameTime,{ 0.f,-1.f,0.f }); //axis of rotation
 			transformComp.setTranslation(rotateLight * (glm::vec4(transformComp.getTranslation(), 1.f)));
 			

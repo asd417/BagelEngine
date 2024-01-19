@@ -1,10 +1,10 @@
 #include "bagel_textures.hpp"
 #include "bagel_engine_swap_chain.hpp"
 #include "bagel_util.hpp"
+#include "bagel_imgui.hpp"
 
 // vulkan headers
 #include <vulkan/vulkan.h>
-
 #include <cassert>
 #include <iostream>
 #include <array>
@@ -13,6 +13,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_FAILURE_USERMSG
 #include "stb_image.h"
+
+#include "bagel_imgui.hpp"
+#define CONSOLE ConsoleApp::Instance()
 
 #define GLOBAL_DESCRIPTOR_COUNT 1000
 
@@ -297,19 +300,26 @@ namespace bagel {
 	void TextureComponentBuilder::buildComponent(const char* filePath, VkFormat imageFormat)
 	{
 		assert(targetComponent != nullptr && "No targetComponent set for TextureComponentBuilder");
-		targetComponent->textureName = filePath;
+		assert(targetComponent->textureCount < TextureComponent::MAX_TEXTURE_COUNT && "targetComponent has reached MAX_TEXTURE_COUNT");
+		targetComponent->textureName[targetComponent->textureCount] = std::string(filePath);
+		
 		uint32_t storedIndex = descriptorManager.searchTextureName(filePath);
 		bool designatedIndex = false;
 		if (storedIndex != std::numeric_limits<uint32_t>::max())
 		{
+			char buff[256];
 			if (!descriptorManager.checkMissingTexture(storedIndex))
 			{
-				std::cout << filePath << " Texture already bound\n";
-				targetComponent->textureHandle = storedIndex;
+				
+				sprintf(buff, "Texture %s is already bound", filePath);
+				CONSOLE->Log("TextureComponentBuilder::buildComponent", buff);
+				targetComponent->textureHandle[targetComponent->textureCount] = storedIndex;
 				return;
 			}
-			std::cout << filePath << " Texture is bound but considered missing\n";
-			std::cout << "Overriding texture " << filePath << "...\n";
+			sprintf(buff, "Texture %s is bound but marked missing", filePath);
+			CONSOLE->Log("TextureComponentBuilder::buildComponent", buff);
+			sprintf(buff, "Overriding Texture %s", filePath);
+			CONSOLE->Log("TextureComponentBuilder::buildComponent", buff);
 			designatedIndex = true;
 		}
 		// Staging Buffer is created here
@@ -348,7 +358,7 @@ namespace bagel {
 		generateImageViewCreateInfo(imageFormat, image);
 		VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageViewCreateInfo, nullptr, &imageView));
 
-		targetComponent->textureHandle = descriptorManager.storeTexture(
+		targetComponent->textureHandle[targetComponent->textureCount] = descriptorManager.storeTexture(
 			{ sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, 
 			memory, 
 			image, 
@@ -358,6 +368,7 @@ namespace bagel {
 
 		delete stagingBuffer;
 		buffCpyRegions.clear();
+		targetComponent->textureCount += 1;
 	}
 
 	void TextureComponentBuilder::loadSTBImageInStagingBuffer(const char* filePath, VkFormat format)

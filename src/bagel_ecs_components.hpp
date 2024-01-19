@@ -11,6 +11,7 @@
 #include "bagel_engine_device.hpp"
 #include "bagel_descriptors.hpp"
 
+
 #include "entt.hpp"
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/PhysicsSystem.h>
@@ -23,6 +24,7 @@
 
 #define MAX_TRANSFORM_PER_ENT 1000
 #define COLLIDER_PER_ENT 32
+
 
 namespace bagel {
 	struct DataBufferComponent {
@@ -40,22 +42,19 @@ namespace bagel {
 		TransformComponent(float x, float y, float z) { translation = { x,y,z }; }
 		TransformComponent(glm::vec4 pos) { translation = glm::vec3(pos); }
 		glm::mat4	mat4();
-		glm::mat4	mat4Scaled(glm::vec3 scale);
 		glm::mat3	normalMatrix();
-
-		glm::vec3	getTranslation() const;
-		void		setTranslation(const glm::vec3& _translation);
+		glm::vec3	getTranslation() const { return translation; }
+		void		setTranslation(const glm::vec3& _translation) { translation = _translation; }
 		glm::vec3	getScale() const { return scale; }
-		void		setScale(const glm::vec3& _scale);
+		void		setScale(const glm::vec3& _scale) { scale = _scale; }
 		glm::vec3	getRotation() const { return rotation; }
-		void		setRotation(const glm::vec3& _rotation);
-
-		glm::vec3	getLocalTranslation() const;
-		void		setLocalTranslation(const glm::vec3& _translation);
+		void		setRotation(const glm::vec3& _rotation) { rotation = _rotation; }
+		glm::vec3	getLocalTranslation() const { return localTranslation; }
+		void		setLocalTranslation(const glm::vec3& _translation) { localTranslation = _translation; }
 		glm::vec3	getLocalScale() const { return localScale; }
-		void		setLocalScale(const glm::vec3& _scale);
+		void		setLocalScale(const glm::vec3& _scale){ localScale = _scale; }
 		glm::vec3	getLocalRotation() const { return localRotation; }
-		void		setLocalRotation(const glm::vec3& _rotation);
+		void		setLocalRotation(const glm::vec3& _rotation) { localRotation = _rotation; }
 
 		glm::vec3	getWorldTranslation() const { return translation + localTranslation; };
 		glm::vec3	getWorldScale() const { return { scale.x * localScale.x, scale.y * localScale.y, scale.z * localScale.z}; };
@@ -75,9 +74,12 @@ namespace bagel {
 	struct TransformArrayComponent {
 		struct TransformBufferUnit {
 			glm::mat4 modelMatrix{ 1.0f };
-			glm::mat4 normalMatrix{ 1.0f };
+			glm::vec4 scale{ 1.0f };
 		};
 		//TransformComponent will by default hold 1 transform value
+
+		//Used to track the number of elements present
+		//Also where new data will be placed, overriding existing data
 		uint32_t maxIndex = 1;
 		glm::mat4 mat4(uint32_t index = 0);
 		glm::mat3 normalMatrix(uint32_t index = 0);
@@ -91,17 +93,7 @@ namespace bagel {
 		TransformArrayComponent(glm::vec4& loc) { resetTransform(); translation[0] = glm::vec3(loc);}
 		bool useBuffer() const { return usingBuffer; }
 
-		void addTransform(glm::vec3 _translation, glm::vec3 _scale = { -0.1f,-0.1f,-0.1f }, glm::vec3 _rotation = { 0.f,0.f,0.f })
-		{
-			if (maxIndex < MAX_TRANSFORM_PER_ENT) {
-				_translation.y *= -1;
-				translation[maxIndex] = _translation;
-				scale[maxIndex] = _scale;
-				rotation[maxIndex] = _rotation;
-				maxIndex++;
-			}
-			else std::cout << "Transform Array Full. MAX_TRANSFORM_PER_ENT: " << MAX_TRANSFORM_PER_ENT << "\n";
-		}
+		void addTransform(glm::vec3 _translation, glm::vec3 _scale = { -0.1f,-0.1f,-0.1f }, glm::vec3 _rotation = { 0.f,0.f,0.f });
 		void setTransform(uint32_t index, glm::vec3 _translation, glm::vec3 _scale = { -0.1f,-0.1f,-0.1f }, glm::vec3 _rotation = { 0.f,0.f,0.f })
 		{
 			if (index < MAX_TRANSFORM_PER_ENT) {
@@ -114,19 +106,45 @@ namespace bagel {
 		}
 		void resetTransform() {
 			translation.fill({ 0.f,0.f,0.f });
-			scale.fill({ -0.1f,-0.1f,-0.1f });
+			scale.fill({ 0.1f, 0.1f, 0.1f });
 			rotation.fill({ 0.f,0.f,0.f });
+			localTranslation.fill({ 0.f,0.f,0.f });
+			localScale.fill({ 1.0f,1.0f,1.0f });
+			localRotation.fill({ 0.f,0.f,0.f });
 			maxIndex = 1;
 		}
 		void removeLastNTransform(uint32_t n = 1) {
 			maxIndex = n > maxIndex ? 0 : maxIndex - n;
 		}
 		void ToBufferComponent(DataBufferComponent& bufferComponent);
+		uint32_t count() const { return maxIndex; }
+
+		glm::vec3	getTranslation(uint32_t i) const { return translation[i]; };
+		void		setTranslation(uint32_t i, const glm::vec3& _translation) { translation[i] = _translation; };
+		glm::vec3	getScale(uint32_t i) const { return scale[i]; }
+		void		setScale(uint32_t i, const glm::vec3& _scale) { scale[i] = _scale; };
+		glm::vec3	getRotation(uint32_t i) const { return rotation[i]; }
+		void		setRotation(uint32_t i, const glm::vec3& _rotation) { rotation[i] = _rotation; };
+
+		glm::vec3	getLocalTranslation(uint32_t i) const { return localTranslation[i]; };
+		void		setLocalTranslation(uint32_t i, const glm::vec3& _translation) { localTranslation[i] = _translation; };
+		glm::vec3	getLocalScale(uint32_t i) const { return localScale[i]; }
+		void		setLocalScale(uint32_t i, const glm::vec3& _scale) { localScale[i] = _scale; };
+		glm::vec3	getLocalRotation(uint32_t i) const { return localRotation[i]; }
+		void		setLocalRotation(uint32_t i, const glm::vec3& _rotation) { localRotation[i] = _rotation; };
+
+		glm::vec3	getWorldTranslation(uint32_t i) const { return translation[i] + localTranslation[i]; };
+		glm::vec3	getWorldScale(uint32_t i) const { return { scale[i].x * localScale[i].x, scale[i].y * localScale[i].y, scale[i].z * localScale[i].z}; };
+		glm::vec3	getWorldRotation(uint32_t i) const { return rotation[i] + localRotation[i]; };
 
 	private:
 		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> translation;
 		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> scale;
 		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> rotation;
+
+		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> localTranslation;
+		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> localScale;
+		std::array<glm::vec3, MAX_TRANSFORM_PER_ENT> localRotation;
 	};
 
 	struct TransformHierachyComponent {
@@ -140,40 +158,124 @@ namespace bagel {
 		float radius = 1.0f;
 	};
 
-	struct ModelDescriptionComponent {
-		enum TextureCompositeFlag {
-			DIFFUSE =	0b0000'0001,
-			EMISSION =	0b0000'0010,
-			NORMAL =	0b0000'0100,
-			ROUGHMETAL= 0b0000'1000
-		};
-		std::string modelName = "";
-		uint32_t vertexCount = 0;
-		uint32_t indexCount = 0;
-		uint8_t textureMapFlag;
-	};
 
-	struct WireframeComponent {
-		std::string modelName = "";
-		uint32_t vertexCount = 0;
-		uint32_t indexCount = 0;
-	};
-
+	//Do you realistically need more than 5 textures per model?
 	struct TextureComponent {
 		/// <summary>
 		/// Since descriptors are handled by descriptor manager, rendering only requires texture handle.
 		/// This allows component to be as compact as possible
 		/// </summary>
-		std::string textureName = "";
-		uint32_t    width, height;
-		uint32_t    mip_levels;
-		uint32_t	textureHandle;
+		static constexpr uint32_t MAX_TEXTURE_COUNT = 5;
+		std::string textureName[MAX_TEXTURE_COUNT] = { "" };
+		uint32_t    width[MAX_TEXTURE_COUNT] = { 0 };
+		uint32_t	height[MAX_TEXTURE_COUNT] = { 0 };
+		uint32_t    mip_levels[MAX_TEXTURE_COUNT] = { 0 };
+		uint32_t	textureHandle[MAX_TEXTURE_COUNT] = { 0 };
+		uint32_t	textureCount = 0;
 	};
 
 	struct DiffuseTextureComponent : TextureComponent {};
 	struct EmissionTextureComponent : TextureComponent {};
 	struct NormalTextureComponent : TextureComponent {};
 	struct RoughnessMetalTextureComponent : TextureComponent {};
+
+	struct ModelComponent {
+		//Describes what composes the material of this submes
+		enum TextureCompositeFlag {
+			DIFFUSE = 1,
+			EMISSION = 2,
+			NORMAL = 4,
+			ROUGHMETAL = 8
+		};
+		struct Submesh {
+			//primitives in gltf terms
+			uint32_t firstIndex;
+			uint32_t indexCount;
+			uint32_t materialIndex;
+
+			uint32_t diffuseTextureHandle;
+			uint32_t emissionTextureHandle;
+			uint32_t normalTextureHandle;
+			uint32_t roughmetalTextureHandle;
+			// Stores flags to determine which textures are present
+			uint32_t textureMapFlag;
+
+			glm::vec4 roughmetalmultiplier{ 1.0f };
+		};
+		std::string modelName = "";
+		std::vector<Submesh> submeshes{};
+
+		VkBuffer vertexBuffer;
+		VkBuffer indexBuffer;
+		VkDeviceMemory vertexMemory;
+		VkDeviceMemory indexMemory;
+
+		uint32_t indexCount;
+		uint32_t vertexCount;
+
+		ModelComponent* origin = nullptr;
+		~ModelComponent() {
+			if (origin == this || origin == nullptr) {
+				vkDestroyBuffer(BGLDevice::device(), vertexBuffer, nullptr);
+				vkDestroyBuffer(BGLDevice::device(), indexBuffer, nullptr);
+				vkFreeMemory(BGLDevice::device(), vertexMemory, nullptr);
+				vkFreeMemory(BGLDevice::device(), indexMemory, nullptr);
+			}
+		}
+		void setDiffuseTextureToSubmesh(uint32_t i, uint32_t handle) {
+			assert(i < submeshes.size() && "Submesh at index does not exist");
+			submeshes[i].diffuseTextureHandle = handle;
+			submeshes[i].textureMapFlag |= TextureCompositeFlag::DIFFUSE;
+		}
+		void setEmissionTextureToSubmesh(uint32_t i, uint32_t handle) {
+			assert(i < submeshes.size() && "Submesh at index does not exist");
+			submeshes[i].emissionTextureHandle = handle;
+			submeshes[i].textureMapFlag |= TextureCompositeFlag::EMISSION;
+		}
+		void setNormalTextureToSubmesh(uint32_t i, uint32_t handle) {
+			assert(i < submeshes.size() && "Submesh at index does not exist");
+			submeshes[i].normalTextureHandle = handle;
+			submeshes[i].textureMapFlag |= TextureCompositeFlag::NORMAL;
+		}
+		void setRoughMetalTextureToSubmesh(uint32_t i, uint32_t handle) {
+			assert(i < submeshes.size() && "Submesh at index does not exist");
+			submeshes[i].roughmetalTextureHandle = handle;
+			submeshes[i].textureMapFlag |= TextureCompositeFlag::ROUGHMETAL;
+		}
+		void setRoughMetalMultiplier(uint32_t i, glm::vec4 mult) {
+			assert(i < submeshes.size() && "Submesh at index does not exist");
+			submeshes[i].roughmetalmultiplier = mult;
+		}
+		void useDiffuseComponent(DiffuseTextureComponent& dfc);
+		void useEmissionComponent(EmissionTextureComponent& dfc);
+		void useNormalComponent(NormalTextureComponent& dfc);
+		void useRoughMetalComponent(RoughnessMetalTextureComponent& dfc);
+	};
+
+	struct TransparentModelComponent {
+		struct Submesh {
+			//primitives in gltf terms
+			VkBuffer vertexBuffer;
+			VkBuffer indexBuffer;
+
+			VkDeviceMemory vertexMemory;
+			VkDeviceMemory indexMemory;
+
+			uint32_t diffuseTextureHandle;
+			uint32_t emissionTextureHandle;
+			uint32_t normalTextureHandle;
+			uint32_t roughmetalTextureHandle;
+			// Stores flags to determine which textures are present
+			uint32_t textureMapFlag;
+		};
+		std::string modelName = "";
+		std::vector<Submesh> submeshes{};
+	};
+
+	struct WireframeComponent : ModelComponent {};
+	struct CollisionModelComponent : ModelComponent {
+		glm::vec3 collisionScale = { 1.0,1.0,1.0 };
+	};
 
 	//All physics related calculations are done inside jolt system. This component is a container for the pointeres to the bodies.
 	struct JoltPhysicsComponent {
@@ -194,15 +296,7 @@ namespace bagel {
 		MoveMode moveMode = MoveMode::PHYSICAL;
 	};
 
-	struct CollisionModelComponent {
-		std::string modelName = "";
-		uint32_t vertexCount = 0;
-		uint32_t indexCount = 0;
-		glm::vec3 collisionScale = { 1.0,1.0,1.0 };
-	};
-
 	struct InfoComponent {
 		bool a;
 	};
-	
 }

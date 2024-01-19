@@ -53,40 +53,6 @@ namespace bagel {
 			&push);
 	}
 
-	inline void BindAppropriateModelBuffer(
-		VkCommandBuffer& commandBuffer,
-		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager,
-		const BGLModelBufferManager::BufferHandlePair& handles,
-		WireframeComponent& comp,
-		uint32_t instanceCount)
-	{
-		if (comp.indexCount > 0) {
-			const VkBuffer& ibuffer = modelBufferManager->GetIndexBufferHandle(handles);
-			vkCmdBindIndexBuffer(commandBuffer, ibuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(commandBuffer, comp.indexCount, instanceCount, 0, 0, 0);
-		}
-		else {
-			vkCmdDraw(commandBuffer, comp.vertexCount, instanceCount, 0, 0);
-		}
-	}
-
-	inline void BindAppropriateModelBuffer(
-		VkCommandBuffer& commandBuffer,
-		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager,
-		const BGLModelBufferManager::BufferHandlePair& handles,
-		CollisionModelComponent& comp,
-		uint32_t instanceCount)
-	{
-		if (comp.indexCount > 0) {
-			const VkBuffer& ibuffer = modelBufferManager->GetIndexBufferHandle(handles);
-			vkCmdBindIndexBuffer(commandBuffer, ibuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(commandBuffer, comp.indexCount, instanceCount, 0, 0, 0);
-		}
-		else {
-			vkCmdDraw(commandBuffer, comp.vertexCount, instanceCount, 0, 0);
-		}
-	}
-
 	void pipelineConfigModifier(PipelineConfigInfo& pipelineConfig) {
 		pipelineConfig.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
 		pipelineConfig.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
@@ -98,12 +64,9 @@ namespace bagel {
 		VkRenderPass renderPass,
 		std::vector<VkDescriptorSetLayout> setLayouts,
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-		std::unique_ptr<BGLModelBufferManager> const& _modelBufferManager,
-		entt::registry& _registry,
-		ConsoleApp& consoleApp) :
+		entt::registry& _registry) :
 		BGLRenderSystem{ renderPass, setLayouts, sizeof(WireframePushConstantData) },
 		descriptorManager{ _descriptorManager },
-		modelBufferManager{ _modelBufferManager },
 		registry{ _registry }
 	{
 		//Add console commands here
@@ -125,57 +88,84 @@ namespace bagel {
 			0, nullptr);
 
 		VkDeviceSize offsets[] = { 0 };
-		auto transformCompView = registry.view<TransformComponent, WireframeComponent>();
+		auto transformCompView = registry.group<>(entt::get<TransformComponent, WireframeComponent>);
+
 		for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
-			//VkBuffer buffers[] = { modelDescComp.vertexBuffer };
-			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelDescComp.modelName);
-			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &vbuffer, offsets);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &modelDescComp.vertexBuffer, offsets);
+			if (modelDescComp.indexCount > 0) vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-			WireframePushConstantData push{};
+			//Send pushconstant per submesh
+			for (auto sm : modelDescComp.submeshes) {
+				WireframePushConstantData push{};
+				
+				push.UsesBufferedTransform = 0;
+				push.modelMatrix = transformComp.mat4();
+				push.scale = glm::vec4{ transformComp.getWorldScale(), 1.0 };
 
-			push.UsesBufferedTransform = 0;
-			push.modelMatrix = transformComp.mat4();
-			push.normalMatrix = transformComp.normalMatrix();
+				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 
-			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, modelDescComp, 1);
-		}
-
-		auto instancedRenderView = registry.view<TransformArrayComponent, WireframeComponent>();
-		for (auto [entity, transformComp, modelDescComp] : instancedRenderView.each()) {
-			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(modelDescComp.modelName);
-			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &vbuffer, offsets);
-
-			WireframePushConstantData push{};
-
-			push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
-			push.BufferedTransformHandle = transformComp.bufferHandle;
-
-			if (!transformComp.useBuffer()) {
-				push.modelMatrix = transformComp.mat4(0);
-				push.normalMatrix = transformComp.normalMatrix(0);
+				if (modelDescComp.indexCount > 0) {
+					vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, 1, sm.firstIndex, 0, 0);
+				}
+				else {
+					vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, sm.firstIndex, 0);
+				}
 			}
+		}
+		auto instancedRenderView = registry.group<>(entt::get<TransformArrayComponent, WireframeComponent>);
+		for (auto [entity, transformComp, modelDescComp] : instancedRenderView.each()) {
 
-			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, modelDescComp, 1);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &modelDescComp.vertexBuffer, offsets);
+			if (modelDescComp.indexCount > 0) vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+			//Send pushconstant per submesh
+			for (const auto& sm : modelDescComp.submeshes) {
+				WireframePushConstantData push{};
+
+				push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
+				push.BufferedTransformHandle = transformComp.bufferHandle;
+
+				if (!transformComp.useBuffer()) {
+					push.modelMatrix = transformComp.mat4(0);
+					push.scale = glm::vec4{ transformComp.getWorldScale(0), 1.0 };
+				}
+
+				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+
+				if (modelDescComp.indexCount > 0) {
+					vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.count(), sm.firstIndex, 0, 0);
+				}
+				else {
+					vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.count(), sm.firstIndex, 0);
+				}
+			}
 		}
 		if (!drawCollision) return;
 		auto collisionModelView = registry.view<TransformComponent, CollisionModelComponent>();
 		for (auto [entity, transformComp, collisionModelComp] : collisionModelView.each()) {
 			//VkBuffer buffers[] = { modelDescComp.vertexBuffer };
-			const BGLModelBufferManager::BufferHandlePair& handles = modelBufferManager->GetModelHandle(collisionModelComp.modelName);
-			const VkBuffer& vbuffer = modelBufferManager->GetVertexBufferHandle(handles);
+			const VkBuffer& vbuffer = collisionModelComp.vertexBuffer;
+			const VkBuffer& ibuffer = collisionModelComp.indexBuffer;
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &vbuffer, offsets);
+			if (collisionModelComp.indexCount > 0) vkCmdBindIndexBuffer(frameInfo.commandBuffer, collisionModelComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-			WireframePushConstantData push{};
-			push.UsesBufferedTransform = 0;
-			push.modelMatrix = transformComp.mat4Scaled(collisionModelComp.collisionScale);
-			push.normalMatrix = transformComp.normalMatrix();
+			//Send pushconstant per submesh
+			for (auto sm : collisionModelComp.submeshes) {
+				WireframePushConstantData push{};
 
-			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-			BindAppropriateModelBuffer(frameInfo.commandBuffer, modelBufferManager, handles, collisionModelComp, 1);
+				push.UsesBufferedTransform = 0;
+				push.modelMatrix = transformComp.mat4();
+				push.scale = glm::vec4{ collisionModelComp.collisionScale, 1.0 };
+
+				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+
+				if (collisionModelComp.indexCount > 0) {
+					vkCmdDrawIndexed(frameInfo.commandBuffer, collisionModelComp.indexCount, 1, sm.firstIndex, 0, 0);
+				}
+				else {
+					vkCmdDraw(frameInfo.commandBuffer, collisionModelComp.vertexCount, 1, sm.firstIndex, 0);
+				}
+			}
 		}
 	}
 }

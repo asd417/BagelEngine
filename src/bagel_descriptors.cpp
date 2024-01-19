@@ -40,7 +40,6 @@ namespace bagel {
         layoutBinding.descriptorCount = count;
         layoutBinding.stageFlags = stageFlags;
         bindings[binding] = layoutBinding;
-        std::cout << "Bound DescriptorSetLayout at index " << binding << " " << descriptorType << " " << count << "\n";
         return *this;
     }
 
@@ -69,7 +68,6 @@ namespace bagel {
         extended_info.pBindingFlags = &bindless_flags;
         descriptorSetLayoutInfo.pNext = &extended_info;
 
-        std::cout << "Creating DescriptorSetLayout with size " << descriptorSetLayoutInfo.bindingCount << "\n";
         if (vkCreateDescriptorSetLayout(
             BGLDevice::device(),
             &descriptorSetLayoutInfo,

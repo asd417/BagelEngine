@@ -28,6 +28,8 @@
 // If you want your code to compile using single or double precision write 0.0_r to get a Real value that compiles to double or float depending if JPH_DOUBLE_PRECISION is set or not.
 //using namespace JPH::literals;
 
+
+
 namespace bagel {
 
 	// Layer that objects can be in, determines which other objects it can collide with
@@ -98,11 +100,7 @@ namespace bagel {
 			return JPH::ValidateResult::AcceptAllContactsForThisBodyPair;
 		}
 
-		virtual void OnContactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2, const JPH::ContactManifold& inManifold, JPH::ContactSettings& ioSettings) override
-		{
-			std::cout << "Contact on " << inManifold.GetWorldSpaceContactPointOn1(0) << "\n";
-			std::cout << "A contact was added" << std::endl;
-		}
+		virtual void OnContactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2, const JPH::ContactManifold& inManifold, JPH::ContactSettings& ioSettings) override;
 
 		virtual void OnContactPersisted(const JPH::Body& inBody1, const JPH::Body& inBody2, const JPH::ContactManifold& inManifold, JPH::ContactSettings& ioSettings) override
 		{
@@ -119,15 +117,9 @@ namespace bagel {
 	class MyBodyActivationListener : public JPH::BodyActivationListener
 	{
 	public:
-		virtual void OnBodyActivated(const JPH::BodyID& inBodyID, JPH::uint64 inBodyUserData) override
-		{
-			std::cout << "A body got activated" << std::endl;
-		}
+		virtual void OnBodyActivated(const JPH::BodyID& inBodyID, JPH::uint64 inBodyUserData) override;
 
-		virtual void OnBodyDeactivated(const JPH::BodyID& inBodyID, JPH::uint64 inBodyUserData) override
-		{
-			std::cout << "A body went to sleep" << std::endl;
-		}
+		virtual void OnBodyDeactivated(const JPH::BodyID& inBodyID, JPH::uint64 inBodyUserData) override;
 	};
 
 	/// Class that determines if an object layer can collide with a broadphase layer
@@ -220,7 +212,7 @@ namespace bagel {
 			JPH::ObjectLayer layer;
 		};
 
-		static void Initialize(BGLDevice& device, entt::registry& registry, const std::unique_ptr<BGLModelBufferManager>& mbm) {
+		static void Initialize(BGLDevice& device, entt::registry& registry) {
 			// Register allocation hook
 			JPH::RegisterDefaultAllocator();
 			// Install callbacks
@@ -233,7 +225,7 @@ namespace bagel {
 			// Register all Jolt physics types
 			JPH::RegisterTypes();
 
-			instance = new BGLJolt(device,registry,mbm);
+			instance = new BGLJolt(device,registry);
 		}
 		static BGLJolt* GetInstance() { 
 			if (instance == nullptr) throw std::exception("BGLJolt must be initialized with entt registry reference");
@@ -251,14 +243,13 @@ namespace bagel {
 		glm::vec3 GetGravity();
 		void SetGravity(glm::vec3 gravity);
 	private:
-		BGLJolt(BGLDevice& _bglDevice, entt::registry& _registry, const std::unique_ptr<BGLModelBufferManager>& _m);
+		BGLJolt(BGLDevice& _bglDevice, entt::registry& _registry);
 		~BGLJolt();
 
 		//Singleton Pattern
 		static BGLJolt* instance;
 		entt::registry& registry;
 		BGLDevice& bglDevice;
-		const std::unique_ptr<BGLModelBufferManager>& modelBufferManager;
 
 		// We need a job system that will execute physics jobs on multiple threads. Typically
 		// you would implement the JobSystem interface yourself and let Jolt Physics run on top
