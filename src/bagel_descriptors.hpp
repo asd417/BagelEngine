@@ -3,7 +3,8 @@
 #include "bagel_engine_device.hpp"
 #include "bagel_buffer.hpp"
 #include "bagel_engine_swap_chain.hpp"
-// std
+//#include "bagel_frame_info.hpp"
+
 #include <map>
 #include <memory>
 #include <unordered_map>
@@ -11,8 +12,9 @@
 #include <array>
 #include <iostream>
 
-namespace bagel {
+#define GLOBAL_UBO_COUNT 10
 
+namespace bagel {
     class BGLDescriptorSetLayout {
     public:
         class Builder {
@@ -128,9 +130,10 @@ namespace bagel {
         BGLBindlessDescriptorManager& operator=(const BGLBindlessDescriptorManager&) = delete;
 
         void createBindlessDescriptorSet(uint32_t descriptorCount);
-
-        void storeUBO(VkDescriptorBufferInfo bufferInfo);
+        //Since this engine is built with bindless design, it is critical to keep track of the ubo index. Therefore UBO storages are not in vectors
+        void storeUBO(VkDescriptorBufferInfo bufferInfo, uint32_t targetIndex);
         uint32_t storeBuffer(VkDescriptorBufferInfo bufferInfo, const char* name);
+
         //If useDesignatedHandle == true, write to the specified descriptor array element, overriding existing texture. 
         //Existing texture sampler, view, etc are all destroyed.
         uint32_t storeTexture(
@@ -154,6 +157,7 @@ namespace bagel {
 
         VkDescriptorSetLayout getDescriptorSetLayout() const { return bindlessSetLayout; }
         VkDescriptorSet getDescriptorSet(int i) const { return bindlessDescriptorSet[i]; }
+
     private:
         BGLDevice& bglDevice;
         BGLDescriptorPool& globalPool;
@@ -161,8 +165,10 @@ namespace bagel {
         //Never remove elements that is NOT the last element in these vectors.
         //Removing an element in the middle of these vectors will cause storeBuffer/storeTexture 
         // functions to write to descriptor index that is already being used by another undeleted buffer/image.
+        
         //It is valid to clear these vectors (for example when loading new scene) although in that case offscreen renderpass 
         // and its attachments (or other non-dynamically created resources) will have to be remade.
+        std::array<VkDescriptorBufferInfo, GLOBAL_UBO_COUNT> UBObuffers{};
         std::vector<VkDescriptorBufferInfo> buffers{};
         std::vector<TexturePackage> textures{};
 

@@ -28,11 +28,13 @@ namespace bagel {
 			VkRenderPass renderPass,
 			std::vector<VkDescriptorSetLayout> setLayouts,
 			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-			entt::registry& _registry);
+			entt::registry& _registry,
+			BGLDevice& device);
 
 		void renderEntities(FrameInfo& frameInfo);
 	private:
 		entt::registry& registry;
+		std::unique_ptr<BGLBuffer> uboBuffer;
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
 
 		bool drawCollision = true;

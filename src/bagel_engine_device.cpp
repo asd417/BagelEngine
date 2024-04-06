@@ -151,7 +151,8 @@ namespace bagel {
         }
 
         vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-        std::cout << "Using Physical Device: " << properties.deviceName << std::endl;
+        std::cout << "Using Physical Device: " << properties.deviceName << "\n";
+        std::cout << "Maximum Allowed UBO: " << properties.limits.maxDescriptorSetUniformBuffersDynamic << "\n";
     }
 
     void BGLDevice::createLogicalDevice() {

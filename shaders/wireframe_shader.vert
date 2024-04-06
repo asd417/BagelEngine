@@ -20,15 +20,19 @@ struct PointLight {
 	vec4 position; // ignore w
 	vec4 color; // w intensity
 };
-
 const int MAX_LIGHTS = 10; //Must match value in bagel_frame_info.hpp
+
 layout(set = 0, binding = 0) uniform GlobalUBO {
 	mat4 projectionMatrix;
 	mat4 viewMatrix;
 	mat4 inverseViewMatrix;
 	vec4 ambientLightColor;
+
 	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
 	uint numLights;
+
+// Line color for wireframe
+	vec4 lineColor;
 } ubo;
 
 struct ObjectData{
@@ -39,7 +43,7 @@ layout (set = 0, binding = 1) readonly buffer objTransform {
 	ObjectData objects[];
 } objTransformArray[];
 
-//layout (set = 0, binding = 2) uniform sampler2D GlobalUBOColor;
+layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
 
 layout(push_constant) uniform Push {
 	mat4 modelMatrix;

@@ -9,6 +9,16 @@ layout(location=2) in vec3 normal;
 layout(location=3) in vec3 tangent;
 layout(location=4) in vec3 bitangent;
 layout(location=5) in vec2 uv;
+layout(location=6) in uint in_albedoMap;
+layout(location=7) in uint in_normalMap;
+layout(location=8) in uint in_roughMap;
+layout(location=9) in uint in_metallicMap;
+layout(location=10) in uint in_specularMap;
+layout(location=11) in uint in_heightMap;
+layout(location=12) in uint in_opacityMap;
+layout(location=13) in uint in_aoMap;
+layout(location=14) in uint in_refractionMap;
+layout(location=15) in uint in_emissionMap;
 
 layout(location=0) out vec3 fragPosWorld;
 layout(location=1) out vec3 fragTangent;
@@ -16,6 +26,17 @@ layout(location=2) out vec3 fragBitangent;
 layout(location=3) out vec3 fragNormalWorld;
 layout(location=4) out vec2 fragUV;
 layout(location=5) out int isInstancedTransform;
+
+layout(location=6) out uint albedoMap;
+layout(location=7) out uint normalMap;
+layout(location=8) out uint roughMap;
+layout(location=9) out uint metallicMap;
+layout(location=10) out uint specularMap;
+layout(location=11) out uint heightMap;
+layout(location=12) out uint opacityMap;
+layout(location=13) out uint aoMap;
+layout(location=14) out uint refractionMap;
+layout(location=15) out uint emissionMap;
 
 struct PointLight {
 	vec4 position; // ignore w
@@ -28,8 +49,12 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
 	mat4 viewMatrix;
 	mat4 inverseViewMatrix;
 	vec4 ambientLightColor;
+
 	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
 	uint numLights;
+
+// Line color for wireframe
+	vec4 lineColor;
 } ubo;
 
 struct ObjectData{
@@ -45,13 +70,6 @@ layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
 layout(push_constant) uniform Push {
 	mat4 modelMatrix;
 	vec4 scale;
-	vec4 roughMetalMultiplier;
-
-	uint diffuseTextureHandle; 		//1
-	uint emissionTextureHandle; 	//2 Emission texture uses alpha channel as brightness. 1.0f = brightest
-	uint normalTextureHandle;		//4
-	uint roughmetalTextureHandle;	//8
-	uint textureMapFlag;
 
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
@@ -92,13 +110,26 @@ void main() {
 	
 	//Reorthogonize tangent vector
 	fragTangent = normalize(fragTangent - dot(fragTangent, fragNormalWorld) * fragNormalWorld);
-	fragBitangent = cross(fragNormalWorld,fragTangent);
+	fragBitangent = cross(fragTangent, fragNormalWorld);
+	//fragBitangent = cross(fragNormalWorld,fragTangent);
 	//fragBitangent = 	normalize(mat3(normalMatrix) * bitangent);
 	isInstancedTransform = 0;
 
 	fragPosWorld = positionWorld.xyz;
 	fragUV = uv;
 	
+
 	//orthogonal matrices (each axis is a perpendicular unit vector) is that the transpose of an orthogonal matrix equals its inverse.
 	//Use it to move light pos and view dir to tangent space
+
+	albedoMap = in_albedoMap;
+	normalMap = in_normalMap;
+	roughMap = in_roughMap;
+	metallicMap = in_metallicMap;
+	specularMap = in_specularMap;
+	heightMap = in_heightMap;
+	opacityMap = in_opacityMap;
+	aoMap = in_aoMap;
+	refractionMap = in_refractionMap;
+	emissionMap = in_emissionMap;
 }

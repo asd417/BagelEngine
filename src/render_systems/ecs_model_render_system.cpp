@@ -53,14 +53,6 @@ namespace bagel {
 			&push);
 	}
 
-	inline void FillPushConstantData(ECSPushConstantData& push, ModelComponent::Submesh sm, const entt::registry& r, const entt::entity& ent) {
-		if (sm.textureMapFlag & ModelComponent::TextureCompositeFlag::DIFFUSE)		push.diffuseTextureHandle =		sm.diffuseTextureHandle;
-		if (sm.textureMapFlag & ModelComponent::TextureCompositeFlag::EMISSION)	push.emissionTextureHandle =	sm.emissionTextureHandle;
-		if (sm.textureMapFlag & ModelComponent::TextureCompositeFlag::NORMAL)		push.normalTextureHandle =		sm.normalTextureHandle;
-		if (sm.textureMapFlag & ModelComponent::TextureCompositeFlag::ROUGHMETAL)	push.roughmetalTextureHandle =	sm.roughmetalTextureHandle;
-		push.textureMapFlag = sm.textureMapFlag;
-	}
-
 	ModelRenderSystem::ModelRenderSystem(
 		VkRenderPass renderPass,
 		std::vector<VkDescriptorSetLayout> setLayouts,
@@ -95,14 +87,12 @@ namespace bagel {
 			if (modelDescComp.indexCount > 0) vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			//Send pushconstant per submesh
-			for (const auto& sm : modelDescComp.submeshes) {
+			for (const ModelComponent::Submesh& sm : modelDescComp.submeshes) {
 				ECSPushConstantData push{};
-				FillPushConstantData(push, sm, registry, entity);
 
 				push.UsesBufferedTransform = 0;
 				push.modelMatrix = transformComp.mat4();
 				push.scale = glm::vec4{ transformComp.getWorldScale(), 1.0 };
-				push.roughmetalmultiplier = sm.roughmetalmultiplier;
 
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 
@@ -122,9 +112,8 @@ namespace bagel {
 			if (modelDescComp.indexCount > 0) vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			//Send pushconstant per submesh
-			for (auto sm : modelDescComp.submeshes) {
+			for (const ModelComponent::Submesh &sm : modelDescComp.submeshes) {
 				ECSPushConstantData push{};
-				FillPushConstantData(push, sm, registry, entity);
 
 				push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
 				push.BufferedTransformHandle = transformComp.bufferHandle;

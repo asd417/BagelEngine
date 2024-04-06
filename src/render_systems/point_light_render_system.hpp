@@ -12,7 +12,7 @@
 
 #include <memory>
 #include <vector>
-#define POINTLIGHT_ORIGINAL
+//#define POINTLIGHT_ORIGINAL
 namespace bagel {
 
 	struct PointLightPushConstant {
@@ -54,17 +54,13 @@ namespace bagel {
 			VkRenderPass renderPass,
 			std::vector<VkDescriptorSetLayout> setLayouts,
 			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-			entt::registry& _registry) :
-			BGLRenderSystem{ renderPass, setLayouts, sizeof(PointLightPushConstant) },
-			descriptorManager{ _descriptorManager },
-			registry{ _registry }
-		{
-			createPipeline(renderPass, "/shaders/point_light.vert.spv", "/shaders/point_light.frag.spv", nullptr);
-		}
+			entt::registry& _registry,
+			BGLDevice& bglDevice);
 
 		void update(GlobalUBO& ubo, float frameTime);
 		void render(FrameInfo& frameInfo);
 	private:
+		std::unique_ptr<BGLBuffer> uboBuffer;
 		entt::registry& registry;
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
 	};

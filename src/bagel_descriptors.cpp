@@ -265,7 +265,7 @@ namespace bagel {
         VkDescriptorSetLayoutBinding uboBinding{};
         uboBinding.binding = 0;
         uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboBinding.descriptorCount = 1;
+        uboBinding.descriptorCount = descriptorCount;
         uboBinding.stageFlags = VK_SHADER_STAGE_ALL;
         VkDescriptorSetLayoutBinding storageBinding{};
         storageBinding.binding = 1;
@@ -296,28 +296,30 @@ namespace bagel {
         createInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
         createInfo.pNext = &bindingFlags;
 
-
         // Create layout
         VK_CHECK(vkCreateDescriptorSetLayout(BGLDevice::device(), &createInfo, nullptr, &bindlessSetLayout));
-        // Create Descriptor Sets with the layout, one per swapchain
+
+        //Create descriptor set for all swapchains
         for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
             globalPool.allocateDescriptor(bindlessSetLayout, bindlessDescriptorSet[i]);
         }
     }
 
-    void BGLBindlessDescriptorManager::storeUBO(VkDescriptorBufferInfo bufferInfo)
+    void BGLBindlessDescriptorManager::storeUBO(VkDescriptorBufferInfo bufferInfo, uint32_t targetIndex)
     {
+        UBObuffers[targetIndex] = bufferInfo;
+
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        write.dstBinding = BINDINGS::UNIFORM;
+
         // Write one buffer that is being added
         write.descriptorCount = 1;
-        // The array element that we are going to write to
-        // is the index, which we refer to as our handles
-        write.dstArrayElement = 0;
         write.pBufferInfo = &bufferInfo;
+        write.dstArrayElement = targetIndex;
 
-        write.dstBinding = BINDINGS::UNIFORM;
-        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        //Create descriptor set for all swapchains
         for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
             write.dstSet = bindlessDescriptorSet[i];
             vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
@@ -339,6 +341,7 @@ namespace bagel {
         write.pBufferInfo = &bufferInfo;
         write.dstArrayElement = newHandle;
 
+        //Create descriptor set for all swapchains
         for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
             write.dstSet = bindlessDescriptorSet[i];
             vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
@@ -361,6 +364,7 @@ namespace bagel {
         size_t handle;
         if (useDesignatedHandle) {
             handle = _handle;
+            //Destroy existing data at the _handle index
             vkDestroyImageView(BGLDevice::device(), textures[handle].imageInfo.imageView, nullptr);
             vkDestroySampler(BGLDevice::device(), textures[handle].imageInfo.sampler, nullptr);
             vkDestroyImage(BGLDevice::device(), textures[handle].image, nullptr);

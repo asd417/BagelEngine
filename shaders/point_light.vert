@@ -31,10 +31,24 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
 	mat4 viewMatrix;
 	mat4 inverseViewMatrix;
 	vec4 ambientLightColor;
+
 	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
 	uint numLights;
+
+// Line color for wireframe
+	vec4 lineColor;
 } ubo;
-//layout (binding = 1) uniform sampler2D samplerColor;
+
+struct ObjectData{
+	mat4 modelMatrix;
+	vec4 scale;
+};
+
+layout (set = 0, binding = 1) readonly buffer objTransform {
+	ObjectData objects[];
+} objTransformArray[];
+
+layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
 
 //This is obviously inefficient because I can just use w of position in PointLight as a radius but for the sake of demonstrating pushcontant
 layout(push_constant) uniform Push {

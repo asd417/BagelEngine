@@ -68,7 +68,7 @@ namespace bagel {
 	{
 		globalPool = BGLDescriptorPool::Builder(bglDevice)
 			.setMaxSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, GLOBAL_UBO_COUNT) //UBO count is decided in bagel_descriptors.hpp GLOBAL_UBO_COUNT
 			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, GLOBAL_DESCRIPTOR_COUNT)
 			.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, GLOBAL_DESCRIPTOR_COUNT)
 			.build();
@@ -109,7 +109,7 @@ namespace bagel {
 		uboBuffers->map();
 
 		VkDescriptorBufferInfo bufferInfo = uboBuffers->descriptorInfo();
-		descriptorManager->storeUBO(bufferInfo);
+		descriptorManager->storeUBO(bufferInfo, 0);
 		
 		bglRenderer.setUpOffScreenRenderPass(WIDTH / 2, HEIGHT / 2);
 
@@ -131,25 +131,28 @@ namespace bagel {
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			registry};
+			registry,
+			bglDevice}; //Wireframe render system needs BGLDevice reference because it creates WireframeUBO
 
 		PointLightSystem pointLightSystem{
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			registry };
+			registry,
+			bglDevice };
 
 		ModelRenderSystem modelRenderSystemOffscreen{
 			bglRenderer.getOffscreenRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			registry};
+			registry };
 
 		PointLightSystem pointLightSystemOffscreen{
 			bglRenderer.getOffscreenRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			registry };
+			registry,
+			bglDevice };
 
 		BGLCamera camera{};
 
@@ -178,7 +181,7 @@ namespace bagel {
 		BGLJolt::GetInstance()->SetGravity({0,-0.0f,0});
 		BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
 		BGLJolt::GetInstance()->SetComponentActivityAll(true);
-		entt::entity monitor = createMonitor();
+		//entt::entity monitor = createMonitor();
 		createChineseDragon();
 		createLights();
 		//------------------------------------------------------
@@ -203,49 +206,10 @@ namespace bagel {
 			camera.setViewYXZ(viewerObject.transform.getTranslation(), viewerObject.transform.getRotation());
 			float aspect = bglRenderer.getAspectRatio();
 			camera.setPerspectiveProjection(glm::radians(100.0f), aspect, 0.1f, 300.0f);
-			/*{
-				auto& tfc = registry.get<TransformComponent>(moved);
-				glm::vec3 posKinematic = tfc.getTranslation();
-				static bool moveForward = true;
-				if (posKinematic.y < 0.0f) {
-					moveForward = true;
-				}
-				if (posKinematic.y > 6.0f) {
-					moveForward = false;
-				}
-				if (moveForward) {
-					posKinematic.y += 1.0f * frameTime;
-				}
-				else {
-					posKinematic.y -= 1.0f * frameTime;
-				}
-				tfc.setTranslation(posKinematic);
-			}
-			{
-				auto& tfc2 = registry.get<TransformComponent>(pointerAxis);
-				glm::vec3 pos = tfc2.getWorldTranslation();
 
-				static bool moveForward = false;
-				if (pos.x < 0.0f) {
-					moveForward = true;
-				}
-				if (pos.x > 1.0f) {
-					moveForward = false;
-				}
-				if (moveForward) {
-					pos.x += 0.1f * frameTime;
-				}
-				else {
-					pos.x -= 0.1f * frameTime;
-				}
-				glm::vec3 target{ 1.0f, 0.5f, 2.0f };
-				glm::vec3 targetRot{ 1.0f, 2.0f, 3.0f };
-				tfc2.setRotation(GetLookVector(pos, target, {0,1,0}));
-				tfc2.setTranslation(pos);
-			}*/
-			auto& monitorTransform = registry.get<TransformComponent>(monitor);
-			glm::vec3 pos = monitorTransform.getWorldTranslation();
-			monitorTransform.setRotation(GetLookVector(pos, camera.getPosition(), {0,1,0}));
+			//auto& monitorTransform = registry.get<TransformComponent>(monitor);
+			//glm::vec3 pos = monitorTransform.getWorldTranslation();
+			//monitorTransform.setRotation(GetLookVector(pos, camera.getPosition(), {0,1,0}));
 			// -----------------------------------------------------------------------------------------------------------
 			
 			//Hierarchy Update
@@ -292,6 +256,7 @@ namespace bagel {
 				};
 
 				//Apply UBO changes to buffer
+				
 				uboBuffers->writeToBuffer(&ubo);
 				uboBuffers->flush();
 				
@@ -312,13 +277,11 @@ namespace bagel {
 
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				bglRenderer.endPrimaryCMD();
-
 			}
 			auto stop = std::chrono::high_resolution_clock::now();
 			prevFrameTime = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
 			if(showFPS) std::cout << (long long)1000000/ prevFrameTime.count() << "fps\n";
-
 		}
 		//CPU will block until all gpu operations are complete
 #ifdef SYNC_DEVICEWAITIDLE
@@ -535,7 +498,7 @@ namespace bagel {
 		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
 		
 		entt::entity entity = registry.create();
-		ModelComponent& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/flatfaces.obj", ComponentBuildMode::FACES);
+		
 		auto& tfc = registry.emplace<TransformComponent>(entity);
 		tfc.setScale({ 2.0f,2.0f,2.0f });
 		//tfc.setScale({ 0.2f,0.2f,0.2f });
@@ -551,10 +514,19 @@ namespace bagel {
 		textureBuilder->setBuildTarget(&rc);
 		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Roughness.png");
 
-		model.useDiffuseComponent(dc);
-		model.useNormalComponent(nc);
-		model.useRoughMetalComponent(rc);
-		model.setRoughMetalMultiplier(0, { 1.0f,0.0f,0.0f,0.0f });
+		Material material{};
+		material.name = "New Material";
+		material.albedoMap = dc.textureHandle[0];
+		material.normalMap = nc.textureHandle[0];
+		material.roughMap = rc.textureHandle[0];
+
+		std::vector<Material> materials = { material };
+		
+		modelBuilder->saveNormalData();
+		modelBuilder->configureModelMaterialSet(&materials);
+		ModelComponent& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/cylinder.obj", ComponentBuildMode::FACES);
+		WireframeComponent& normals = modelBuilder->getNormalDataAsWireframe(entity);
+
 		delete modelBuilder;
 		delete textureBuilder;
 	}

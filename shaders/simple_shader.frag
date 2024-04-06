@@ -9,24 +9,40 @@ layout(location=3) in vec3 fragNormalWorld;
 layout(location=4) in vec2 fragUV;
 layout(location=5) flat in int isInstancedTransform;
 
+layout(location=6) flat in uint albedoMap;
+layout(location=7) flat in uint normalMap;
+layout(location=8) flat in uint roughMap;
+layout(location=9) flat in uint metallicMap;
+layout(location=10) flat in uint specularMap;
+layout(location=11) flat in uint heightMap;
+layout(location=12) flat in uint opacityMap;
+layout(location=13) flat in uint aoMap;
+layout(location=14) flat in uint refractionMap;
+layout(location=15) flat in uint emissionMap;
+
 layout(location=0) out vec4 outColor;
+
+
+const float gamma = 2.2;
+const float PI = 3.14159265359;
 
 struct PointLight {
 	vec4 position; // ignore w
 	vec4 color; // w intensity
 };
 
-const float gamma = 2.2;
-const float PI = 3.14159265359;
 const int MAX_LIGHTS = 10; //Must match value in bagel_frame_info.hpp
-
 layout(set = 0, binding = 0) uniform GlobalUBO {
 	mat4 projectionMatrix;
 	mat4 viewMatrix;
 	mat4 inverseViewMatrix;
 	vec4 ambientLightColor;
+
 	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
-	int numLights;
+	uint numLights;
+
+// Line color for wireframe
+	vec4 lineColor;
 } ubo;
 
 struct ObjectData{
@@ -44,13 +60,6 @@ layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
 layout(push_constant) uniform Push {
 	mat4 modelMatrix;
 	vec4 scale;
-	vec4 roughMetalMultiplier;
-
-	uint diffuseTextureHandle; 		//1
-	uint emissionTextureHandle; 	//2 Emission texture uses alpha channel as brightness. 1.0f = brightest
-	uint normalTextureHandle;		//4
-	uint roughmetalTextureHandle;	//8
-	uint textureMapFlag;
 
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
@@ -115,22 +124,27 @@ void main(){
 	vec3 normal = normalize(fragNormalWorld); //fragNormalWorld is default, using vertex normal interpolated across face
 	float metallic = 1.0f; //fully metallic by default. (for specular and normal map inspection) Uses X value
 	float roughness = 0.5f; //Half roughness by default. Uses Y value
+
+	//Create new axis with tangent, bitangent, normal
 	mat3 TBN = mat3(fragTangent,fragBitangent,fragNormalWorld);
-	if((push.textureMapFlag & 1) != 0){
-		diffuse = texture(samplerColor[push.diffuseTextureHandle], vec2(fragUV.x,fragUV.y)).xyz;
+	if(albedoMap != 0){
+		diffuse = texture(samplerColor[albedoMap], vec2(fragUV.x,fragUV.y)).xyz;
 	}
-	if((push.textureMapFlag & 2) != 0){
-		emission = texture(samplerColor[push.emissionTextureHandle], vec2(fragUV.x,fragUV.y));
+	if(emissionMap != 0){
+		emission = texture(samplerColor[emissionMap], vec2(fragUV.x,fragUV.y));
 	}
-	if((push.textureMapFlag & 4) != 0){
-		normal = texture(samplerColor[push.normalTextureHandle], vec2(fragUV.x,fragUV.y)).rgb; //0~1 range
+	if(normalMap != 0){
+		normal = texture(samplerColor[normalMap], vec2(fragUV.x,fragUV.y)).rgb; //0~1 range
 		normal = normal * 2.0 - 1.0;   //-1.0~1.0 range
 		normal = normalize(TBN * normal); //move the normal to world space
 	}
-	if((push.textureMapFlag & 8) != 0){
-		vec3 roughmetal = texture(samplerColor[push.roughmetalTextureHandle], vec2(fragUV.x,fragUV.y)).xyz;
-		roughness = clamp(roughmetal.x * push.roughMetalMultiplier.x,0.0,1.0);
-		metallic = clamp(roughmetal.y * push.roughMetalMultiplier.y,0.0,1.0);
+	if(roughMap != 0){
+		vec3 roughness_v = texture(samplerColor[roughMap], vec2(fragUV.x,fragUV.y)).xyz;
+		roughness = clamp(roughness_v.x,0.0,1.0);
+	}
+	if(metallicMap != 0){
+		vec3 metallic_v = texture(samplerColor[metallicMap], vec2(fragUV.x,fragUV.y)).xyz;
+		metallic = clamp(metallic_v.x,0.0,1.0);
 	}
 
 	vec3 albedo = diffuse;

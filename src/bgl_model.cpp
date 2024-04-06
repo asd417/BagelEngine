@@ -10,7 +10,7 @@
 #include <map>
 
 #include "bagel_engine_device.hpp"
-#include "bagel_util.hpp"
+
 //lib
 
 
@@ -23,8 +23,8 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
-// There are hard-coded behaviors:
-// WireframeComponentBuilder::buildComponent("grid") : generates a 50x50 square grid
+#include "bagel_imgui.hpp"
+#define CONSOLE ConsoleApp::Instance()
 
 namespace bagel {
 
@@ -53,7 +53,16 @@ namespace bagel {
 		attributeDescriptions.push_back({ 3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex,tangent) });
 		attributeDescriptions.push_back({ 4, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex,bitangent) });
 		attributeDescriptions.push_back({ 5, 0, VK_FORMAT_R32G32_SFLOAT,	offsetof(Vertex,uv) }); 
-		
+		attributeDescriptions.push_back({ 6, 0, VK_FORMAT_R32_UINT,			offsetof(Vertex,albedoMap) });
+		attributeDescriptions.push_back({ 7, 0, VK_FORMAT_R32_UINT,			offsetof(Vertex,normalMap) });
+		attributeDescriptions.push_back({ 8, 0, VK_FORMAT_R32_UINT,			offsetof(Vertex,roughMap) });
+		attributeDescriptions.push_back({ 9, 0, VK_FORMAT_R32_UINT,			offsetof(Vertex,metallicMap) });
+		attributeDescriptions.push_back({ 10, 0, VK_FORMAT_R32_UINT,		offsetof(Vertex,specularMap) });
+		attributeDescriptions.push_back({ 11, 0, VK_FORMAT_R32_UINT,		offsetof(Vertex,heightMap) });
+		attributeDescriptions.push_back({ 12, 0, VK_FORMAT_R32_UINT,		offsetof(Vertex,opacityMap) });
+		attributeDescriptions.push_back({ 13, 0, VK_FORMAT_R32_UINT,		offsetof(Vertex,aoMap) });
+		attributeDescriptions.push_back({ 14, 0, VK_FORMAT_R32_UINT,		offsetof(Vertex,refractionMap) });
+		attributeDescriptions.push_back({ 15, 0, VK_FORMAT_R32_UINT,		offsetof(Vertex,emissionMap) });
 		//offsetof macro calculates the byte offset of color member in the Vertex struct
 
 		return attributeDescriptions;
@@ -71,6 +80,12 @@ namespace bagel {
 		bglDevice{_bglDevice},
 		registry{ _r }
 	{}
+
+	void ModelComponentBuilder::configureModelMaterialSet(std::vector<Material>* set)
+	{
+		if (p_materialSet == nullptr) p_materialSet = set;
+		else std::cout << "ModelComponentBuilder::configureModelMaterialSet() Could not configure material set, remove existing material set first.";
+	}
 
 	void ModelComponentBuilder::loadGLTFModel(const char* filename)
 	{
@@ -199,51 +214,135 @@ namespace bagel {
 		SubmeshInfo submesh{};
 
 		std::string fullPath = util::enginePath(filename);
-		tinyobj::attrib_t attrib;
+		std::string materialPath = util::enginePath("/models");
+		std::cout << "Material Path at " + materialPath + "\n";
+		tinyobj::ObjReaderConfig reader_config;
+		reader_config.mtl_search_path = materialPath; // Path to material files
+
+		tinyobj::ObjReader reader;
+
+		if (!reader.ParseFromFile(fullPath, reader_config)) {
+			if (!reader.Error().empty()) {
+				std::cerr << "TinyObjReader: " << reader.Error();
+			}
+			throw std::exception();
+		}
+
+		if (!reader.Warning().empty()) {
+			std::cout << "TinyObjReader: " << reader.Warning();
+		}
+
+		auto& attrib = reader.GetAttrib();
+		auto& shapes = reader.GetShapes();
+		auto& materials = reader.GetMaterials();
+
+		/*tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
-		std::string warn, error;
+		std::string warn, error;*/
 
-		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, fullPath.c_str())) {
+		/*if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, fullPath.c_str())) {
 			throw std::runtime_error(warn + error);
-		}
+		}*/
 		std::unordered_map<BGLModel::Vertex, uint32_t, BGLModel::VertexHasher, BGLModel::VertexEquals> vertexMap{};
 		uint32_t vertInt = 0;
 		if (!loadLines) {
-			for (const auto& shape : shapes) {
-				for (const auto& index : shape.mesh.indices) {
-					BGLModel::Vertex vertex{};
-					if (index.vertex_index >= 0) {
-						vertex.position = { attrib.vertices[3 * index.vertex_index + 0] , attrib.vertices[3 * index.vertex_index + 1] , attrib.vertices[3 * index.vertex_index + 2] };
-					}
+			uint32_t faceID = 0;
+			for (size_t s = 0; s < shapes.size(); s++) {
 
-					vertex.color = { attrib.colors[3 * index.vertex_index] , attrib.colors[3 * index.vertex_index + 1] , attrib.colors[3 * index.vertex_index + 2] };
 
-					if (index.normal_index >= 0) {
-						vertex.normal = { attrib.normals[3 * index.normal_index + 0] , attrib.normals[3 * index.normal_index + 1] , attrib.normals[3 * index.normal_index + 2] };
+				size_t index_offset = 0;
+				for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+					size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
+
+					// per-face material
+					uint32_t materialID = shapes[s].mesh.material_ids[f];
+
+					// Loop over vertices in the face.
+					for (size_t v = 0; v < fv; v++) {
+						BGLModel::Vertex vertex{};
+						// access to vertex
+						tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+						tinyobj::real_t vx = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
+						tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
+						tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
+						vertex.position = {vx,vy,vz};
+
+						// Check if `normal_index` is zero or positive. negative = no normal data
+						if (idx.normal_index >= 0) {
+							tinyobj::real_t nx = attrib.normals[3 * size_t(idx.normal_index) + 0];
+							tinyobj::real_t ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
+							tinyobj::real_t nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
+							vertex.normal = { nx,ny,nz };
+						}
+
+						// Check if `texcoord_index` is zero or positive. negative = no texcoord data
+						if (idx.texcoord_index >= 0) {
+							tinyobj::real_t tx = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
+							tinyobj::real_t ty = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
+							vertex.uv = { tx,ty };
+						}
+
+						// Optional: vertex colors
+						tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
+						tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
+						tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
+						vertex.color = { red,green,blue };
+
+						assert(p_materialSet != nullptr && "OBJ loading expected configuration of materialset prior to loading model");
+						if (p_materialSet != nullptr) {
+							std::cout << "Found " << materials.size() << " Materials\n";
+							try {
+								std::cout << "Face uses material " << materials[materialID].name << "\n";
+								const Material& mat = p_materialSet->at(materialID);
+								vertex.albedoMap = mat.albedoMap;
+								vertex.aoMap = mat.aoMap;
+								vertex.emissionMap = mat.emissionMap;
+								vertex.heightMap = mat.heightMap;
+								vertex.metallicMap = mat.metallicMap;
+								vertex.normalMap = mat.normalMap;
+								vertex.opacityMap = mat.opacityMap;
+								vertex.refractionMap = mat.refractionMap;
+								vertex.roughMap = mat.roughMap;
+								vertex.specularMap = mat.specularMap;
+							}
+							catch (std::exception e) {
+								std::cout << "ERROR: Error loading obj file: ";
+								std::cout << e.what();
+							}
+						}
+
+						int index;
+						if (auto search = vertexMap.find(vertex); search != vertexMap.end()) {
+							//vertex already exists in map
+							index = search->second;
+						}
+						else {
+							//new vertex
+							vertexMap.emplace(vertex, vertInt);
+							index = vertInt;
+							vertInt++;
+							vertices.push_back(vertex);
+							if (saveNextNormalData) {
+								normalDataVertices.push_back(vertex);
+								BGLModel::Vertex reach;
+								reach.position = vertex.normal * 0.3f + vertex.position;
+								std::string logStr = "Vertex at position %f %f %f has normal %f %f %f";
+								CONSOLE->Log("ModelComponentBuilder", util::formatString<float, float, float, float, float, float>(logStr, vertex.position.x, vertex.position.y, vertex.position.z, vertex.normal.x, vertex.normal.y, vertex.normal.z));
+								normalDataVertices.push_back(reach);
+							}
+						}
+						//vertices.push_back(vertex);
+						indices.push_back(index);
+
 					}
-					if (index.texcoord_index >= 0) {
-						vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0] , 1 - attrib.texcoords[2 * index.texcoord_index + 1] };
-					}
-					int index;
-					if (auto search = vertexMap.find(vertex); search != vertexMap.end()) {
-						//vertex already exists in map
-						index = search->second;
-					}
-					else {
-						//new vertex
-						vertexMap.emplace(vertex, vertInt);
-						index = vertInt;
-						vertInt++;
-						vertices.push_back(vertex);
-					}
-					//vertices.push_back(vertex);
-					indices.push_back(index);
+					index_offset += fv;
 				}
 			}
 		}
 		else {
 			//When loading model as wireframe
+			//Loading model as wireframe means it does not need material set configured
 			for (const auto& shape : shapes) {
 				for (const auto& index : shape.lines.indices) {
 					BGLModel::Vertex vertex{};
@@ -284,28 +383,32 @@ namespace bagel {
 		submeshes.push_back(submesh);
 	}
 
+	void ModelComponentBuilder::generateGrid(int size) {
+		SubmeshInfo gridMesh{};
+		for (int i = 0; i < 101; i++) {
+			BGLModel::Vertex vertex1{};
+			vertex1.position = { i - 50, 0, -50 };
+			vertices.push_back(vertex1);
+			BGLModel::Vertex vertex2{};
+			vertex2.position = { i - 50, 0, 50 };
+			vertices.push_back(vertex2);
+
+			BGLModel::Vertex vertex4{};
+			vertex4.position = { -50, 0, i - 50 };
+			vertices.push_back(vertex4);
+			BGLModel::Vertex vertex5{};
+			vertex5.position = { 50, 0, i - 50 };
+			vertices.push_back(vertex5);
+		}
+		gridMesh.firstIndex = 0;
+		gridMesh.indexCount = indices.size();
+		submeshes.push_back(gridMesh);
+	}
+
 	void ModelComponentBuilder::loadModel(const char* filename, bool loadLines) {
 		//Load generated models here
 		if (strcmp(filename, "grid")==0) {
-			SubmeshInfo gridMesh{};
-			for (int i = 0; i < 101; i++) {
-				BGLModel::Vertex vertex1{};
-				vertex1.position = { i - 50, 0, -50 };
-				vertices.push_back(vertex1);
-				BGLModel::Vertex vertex2{};
-				vertex2.position = { i - 50, 0, 50 };
-				vertices.push_back(vertex2);
-
-				BGLModel::Vertex vertex4{};
-				vertex4.position = { -50, 0, i - 50 };
-				vertices.push_back(vertex4);
-				BGLModel::Vertex vertex5{};
-				vertex5.position = { 50, 0, i - 50 };
-				vertices.push_back(vertex5);
-			}
-			gridMesh.firstIndex = 0;
-			gridMesh.indexCount = indices.size();
-			submeshes.push_back(gridMesh);
+			generateGrid(50);
 			return;
 		}
 
@@ -421,26 +524,26 @@ namespace bagel {
 		}
 	}
 
-	void ModelComponentBuilder::createVertexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst)
+	void ModelComponentBuilder::createVertexBufferInputData(size_t bufferSize, void* bufferSrc, VkBuffer& bufferDst, VkDeviceMemory& memoryDst)
 	{
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingMemory;
 		void* mapped;
 		bglDevice.createBuffer(
-			bufferSize, 
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-			stagingBuffer, 
+			bufferSize,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			stagingBuffer,
 			stagingMemory);
 		vkMapMemory(BGLDevice::device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
 		//Write Vertex data to stagingBuffer
 		assert(mapped && "Cannot copy to unmapped buffer");
-		memcpy(mapped, (void*)vertices.data(), bufferSize);
+		memcpy(mapped, bufferSrc, bufferSize);
 
 		bglDevice.createBuffer(
-			bufferSize, 
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+			bufferSize,
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			bufferDst,
 			memoryDst);
 
@@ -453,6 +556,11 @@ namespace bagel {
 		vkFreeMemory(BGLDevice::device(), stagingMemory, nullptr);
 		mapped = nullptr;
 
+	}
+
+	void ModelComponentBuilder::createVertexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst)
+	{
+		createVertexBufferInputData(bufferSize, (void*)vertices.data(), bufferDst, memoryDst);
 	}
 
 	void ModelComponentBuilder::createIndexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst)

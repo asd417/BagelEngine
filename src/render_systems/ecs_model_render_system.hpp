@@ -18,14 +18,6 @@ namespace bagel {
 	struct ECSPushConstantData {
 		glm::mat4 modelMatrix{ 1.0f };
 		glm::vec4 scale{ 1.0f };
-		glm::vec4 roughmetalmultiplier{ 1.0f };
-
-		uint32_t diffuseTextureHandle;
-		uint32_t emissionTextureHandle;
-		uint32_t normalTextureHandle;
-		uint32_t roughmetalTextureHandle;
-		// Stores flags to determine which textures are present
-		uint32_t textureMapFlag;
 
 		uint32_t BufferedTransformHandle = 0;
 		uint32_t UsesBufferedTransform = 0;

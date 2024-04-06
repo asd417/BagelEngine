@@ -158,8 +158,6 @@ namespace bagel {
 		float radius = 1.0f;
 	};
 
-
-	//Do you realistically need more than 5 textures per model?
 	struct TextureComponent {
 		/// <summary>
 		/// Since descriptors are handled by descriptor manager, rendering only requires texture handle.
@@ -272,7 +270,9 @@ namespace bagel {
 		std::vector<Submesh> submeshes{};
 	};
 
-	struct WireframeComponent : ModelComponent {};
+	struct WireframeComponent : ModelComponent {
+		glm::vec4 color = {1.0f,1.0f, 1.0f, 1.0f};
+	};
 	struct CollisionModelComponent : ModelComponent {
 		glm::vec3 collisionScale = { 1.0,1.0,1.0 };
 	};

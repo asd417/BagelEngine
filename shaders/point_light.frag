@@ -4,7 +4,6 @@
 layout (location = 0) in vec2 fragOffset;
 layout (location = 0) out vec4 outColor;
 
-
 struct PointLight {
 	vec4 position; // ignore w
 	vec4 color; // w intensity
@@ -16,10 +15,24 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
 	mat4 viewMatrix;
 	mat4 inverseViewMatrix;
 	vec4 ambientLightColor;
+
 	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
-	int numLights;
+	uint numLights;
+
+// Line color for wireframe
+	vec4 lineColor;
 } ubo;
-layout (binding = 1) uniform sampler2D samplerColor;
+
+struct ObjectData{
+	mat4 modelMatrix;
+	vec4 scale;
+};
+
+layout (set = 0, binding = 1) readonly buffer objTransform {
+	ObjectData objects[];
+} objTransformArray[];
+
+layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
 
 
 const float M_PI = 3.1415926538;

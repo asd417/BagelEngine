@@ -15,21 +15,52 @@
 #include <glm/glm.hpp>
 
 namespace bagel {
+	//Set up pipeline configuration here
+	void PointLightPipelineConfigModifier(PipelineConfigInfo& pipelineConfig) {
+		pipelineConfig.colorBlendAttachment.blendEnable = VK_TRUE;
+		pipelineConfig.colorBlendAttachment.colorWriteMask =
+			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		//src is the current value being output from the fragment
+		pipelineConfig.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		pipelineConfig.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		pipelineConfig.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+		pipelineConfig.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		pipelineConfig.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		pipelineConfig.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	}
+
+	PointLightSystem::PointLightSystem(
+		VkRenderPass renderPass,
+		std::vector<VkDescriptorSetLayout> setLayouts,
+		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
+		entt::registry& _registry,
+		BGLDevice& bglDevice) :
+		BGLRenderSystem{ renderPass, setLayouts, sizeof(PointLightPushConstant) },
+		descriptorManager{ _descriptorManager },
+		registry{ _registry }
+	{
+		std::cout << "Creating PointLight Render System\n";
+		createPipeline(renderPass, "/shaders/point_light.vert.spv", "/shaders/point_light.frag.spv", PointLightPipelineConfigModifier);
+	}
 	// Update Position
 	void PointLightSystem::update(GlobalUBO& ubo, float frameTime)
 	{
 		// Copy all point light information into the globalubo point light information
 		int lightIndex = 0;
+		
 		auto group = registry.group<>(entt::get<TransformComponent, PointLightComponent>);
 		for (auto [entity, transformComp, pointLightComp] : group.each()) {
 			auto rotateLight = glm::rotate(glm::mat4(1.0f), frameTime,{ 0.f,-1.f,0.f }); //axis of rotation
 			transformComp.setTranslation(rotateLight * (glm::vec4(transformComp.getTranslation(), 1.f)));
 			
-			ubo.pointLights[lightIndex].position = glm::vec4(transformComp.getTranslation(), 1.f);
-			ubo.pointLights[lightIndex].color = glm::vec4(pointLightComp.color);
+			PointLight light{};
+			light.color = pointLightComp.color;
+			light.position = { transformComp.getWorldTranslation(),0 };
+			ubo.pointLights[lightIndex] = light;
 			lightIndex++;
 		}
 		ubo.numLights = lightIndex;
+		
 	}
 
 	void PointLightSystem::render(FrameInfo& frameInfo)
