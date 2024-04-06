@@ -9,6 +9,16 @@ layout(location=2) in vec3 normal;
 layout(location=3) in vec3 tangent;
 layout(location=4) in vec3 bitangent;
 layout(location=5) in vec2 uv;
+layout(location=6) in uint in_albedoMap;
+layout(location=7) in uint in_normalMap;
+layout(location=8) in uint in_roughMap;
+layout(location=9) in uint in_metallicMap;
+layout(location=10) in uint in_specularMap;
+layout(location=11) in uint in_heightMap;
+layout(location=12) in uint in_opacityMap;
+layout(location=13) in uint in_aoMap;
+layout(location=14) in uint in_refractionMap;
+layout(location=15) in uint in_emissionMap;
 
 //layout(location=0) out vec3 fragColor;
 layout(location=0) out vec3 fragPosWorld;
