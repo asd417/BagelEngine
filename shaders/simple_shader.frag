@@ -2,23 +2,44 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_KHR_vulkan_glsl : enable
 
-layout(location=0) in vec3 fragPosWorld;
-layout(location=1) in vec3 fragTangent;
-layout(location=2) in vec3 fragBitangent;
-layout(location=3) in vec3 fragNormalWorld;
-layout(location=4) in vec2 fragUV;
-layout(location=5) flat in int isInstancedTransform;
+// layout(location=0) mat3 TBN;
+// layout(location=1) in vec3 fragPosWorld;
+// layout(location=2) in vec3 fragTangent;
+// layout(location=3) in vec3 fragBitangent;
+// layout(location=4) in vec3 fragNormalWorld;
+// layout(location=5) in vec2 fragUV;
+// layout(location=6) flat in int isInstancedTransform;
 
-layout(location=6) flat in uint albedoMap;
-layout(location=7) flat in uint normalMap;
-layout(location=8) flat in uint roughMap;
-layout(location=9) flat in uint metallicMap;
-layout(location=10) flat in uint specularMap;
-layout(location=11) flat in uint heightMap;
-layout(location=12) flat in uint opacityMap;
-layout(location=13) flat in uint aoMap;
-layout(location=14) flat in uint refractionMap;
-layout(location=15) flat in uint emissionMap;
+// layout(location=7) flat in uint albedoMap;
+// layout(location=8) flat in uint normalMap;
+// layout(location=9) flat in uint roughMap;
+// layout(location=10) flat in uint metallicMap;
+// layout(location=11) flat in uint specularMap;
+// layout(location=12) flat in uint heightMap;
+// layout(location=13) flat in uint opacityMap;
+// layout(location=14) flat in uint aoMap;
+// layout(location=15) flat in uint refractionMap;
+// layout(location=16) flat in uint emissionMap;
+
+struct VS_OUT {
+	int isInstancedTransform;
+	uint albedoMap;
+	uint normalMap;
+	uint roughMap;
+	uint metallicMap;
+	uint specularMap;
+	uint heightMap;
+	uint opacityMap;
+	uint aoMap;
+	uint refractionMap;
+	uint emissionMap;
+};
+layout(location=0) in vec3 fragPosWorld;
+layout(location=1) in vec2 fragUV;
+layout(location=2) in vec3 fragTangent;
+layout(location=3) in vec3 fragBitangent;
+layout(location=4) in vec3 fragNormalWorld;
+layout(location=5) flat in VS_OUT fs_in;
 
 layout(location=0) out vec4 outColor;
 
@@ -127,23 +148,23 @@ void main(){
 
 	//Create new axis with tangent, bitangent, normal
 	mat3 TBN = mat3(fragTangent,fragBitangent,fragNormalWorld);
-	if(albedoMap != 0){
-		diffuse = texture(samplerColor[albedoMap], vec2(fragUV.x,fragUV.y)).xyz;
+	if(fs_in.albedoMap != 0){
+		diffuse = texture(samplerColor[fs_in.albedoMap], vec2(fragUV.x,fragUV.y)).xyz;
 	}
-	if(emissionMap != 0){
-		emission = texture(samplerColor[emissionMap], vec2(fragUV.x,fragUV.y));
+	if(fs_in.emissionMap != 0){
+		emission = texture(samplerColor[fs_in.emissionMap], vec2(fragUV.x,fragUV.y));
 	}
-	if(normalMap != 0){
-		normal = texture(samplerColor[normalMap], vec2(fragUV.x,fragUV.y)).rgb; //0~1 range
+	if(fs_in.normalMap != 0){
+		normal = texture(samplerColor[fs_in.normalMap], vec2(fragUV.x,fragUV.y)).rgb; //0~1 range
 		normal = normal * 2.0 - 1.0;   //-1.0~1.0 range
 		normal = normalize(TBN * normal); //move the normal to world space
 	}
-	if(roughMap != 0){
-		vec3 roughness_v = texture(samplerColor[roughMap], vec2(fragUV.x,fragUV.y)).xyz;
+	if(fs_in.roughMap != 0){
+		vec3 roughness_v = texture(samplerColor[fs_in.roughMap], vec2(fragUV.x,fragUV.y)).xyz;
 		roughness = clamp(roughness_v.x,0.0,1.0);
 	}
-	if(metallicMap != 0){
-		vec3 metallic_v = texture(samplerColor[metallicMap], vec2(fragUV.x,fragUV.y)).xyz;
+	if(fs_in.metallicMap != 0){
+		vec3 metallic_v = texture(samplerColor[fs_in.metallicMap], vec2(fragUV.x,fragUV.y)).xyz;
 		metallic = clamp(metallic_v.x,0.0,1.0);
 	}
 

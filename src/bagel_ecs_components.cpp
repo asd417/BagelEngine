@@ -49,21 +49,21 @@ namespace bagel {
 
         return glm::mat4{
             {
-                (c2 * c3),
-                (c1 * s3 + c3 * s1 * s2),
-                (s1 * s3 - c1 * c3 * s2),
+                scale.x * localScale.x * (c2 * c3),
+                scale.x * localScale.x * (c1 * s3 + c3 * s1 * s2),
+                scale.x * localScale.x * (s1 * s3 - c1 * c3 * s2),
                 0.0f,
             },
             {
-                (-c2 * s3),
-                (c1 * c3 - s1 * s2 * s3),
-                (c3 * s1 + c1 * s2 * s3),
+                scale.y * localScale.y * (-c2 * s3),
+                scale.y * localScale.y * (c1 * c3 - s1 * s2 * s3),
+                scale.y * localScale.y * (c3 * s1 + c1 * s2 * s3),
                 0.0f,
             },
             {
-                (s2),
-                (-c2 * s1),
-                (c1 * c2),
+                scale.z * localScale.z * (s2),
+                scale.z * localScale.z * (-c2 * s1),
+                scale.z * localScale.z * (c1 * c2),
                 0.0f,
             },
             {translation.x + localTranslation.x, translation.y + localTranslation.y, translation.z + localTranslation.z, 1.0f} };

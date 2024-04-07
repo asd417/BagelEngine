@@ -20,23 +20,45 @@ layout(location=13) in uint in_aoMap;
 layout(location=14) in uint in_refractionMap;
 layout(location=15) in uint in_emissionMap;
 
-layout(location=0) out vec3 fragPosWorld;
-layout(location=1) out vec3 fragTangent;
-layout(location=2) out vec3 fragBitangent;
-layout(location=3) out vec3 fragNormalWorld;
-layout(location=4) out vec2 fragUV;
-layout(location=5) out int isInstancedTransform;
+// layout(location=0) out mat3 TBN;
+// layout(location=1) out vec3 fragPosWorld;
+// layout(location=2) out vec3 fragTangent;
+// layout(location=3) out vec3 fragBitangent;
+// layout(location=4) out vec3 fragNormalWorld;
+// layout(location=5) out vec2 fragUV;
+// layout(location=6) out int isInstancedTransform;
 
-layout(location=6) out uint albedoMap;
-layout(location=7) out uint normalMap;
-layout(location=8) out uint roughMap;
-layout(location=9) out uint metallicMap;
-layout(location=10) out uint specularMap;
-layout(location=11) out uint heightMap;
-layout(location=12) out uint opacityMap;
-layout(location=13) out uint aoMap;
-layout(location=14) out uint refractionMap;
-layout(location=15) out uint emissionMap;
+// layout(location=7) out uint albedoMap;
+// layout(location=8) out uint normalMap;
+// layout(location=9) out uint roughMap;
+// layout(location=10) out uint metallicMap;
+// layout(location=11) out uint specularMap;
+// layout(location=12) out uint heightMap;
+// layout(location=13) out uint opacityMap;
+// layout(location=14) out uint aoMap;
+// layout(location=15) out uint refractionMap;
+// layout(location=16) out uint emissionMap;
+
+struct VS_OUT {
+	int isInstancedTransform;
+	uint albedoMap;
+	uint normalMap;
+	uint roughMap;
+	uint metallicMap;
+	uint specularMap;
+	uint heightMap;
+	uint opacityMap;
+	uint aoMap;
+	uint refractionMap;
+	uint emissionMap;
+};
+
+layout(location=0) out vec3 fragPosWorld;
+layout(location=1) out vec2 fragUV;
+layout(location=2) out vec3 fragTangent;
+layout(location=3) out vec3 fragBitangent;
+layout(location=4) out vec3 fragNormalWorld;
+layout(location=5) flat out VS_OUT vs_out;
 
 struct PointLight {
 	vec4 position; // ignore w
@@ -81,55 +103,48 @@ void main() {
 	vec4 positionWorld;
 	vec3 graphicsPos = vec3(position.x,position.y,position.z);
 	mat4 modelMatrix;
-	mat4 normalMatrix;
+	mat3 normalMatrix;
 	vec4 scale;
 	if(push.UsesBufferedTransform != 0){
 		scale = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].scale;
 		modelMatrix = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].modelMatrix;
-		isInstancedTransform = 1;
+		vs_out.isInstancedTransform = 1;
 	} else {
 		scale = push.scale;
 		modelMatrix = push.modelMatrix;
-		isInstancedTransform = 0;
+		vs_out.isInstancedTransform = 0;
 	}
-	normalMatrix = modelMatrix;
 	
-	//scale model matrix with inverse scale to get normalMatrix
-	modelMatrix[0] = modelMatrix[0] * scale.x;
-	modelMatrix[1] = modelMatrix[1] * scale.y;
-	modelMatrix[2] = modelMatrix[2] * scale.z;
-	normalMatrix[0] = normalMatrix[0] * (1/scale.x);
-	normalMatrix[1] = normalMatrix[1] * (1/scale.y);
-	normalMatrix[2] = normalMatrix[2] * (1/scale.z);
+	normalMatrix = transpose(inverse(mat3(modelMatrix)));
 
 	positionWorld = modelMatrix * vec4(graphicsPos,1.0);
 	vec4 pos = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
 	gl_Position = pos;
-	fragTangent = 		normalize(mat3(normalMatrix) * tangent);
-	fragNormalWorld = 	normalize(mat3(normalMatrix) * normal);
 	
-	//Reorthogonize tangent vector
-	fragTangent = normalize(fragTangent - dot(fragTangent, fragNormalWorld) * fragNormalWorld);
-	fragBitangent = cross(fragTangent, fragNormalWorld);
-	//fragBitangent = cross(fragNormalWorld,fragTangent);
-	//fragBitangent = 	normalize(mat3(normalMatrix) * bitangent);
-	isInstancedTransform = 0;
+	vec3 T = normalize(normalMatrix * tangent);
+	vec3 B = normalize(normalMatrix * cross(tangent,normal));
+	vec3 N = normalize(normalMatrix * normal);
 
+	//Reorthogonize tangent vector
 	fragPosWorld = positionWorld.xyz;
 	fragUV = uv;
+	fragTangent = T;
+	fragBitangent = B;
+	fragNormalWorld = N;
 	
+	vs_out.isInstancedTransform = 0;
 
 	//orthogonal matrices (each axis is a perpendicular unit vector) is that the transpose of an orthogonal matrix equals its inverse.
 	//Use it to move light pos and view dir to tangent space
 
-	albedoMap = in_albedoMap;
-	normalMap = in_normalMap;
-	roughMap = in_roughMap;
-	metallicMap = in_metallicMap;
-	specularMap = in_specularMap;
-	heightMap = in_heightMap;
-	opacityMap = in_opacityMap;
-	aoMap = in_aoMap;
-	refractionMap = in_refractionMap;
-	emissionMap = in_emissionMap;
+	vs_out.albedoMap = in_albedoMap;
+	vs_out.normalMap = in_normalMap;
+	vs_out.roughMap = in_roughMap;
+	vs_out.metallicMap = in_metallicMap;
+	vs_out.specularMap = in_specularMap;
+	vs_out.heightMap = in_heightMap;
+	vs_out.opacityMap = in_opacityMap;
+	vs_out.aoMap = in_aoMap;
+	vs_out.refractionMap = in_refractionMap;
+	vs_out.emissionMap = in_emissionMap;
 }

@@ -289,7 +289,7 @@ namespace bagel {
 						tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
 						vertex.color = { red,green,blue };
 
-						assert(p_materialSet != nullptr && "OBJ loading expected configuration of materialset prior to loading model");
+						//assert(p_materialSet != nullptr && "OBJ loading expected configuration of materialset prior to loading model");
 						if (p_materialSet != nullptr) {
 							std::cout << "Found " << materials.size() << " Materials\n";
 							try {
@@ -446,33 +446,20 @@ namespace bagel {
 
 				float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
 				for (int vi = 0; vi < 3; vi++) {
-					glm::vec3& tangent = vertices[i + vi].tangent;
-					glm::vec3& bitangent = vertices[i + vi].bitangent;
-					if (tangent.x == tangent.y == tangent.z == 0.0f) {
-						//Dont average. This is the first time
-						tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
-						tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
-						tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
-						bitangent.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
-						bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
-						bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
-					}
-					else {
-						//Average with existing tangent
-						tangent.x += f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
-						tangent.y += f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
-						tangent.z += f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
-						bitangent.x += f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
-						bitangent.y += f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
-						bitangent.z += f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
-						tangent.x /= 2;
-						tangent.y /= 2;
-						tangent.z /= 2;
-						bitangent.x /= 2;
-						bitangent.y /= 2;
-						bitangent.z /= 2;
-					}
+					glm::vec3& tangent = vertices[indices[i + vi]].tangent;
+					glm::vec3& bitangent = vertices[indices[i + vi]].bitangent;
+
+					tangent.x += f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+					tangent.y += f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+					tangent.z += f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+					bitangent.x += f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+					bitangent.y += f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+					bitangent.z += f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
 				}
+			}
+			for (int i = 0; i < vertices.size(); i++) {
+				vertices[i].tangent = glm::normalize(vertices[i].tangent);
+				vertices[i].bitangent = glm::normalize(vertices[i].tangent);
 			}
 		}
 		else {
@@ -491,35 +478,23 @@ namespace bagel {
 				glm::vec2 deltaUV1 = uv2 - uv1;
 				glm::vec2 deltaUV2 = uv3 - uv1;
 
-				float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+				float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y); //same as float r = 1.0F / (s1 * t2 - s2 * t1);
+				
 				for (int vi = 0; vi < 3;vi++) {	
 					glm::vec3& tangent = vertices[indices[i+vi]].tangent;
-					glm::vec3& bitangent = vertices[indices[i + vi]].bitangent;
-					if (tangent.x == tangent.y == tangent.z == 0.0f) {
-						//Dont average. This is the first time
-						tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
-						tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
-						tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
-						bitangent.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
-						bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
-						bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
-					}
-					else {
-						//Average with existing tangent
-						tangent.x += f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
-						tangent.y += f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
-						tangent.z += f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
-						bitangent.x += f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
-						bitangent.y += f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
-						bitangent.z += f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
-						tangent.x /= 2;
-						tangent.y /= 2;
-						tangent.z /= 2;
-						bitangent.x /= 2;
-						bitangent.y /= 2;
-						bitangent.z /= 2;
-					}
+					glm::vec3& bitangent = vertices[indices[i+vi]].bitangent;
+
+					tangent.x += f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+					tangent.y += f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+					tangent.z += f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+					bitangent.x += f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+					bitangent.y += f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+					bitangent.z += f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
 				}
+			}
+			for (int i = 0; i < vertices.size(); i++) {
+				vertices[i].tangent = glm::normalize(vertices[i].tangent);
+				vertices[i].bitangent = glm::normalize(vertices[i].tangent);
 			}
 		}
 	}

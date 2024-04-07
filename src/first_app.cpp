@@ -182,18 +182,19 @@ namespace bagel {
 		BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
 		BGLJolt::GetInstance()->SetComponentActivityAll(true);
 		//entt::entity monitor = createMonitor();
-		createChineseDragon();
+		entt::entity ent = createChineseDragon();
 		createLights();
 		//------------------------------------------------------
 		// Game loop
+		bool forward = true;
 		while (!bglWindow.shouldClose())
 		{
 			auto start = std::chrono::high_resolution_clock::now();
-			camera.setViewDirection(glm::vec3(-1.0f,-2.0f,-2.0f), glm::vec3(0.0f, 0.0f,2.5f)); //yaw pitch roll
+			camera.setViewDirection(glm::vec3(-1.0f, -2.0f, -2.0f), glm::vec3(0.0f, 0.0f, 2.5f)); //yaw pitch roll
 
 			//Event call function can block therefore we measure the newtime after
 			glfwPollEvents();
-			
+
 			auto newTime = std::chrono::high_resolution_clock::now();
 			float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
 			currentTime = newTime;
@@ -202,13 +203,19 @@ namespace bagel {
 			// Example Game Logic-----------------------------------------------------------------------------------------
 
 			// Camera Control
-			if(freeFly) camMoved = cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject,0);
+			if (freeFly) camMoved = cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject, 0);
 			camera.setViewYXZ(viewerObject.transform.getTranslation(), viewerObject.transform.getRotation());
 			float aspect = bglRenderer.getAspectRatio();
 			camera.setPerspectiveProjection(glm::radians(100.0f), aspect, 0.1f, 300.0f);
 
-			//auto& monitorTransform = registry.get<TransformComponent>(monitor);
-			//glm::vec3 pos = monitorTransform.getWorldTranslation();
+
+			auto& Transform = registry.get<TransformComponent>(ent);
+			glm::vec3 pos = Transform.getWorldTranslation();
+			if (pos.x > 5) forward = false;
+			if (pos.x < -5) forward = true;
+			if(forward) Transform.setTranslation(pos + glm::vec3(0.001f, 0, 0));
+			if(!forward) Transform.setTranslation(pos - glm::vec3(0.001f, 0, 0));
+			
 			//monitorTransform.setRotation(GetLookVector(pos, camera.getPosition(), {0,1,0}));
 			// -----------------------------------------------------------------------------------------------------------
 			
@@ -492,7 +499,7 @@ namespace bagel {
 			light.color = glm::vec4(lightColors[i], 4.0f);
 		}
 	}
-	void FirstApp::createChineseDragon()
+	entt::entity FirstApp::createChineseDragon()
 	{
 		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
 		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
@@ -510,7 +517,8 @@ namespace bagel {
 		textureBuilder->setBuildTarget(&dc);
 		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
 		textureBuilder->setBuildTarget(&nc);
-		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_NormalGL.png");
+		//normal maps must be loaded with VK_FORMAT_R8G8B8A8_UNORM
+		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_NormalGL.png", VK_FORMAT_R8G8B8A8_UNORM);
 		textureBuilder->setBuildTarget(&rc);
 		textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Roughness.png");
 
@@ -529,6 +537,7 @@ namespace bagel {
 
 		delete modelBuilder;
 		delete textureBuilder;
+		return entity;
 	}
 	void FirstApp::initCommand()
 	{
