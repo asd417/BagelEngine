@@ -3,6 +3,7 @@
 #include "bagel_engine_device.hpp"
 #include "bagel_buffer.hpp"
 #include "bagel_engine_swap_chain.hpp"
+//#include "bagel_renderer.hpp"
 //#include "bagel_frame_info.hpp"
 
 #include <map>
@@ -13,6 +14,17 @@
 #include <iostream>
 
 #define GLOBAL_UBO_COUNT 10
+
+#define VK_CHECK(x)                                                     \
+	do                                                                  \
+	{                                                                   \
+		VkResult err = x;                                               \
+		if (err)                                                        \
+		{                                                               \
+			std::cout <<"Detected Vulkan error: " << err << std::endl;  \
+			abort();                                                    \
+		}                                                               \
+	} while (0)
 
 namespace bagel {
     class BGLDescriptorSetLayout {
@@ -79,7 +91,7 @@ namespace bagel {
         VkDescriptorPool getDescriptorPool() const { return descriptorPool; };
 
         bool allocateDescriptor(
-            const VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet& descriptor) const;
+            const VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet& descriptor, uint32_t descriptorCount) const;
 
         void freeDescriptors(std::vector<VkDescriptorSet>& descriptors) const;
 
@@ -110,9 +122,12 @@ namespace bagel {
 
     class BGLBindlessDescriptorManager {
         enum BINDINGS {
+            DR_POS,
+            DR_NORMAL,
+            DR_ALBEDO,
             UNIFORM,
             BUFFER,
-            TEXTURE
+            TEXTURE,
         };
         struct TexturePackage {
             VkDescriptorImageInfo imageInfo;
@@ -143,6 +158,8 @@ namespace bagel {
             const char* name, 
             bool useDesignatedHandle,
             uint32_t handle = 0);
+
+        void writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView positionView, VkImageView normalView, VkImageView albedoView);
 
         uint32_t searchBufferName(std::string bufferName);
         uint32_t searchTextureName(std::string textureName);

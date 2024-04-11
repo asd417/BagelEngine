@@ -10,7 +10,7 @@ struct PointLight {
 };
 
 const int MAX_LIGHTS = 10; //Must match value in bagel_frame_info.hpp
-layout(set = 0, binding = 0) uniform GlobalUBO {
+layout(set = 0, binding = 3) uniform GlobalUBO {
 	mat4 projectionMatrix;
 	mat4 viewMatrix;
 	mat4 inverseViewMatrix;
@@ -28,11 +28,11 @@ struct ObjectData{
 	vec4 scale;
 };
 
-layout (set = 0, binding = 1) readonly buffer objTransform {
+layout (set = 0, binding = 4) readonly buffer objTransform {
 	ObjectData objects[];
 } objTransformArray[];
 
-layout (set = 0, binding = 2) uniform sampler2D samplerColor[];
+layout (set = 0, binding = 5) uniform sampler2D samplerColor[];
 
 
 const float M_PI = 3.1415926538;

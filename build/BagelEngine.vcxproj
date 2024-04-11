@@ -121,7 +121,7 @@
     <Link>
       <AdditionalDependencies>glfw3.lib;vulkan-1.lib;ktx.lib;Jolt.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:/VulkanSDK/1.3.261.1/Lib;C:/VulkanSDK/1.3.261.1/Lib/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64/lib-vc2022/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build/Debug/$(Configuration);C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics/Build/VS2022_CL/Debug;C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics/Build/VS2022_CL/Debug/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalOptions>%(AdditionalOptions) /machine:x64 /NODEFAULTLIB:MSVCRT</AdditionalOptions>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ImportLibrary>C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/build/Debug/BagelEngine.lib</ImportLibrary>

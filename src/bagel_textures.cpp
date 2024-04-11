@@ -36,6 +36,7 @@ namespace bagel {
 	BGLTexture::BGLTexture(BGLDevice& device, VkFormat format) : bglDevice{ device }, imageFormat{ format } {}
 	BGLTexture::~BGLTexture()
 	{
+		std::cout << "Destroying BGLTexture\n";
 		vkDestroyImageView(BGLDevice::device(), info.view, nullptr);
 		vkDestroyImage(BGLDevice::device(), info.image, nullptr);
 		vkDestroySampler(BGLDevice::device(), info.sampler, nullptr);

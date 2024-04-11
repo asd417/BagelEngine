@@ -22,12 +22,12 @@ namespace bagel {
 		VkDescriptorSet globalDescriptorSets;
 		entt::registry& registry;
 	};
-
+	// UBO struct for pre-composition stage of deferred rendering. Feed in color, position, etc
 	struct GlobalUBO {
 		glm::mat4 projectionMatrix{ 1.f };
 		glm::mat4 viewMatrix{ 1.f };
 		glm::mat4 inverseViewMatrix{ 1.f };
-
+		//To be moved to deferred rendering ubo
 		glm::vec4 ambientLightColor{ 1.f,1.f,1.f,0.01f };
 
 		PointLight pointLights[MAX_LIGHTS];
@@ -41,6 +41,12 @@ namespace bagel {
 			viewMatrix = viewMat;
 			inverseViewMatrix = inverseViewMat;
 		}
+	};
+	// UBO struct for composition stage of deferred rendering. Feed in light info
+	struct CompositionUBO {
+		glm::vec4 ambientLightColor{ 1.f,1.f,1.f,0.01f };
+		PointLight pointLights[MAX_LIGHTS];
+		uint32_t numLights;
 	};
 
 }

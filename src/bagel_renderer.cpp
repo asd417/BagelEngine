@@ -17,29 +17,31 @@
 			abort();                                                    \
 		}                                                               \
 	} while (0)
-
+/// 
+/// Implementing deferred rendering
+/// 1. Create descriptor bindings
+///     Create a completely new descriptor set just for the composition stage
+///     Binding 1 : Position texture target / Scene colormap
+///     Binding 2 : Normals texture target
+///     Binding 3 : Albedo texture target
+///     Binding 4 : Fragment shader uniform buffer
+///     VkDescriptorImageInfo for each bindings
+///     and write the descriptor
+/// 2. Render models to deferred command buffer 
+/// 3. main command buffer only draws with offscreen attachments
+/// 
 namespace bagel {
 	BGLRenderer::BGLRenderer(BGLWindow& w, BGLDevice& d) : bglWindow{ w }, bglDevice{ d }
 	{
 		recreateSwapChain();
 		createCommandBuffers();
+
+		//Deferred Rendering
+		prepareDeferredRenderFrameBuffer();
 	}
 	BGLRenderer::~BGLRenderer()
 	{
 		freeCommandBuffers();
-		// Color attachment destruction is a responsibility of the BGLBindlessDescriptorManager 
-		/*vkDestroyImageView(BGLDevice::device(), offscreenPass.color.view, nullptr);
-		vkDestroySampler(BGLDevice::device(), offscreenPass.sampler, nullptr);
-		vkDestroyImage(BGLDevice::device(), offscreenPass.color.image, nullptr);
-		vkFreeMemory(BGLDevice::device(), offscreenPass.color.mem, nullptr);*/
-
-		vkDestroyImageView(BGLDevice::device(), offscreenPass.depth.view, nullptr);
-		vkDestroyImage(BGLDevice::device(), offscreenPass.depth.image, nullptr);
-		vkFreeMemory(BGLDevice::device(), offscreenPass.depth.mem, nullptr);
-		
-		vkDestroyRenderPass(BGLDevice::device(), offscreenPass.renderPass, nullptr);
-		vkDestroyFramebuffer(BGLDevice::device(), offscreenPass.frameBuffer, nullptr);
-
 	}
 
 	VkCommandBuffer BGLRenderer::beginPrimaryCMD()
@@ -415,6 +417,213 @@ namespace bagel {
 		fbufCreateInfo.layers = 1;
 
 		VK_CHECK(vkCreateFramebuffer(BGLDevice::device(), &fbufCreateInfo, nullptr, &offscreenPass.frameBuffer));
+	}
+
+	//Deferred rendering
+	
+
+	void BGLRenderer::createAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment* attachment)
+	{
+		VkImageAspectFlags aspectMask = 0;
+		VkImageLayout imageLayout;
+
+		attachment->format = format;
+
+		if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+		{
+			aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		}
+		if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+		{
+			aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			if (format >= VK_FORMAT_D16_UNORM_S8_UINT)
+				aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+			imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		}
+
+		assert(aspectMask > 0);
+
+		VkImageCreateInfo image{};
+		image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		image.imageType = VK_IMAGE_TYPE_2D;
+		image.format = format;
+		image.extent.width = deferredRenderFrameBuffer.width;
+		image.extent.height = deferredRenderFrameBuffer.height;
+		image.extent.depth = 1;
+		image.mipLevels = 1;
+		image.arrayLayers = 1;
+		image.samples = VK_SAMPLE_COUNT_1_BIT;
+		image.tiling = VK_IMAGE_TILING_OPTIMAL;
+		image.usage = usage | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+		VkMemoryAllocateInfo memAlloc{};
+		memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		VkMemoryRequirements memReqs;
+
+		VK_CHECK(vkCreateImage(BGLDevice::device(), &image, nullptr, &attachment->image));
+		vkGetImageMemoryRequirements(BGLDevice::device(), attachment->image, &memReqs);
+		memAlloc.allocationSize = memReqs.size;
+		//memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		memAlloc.memoryTypeIndex = bglDevice.findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		VK_CHECK(vkAllocateMemory(BGLDevice::device(), &memAlloc, nullptr, &attachment->mem));
+		VK_CHECK(vkBindImageMemory(BGLDevice::device(), attachment->image, attachment->mem, 0));
+
+		VkImageViewCreateInfo imageView{};
+		imageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageView.format = format;
+		imageView.subresourceRange = {};
+		imageView.subresourceRange.aspectMask = aspectMask;
+		imageView.subresourceRange.baseMipLevel = 0;
+		imageView.subresourceRange.levelCount = 1;
+		imageView.subresourceRange.baseArrayLayer = 0;
+		imageView.subresourceRange.layerCount = 1;
+		imageView.image = attachment->image;
+		VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageView, nullptr, &attachment->view));
+	}
+
+	void BGLRenderer::prepareDeferredRenderFrameBuffer()
+	{
+		// Note: Instead of using fixed sizes, one could also match the window size and recreate the attachments on resize
+		deferredRenderFrameBuffer.width = 2048;
+		deferredRenderFrameBuffer.height = 2048;
+
+		// Color attachments
+
+		// (World space) Positions
+		createAttachment(
+			VK_FORMAT_R16G16B16A16_SFLOAT,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			&deferredRenderFrameBuffer.position);
+
+		// (World space) Normals
+		createAttachment(
+			VK_FORMAT_R16G16B16A16_SFLOAT,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			&deferredRenderFrameBuffer.normal);
+
+		// Albedo (color)
+		createAttachment(
+			VK_FORMAT_R8G8B8A8_UNORM,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			&deferredRenderFrameBuffer.albedo);
+
+		// Depth attachment
+		VkFormat depthFormat = bglSwapChain->findDepthFormat();
+
+		createAttachment(
+			depthFormat,
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+			&deferredRenderFrameBuffer.depth);
+
+		// Set up separate renderpass with references to the color and depth attachments
+		std::array<VkAttachmentDescription, 4> attachmentDescs = {};
+
+		// Init attachment properties
+		for (uint32_t i = 0; i < 4; ++i)
+		{
+			attachmentDescs[i].samples = VK_SAMPLE_COUNT_1_BIT;
+			attachmentDescs[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			attachmentDescs[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			attachmentDescs[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			attachmentDescs[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			if (i == 3)
+			{
+				attachmentDescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				attachmentDescs[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			}
+			else
+			{
+				attachmentDescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				attachmentDescs[i].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			}
+		}
+
+		// Formats
+		attachmentDescs[0].format = deferredRenderFrameBuffer.position.format;
+		attachmentDescs[1].format = deferredRenderFrameBuffer.normal.format;
+		attachmentDescs[2].format = deferredRenderFrameBuffer.albedo.format;
+		attachmentDescs[3].format = deferredRenderFrameBuffer.depth.format;
+
+		std::vector<VkAttachmentReference> colorReferences;
+		colorReferences.push_back({ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
+		colorReferences.push_back({ 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
+		colorReferences.push_back({ 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
+
+		VkAttachmentReference depthReference = {};
+		depthReference.attachment = 3;
+		depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription subpass = {};
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.pColorAttachments = colorReferences.data();
+		subpass.colorAttachmentCount = static_cast<uint32_t>(colorReferences.size());
+		subpass.pDepthStencilAttachment = &depthReference;
+
+		// Use subpass dependencies for attachment layout transitions
+		std::array<VkSubpassDependency, 2> dependencies;
+
+		dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependencies[0].dstSubpass = 0;
+		dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+		dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+		dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+		dependencies[1].srcSubpass = 0;
+		dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+		dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+		dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+		dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+		VkRenderPassCreateInfo renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.pAttachments = attachmentDescs.data();
+		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachmentDescs.size());
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pSubpasses = &subpass;
+		renderPassInfo.dependencyCount = 2;
+		renderPassInfo.pDependencies = dependencies.data();
+
+		VK_CHECK(vkCreateRenderPass(BGLDevice::device(), &renderPassInfo, nullptr, &deferredRenderFrameBuffer.renderPass));
+
+		std::array<VkImageView, 4> attachments;
+		attachments[0] = deferredRenderFrameBuffer.position.view;
+		attachments[1] = deferredRenderFrameBuffer.normal.view;
+		attachments[2] = deferredRenderFrameBuffer.albedo.view;
+		attachments[3] = deferredRenderFrameBuffer.depth.view;
+
+		VkFramebufferCreateInfo fbufCreateInfo = {};
+		fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		fbufCreateInfo.pNext = NULL;
+		fbufCreateInfo.renderPass = deferredRenderFrameBuffer.renderPass;
+		fbufCreateInfo.pAttachments = attachments.data();
+		fbufCreateInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+		fbufCreateInfo.width = deferredRenderFrameBuffer.width;
+		fbufCreateInfo.height = deferredRenderFrameBuffer.height;
+		fbufCreateInfo.layers = 1;
+		VK_CHECK(vkCreateFramebuffer(BGLDevice::device(), &fbufCreateInfo, nullptr, &deferredRenderFrameBuffer.frameBuffer));
+
+		// Create sampler to sample from the color attachments
+		VkSamplerCreateInfo sampler{};
+		sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		sampler.magFilter = VK_FILTER_NEAREST;
+		sampler.minFilter = VK_FILTER_NEAREST;
+		sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		sampler.addressModeV = sampler.addressModeU;
+		sampler.addressModeW = sampler.addressModeU;
+		sampler.mipLodBias = 0.0f;
+		sampler.maxAnisotropy = 1.0f;
+		sampler.minLod = 0.0f;
+		sampler.maxLod = 1.0f;
+		sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		VK_CHECK(vkCreateSampler(BGLDevice::device(), &sampler, nullptr, &deferredRenderFrameBuffer.sampler));
 	}
 	
 	void BGLRenderer::createCommandBuffers()

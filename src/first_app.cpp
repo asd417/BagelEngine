@@ -75,7 +75,7 @@ namespace bagel {
 
 		descriptorManager = std::make_unique<BGLBindlessDescriptorManager>(bglDevice, *globalPool);
 		descriptorManager->createBindlessDescriptorSet(GLOBAL_DESCRIPTOR_COUNT);
-
+		descriptorManager->writeDeferredRenderTargetToDescriptor(bglRenderer.getDRSampler(), bglRenderer.getDRPositionView(), bglRenderer.getDRNormalView(), bglRenderer.getDRAlbedoView());
 
 		CONSOLE->Log("FirstApp", "Finished Creating Global Pool");
 
@@ -99,14 +99,21 @@ namespace bagel {
 	void FirstApp::run()
 	{	
 		//Create UBO buffer. Single for bindless design
-		std::unique_ptr<BGLBuffer> uboBuffers;
-		uboBuffers = std::make_unique<BGLBuffer>(
+		std::unique_ptr<BGLBuffer> uboBuffers = std::make_unique<BGLBuffer>(
 			bglDevice,
 			sizeof(GlobalUBO),
 			1,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 		uboBuffers->map();
+
+		std::unique_ptr<BGLBuffer> uboComposition = std::make_unique<BGLBuffer>(
+			bglDevice,
+			sizeof(CompositionUBO),
+			1,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		uboComposition->map();
 
 		VkDescriptorBufferInfo bufferInfo = uboBuffers->descriptorInfo();
 		descriptorManager->storeUBO(bufferInfo, 0);

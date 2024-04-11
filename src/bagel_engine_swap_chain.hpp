@@ -12,6 +12,8 @@
 //#define SYNC_DEVICEWAITIDLE
 
 namespace bagel {
+
+
     class BGLSwapChain {
     public:
         static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
@@ -25,7 +27,6 @@ namespace bagel {
 
         VkFramebuffer getFrameBuffer(int index) { return swapChainFramebuffers[index]; }
         VkRenderPass getRenderPass() { return renderPass; }
-        VkRenderPass getOffscreenRenderPass() { return offscreenRenderPass; }
         VkImageView getImageView(int index) { return swapChainImageViews[index]; }
         size_t imageCount() { return swapChainImages.size(); }
         VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
@@ -49,17 +50,16 @@ namespace bagel {
         void init();
         void createSwapChain();
         void createImageViews();
+        
         void createDepthResources();
         void createRenderPass();
-        void createDepthsRenderPass();
+
         void createFramebuffers();
         void createSyncObjects();
 
         // Helper functions
-        VkSurfaceFormatKHR chooseSwapSurfaceFormat(
-            const std::vector<VkSurfaceFormatKHR> &availableFormats);
-        VkPresentModeKHR chooseSwapPresentMode(
-            const std::vector<VkPresentModeKHR> &availablePresentModes);
+        VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
+        VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
         VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
 
         VkFormat swapChainImageFormat;
@@ -69,7 +69,7 @@ namespace bagel {
         std::vector<VkFramebuffer> swapChainFramebuffers;
 
         VkRenderPass renderPass;
-        VkRenderPass offscreenRenderPass;
+        
 
         std::vector<VkImage> depthImages;
         std::vector<VkDeviceMemory> depthImageMemorys;
@@ -90,4 +90,4 @@ namespace bagel {
         size_t currentFrame = 0;
     };
 
-}  // namespace lve
+}
