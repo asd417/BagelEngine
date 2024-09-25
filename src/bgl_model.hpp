@@ -239,6 +239,7 @@ namespace bagel {
 			saveNextNormalData = true; 
 		}
 		//Using entt::entity and registry, this component builder will create components in the registry
+		// As of 2024-09-25 Attemping to load GLTF and getting normal data can cause error because gltf loading does not save info to normalDataVertices
 		// ComponentBuildMode::LINES is for wireframe rendering
 		// ComponentBuildMode::FACES is for pbr rendering
 		WireframeComponent& getNormalDataAsWireframe(entt::entity targetEnt) {
@@ -287,7 +288,7 @@ namespace bagel {
 
 			//Not supported in lines mode. There is no concept of face in lines mode and vertex array can be smaller than 3
 			if(buildmode != LINES) calculateTangent();
-
+			std::cout << "Creating Vertex Buffer\n";
 			createVertexBuffer(sizeof(BGLModel::Vertex) * vertices.size(), comp.vertexBuffer, comp.vertexMemory);
 			if (indices.size() > 0) {
 				std::cout << "Model has Index Buffer. Allocating...\n";

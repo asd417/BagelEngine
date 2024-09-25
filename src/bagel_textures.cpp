@@ -311,7 +311,6 @@ namespace bagel {
 			char buff[256];
 			if (!descriptorManager.checkMissingTexture(storedIndex))
 			{
-				
 				sprintf(buff, "Texture %s is already bound", filePath);
 				CONSOLE->Log("TextureComponentBuilder::buildComponent", buff);
 				targetComponent->textureHandle[targetComponent->textureCount] = storedIndex;

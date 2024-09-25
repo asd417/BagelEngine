@@ -16,7 +16,6 @@ int main() {
     bagel::FirstApp app{};
     try {
         app.run();
-
     }
     catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

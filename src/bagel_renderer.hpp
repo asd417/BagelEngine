@@ -13,9 +13,9 @@
 
 namespace bagel {
 	struct FrameBufferAttachment {
-		VkImage image;
-		VkDeviceMemory mem;
-		VkImageView view;
+		VkImage image = VK_NULL_HANDLE;
+		VkDeviceMemory mem = VK_NULL_HANDLE;
+		VkImageView view = VK_NULL_HANDLE;
 		VkFormat format;
 		const FrameBufferAttachment operator=(const FrameBufferAttachment&) = delete;
 		~FrameBufferAttachment() {
@@ -41,14 +41,15 @@ namespace bagel {
 			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer, nullptr);
 			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
 			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
+			std::cout << "Finished Destroying FrameBuffer\n";
 		}
 	};
 
 	struct OffscreenPass {
 		uint32_t width, height;
 		VkFramebuffer frameBuffer;
-		FrameBufferAttachment color;
-		FrameBufferAttachment depth;
+		FrameBufferAttachment color{};
+		FrameBufferAttachment depth{};
 		VkRenderPass renderPass;
 		VkSampler sampler;
 		uint32_t renderTargetHandle;
@@ -139,7 +140,7 @@ namespace bagel {
 		std::unique_ptr<BGLSwapChain> bglSwapChain;
 		std::vector<VkCommandBuffer> commandBuffers;
 
-		OffscreenPass offscreenPass;
+		OffscreenPass offscreenPass{};
 		VkCommandBuffer deferredCommandBuffer;
 		FrameBuffer deferredRenderFrameBuffer{};
 	};

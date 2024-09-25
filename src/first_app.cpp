@@ -50,7 +50,6 @@ namespace bagel {
 	// This maximum size varies from device to device and is specified in bytes by the max_push_constants_size field of vk::PhysicalDeviceLimits
 	// Even the high end device (RTX3080) has only 256 bytes available so it is unrealistic to send most data
 	// 
-	// 
 	//Struct normally packs the data as close as possible so it 
 	//packs like this: (host memory layout)
 	//{x,y,r,g,b}
@@ -189,7 +188,7 @@ namespace bagel {
 		BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
 		BGLJolt::GetInstance()->SetComponentActivityAll(true);
 		//entt::entity monitor = createMonitor();
-		entt::entity ent = createChineseDragon();
+		entt::entity ent = createCylinder();
 		createLights();
 		//------------------------------------------------------
 		// Game loop
@@ -270,7 +269,6 @@ namespace bagel {
 				};
 
 				//Apply UBO changes to buffer
-				
 				uboBuffers->writeToBuffer(&ubo);
 				uboBuffers->flush();
 				
@@ -279,7 +277,6 @@ namespace bagel {
 				modelRenderSystemOffscreen.renderEntities(frameInfo);
 				pointLightSystemOffscreen.render(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
-
 
 				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
 				//always render solid objects before rendering transparent objects
@@ -506,7 +503,7 @@ namespace bagel {
 			light.color = glm::vec4(lightColors[i], 4.0f);
 		}
 	}
-	entt::entity FirstApp::createChineseDragon()
+	entt::entity FirstApp::createCylinder()
 	{
 		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
 		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
@@ -515,8 +512,6 @@ namespace bagel {
 		
 		auto& tfc = registry.emplace<TransformComponent>(entity);
 		tfc.setScale({ 2.0f,2.0f,2.0f });
-		//tfc.setScale({ 0.2f,0.2f,0.2f });
-		//tfc.setRotation({ glm::pi<float>() / 2,0,0 });
 
 		auto& dc = registry.emplace<DiffuseTextureComponent>(entity);
 		auto& nc = registry.emplace<NormalTextureComponent>(entity);
@@ -539,7 +534,9 @@ namespace bagel {
 		
 		modelBuilder->saveNormalData();
 		modelBuilder->configureModelMaterialSet(&materials);
-		ModelComponent& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/cylinder.obj", ComponentBuildMode::FACES);
+		//ModelComponent& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/cylinder.obj", ComponentBuildMode::FACES);
+		ModelComponent& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/chinesedragon.gltf", ComponentBuildMode::FACES);
+		std::cout << "getNormalDataAsWireframe()\n";
 		WireframeComponent& normals = modelBuilder->getNormalDataAsWireframe(entity);
 
 		delete modelBuilder;

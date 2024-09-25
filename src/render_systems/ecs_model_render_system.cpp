@@ -68,6 +68,7 @@ namespace bagel {
 
 	void ModelRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
+		std::cout << "renderEntities() at Model Render System\n";
 		bglPipeline->bind(frameInfo.commandBuffer);
 		vkCmdBindDescriptorSets(
 			frameInfo.commandBuffer,
@@ -79,8 +80,6 @@ namespace bagel {
 			0, nullptr);
 		
 		VkDeviceSize offsets[] = { 0 };
-		//auto transformCompView = registry.view<TransformComponent, ModelComponent>();
-		//for (auto [entity, transformComp, modelDescComp] : transformCompView.each()) {
 		auto transformCompGroup = registry.group<>(entt::get<TransformComponent, ModelComponent>);
 		for(auto [entity, transformComp, modelDescComp] : transformCompGroup.each()) {
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &modelDescComp.vertexBuffer, offsets);

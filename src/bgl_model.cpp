@@ -119,6 +119,7 @@ namespace bagel {
 
 	}
 
+	//Material is not loaded from GLTF
 	void ModelComponentBuilder::loadGLTFMesh(tinygltf::Model model, tinygltf::Mesh mesh)
 	{
 		//Reads all submeshes inside all meshes in the scene, effectively merging all meshes from the file into one model
@@ -236,14 +237,6 @@ namespace bagel {
 		auto& shapes = reader.GetShapes();
 		auto& materials = reader.GetMaterials();
 
-		/*tinyobj::attrib_t attrib;
-		std::vector<tinyobj::shape_t> shapes;
-		std::vector<tinyobj::material_t> materials;
-		std::string warn, error;*/
-
-		/*if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, fullPath.c_str())) {
-			throw std::runtime_error(warn + error);
-		}*/
 		std::unordered_map<BGLModel::Vertex, uint32_t, BGLModel::VertexHasher, BGLModel::VertexEquals> vertexMap{};
 		uint32_t vertInt = 0;
 		if (!loadLines) {
@@ -289,7 +282,7 @@ namespace bagel {
 						tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
 						vertex.color = { red,green,blue };
 
-						//assert(p_materialSet != nullptr && "OBJ loading expected configuration of materialset prior to loading model");
+						assert(p_materialSet != nullptr && "OBJ loading expected configuration of materialset prior to loading model");
 						if (p_materialSet != nullptr) {
 							std::cout << "Found " << materials.size() << " Materials\n";
 							try {

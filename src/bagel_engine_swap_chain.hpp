@@ -57,6 +57,8 @@ namespace bagel {
         void createFramebuffers();
         void createSyncObjects();
 
+        VkRenderPass createDeferredRenderPass();
+
         // Helper functions
         VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
         VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);

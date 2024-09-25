@@ -70,7 +70,7 @@ namespace bagel {
 		void makeGrid();
 		entt::entity createMonitor();
 		void createLights();
-		entt::entity createChineseDragon();
+		entt::entity createCylinder();
 		BGLWindow bglWindow{ WIDTH, HEIGHT, "Bagel Engine" };
 		BGLDevice bglDevice{ bglWindow };
 		BGLRenderer bglRenderer{ bglWindow,bglDevice };

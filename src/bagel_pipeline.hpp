@@ -42,14 +42,20 @@ namespace bagel {
 
 		static void defaultPipelineConfigInfo(PipelineConfigInfo& configInfo);
 		static void enableAlphaBlending(PipelineConfigInfo& configInfo);
+
+		VkSubpassDescription createSubpassDescription(int colorAttachmentCount, const VkAttachmentReference* colorAttachmentReferences, const VkAttachmentReference* depthAttachmentReferences) {
+			VkSubpassDescription sd;
+			sd.colorAttachmentCount = colorAttachmentCount;
+			sd.pColorAttachments = colorAttachmentReferences;
+			sd.pDepthStencilAttachment = depthAttachmentReferences;
+			sd.pipelineBindPoint = VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS;
+			return sd;
+		}
 		
 	private:
 		static std::vector<char> readFile(const std::string& filepath);
 
 		void createGraphicsPipeline(const std::string& vertFilePath, const std::string& fragFilePath, const PipelineConfigInfo &configInfo);
-		void createOffscreenPipeline();
-		// A pipeline fundamentally needs a device. Therefore setting this memory unsafe variable is not necessarily dangerous
-		// In ULM this type of relation is known as Agregation
 
 
 		//shaderModule is a pointer to a pointer

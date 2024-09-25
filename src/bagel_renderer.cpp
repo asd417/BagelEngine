@@ -41,7 +41,9 @@ namespace bagel {
 	}
 	BGLRenderer::~BGLRenderer()
 	{
+		std::cout << "Destroying BGLRenderer\n";
 		freeCommandBuffers();
+		std::cout << "Finished Destroying BGLRenderer\n";
 	}
 
 	VkCommandBuffer BGLRenderer::beginPrimaryCMD()
@@ -645,6 +647,7 @@ namespace bagel {
 
 	void BGLRenderer::freeCommandBuffers()
 	{
+		std::cout << "Clearing Command Buffer\n";
 		vkFreeCommandBuffers(
 			BGLDevice::device(),
 			bglDevice.getCommandPool(),
