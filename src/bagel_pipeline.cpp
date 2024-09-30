@@ -114,8 +114,6 @@ namespace bagel {
 		configInfo.depthStencilInfo.front = {};
 		configInfo.depthStencilInfo.back = {};
 
-		
-
 		// Configures pipeline so that it expects viewport and scissor later rather than on initialization
 		configInfo.dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 		configInfo.dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;

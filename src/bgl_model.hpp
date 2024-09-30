@@ -238,6 +238,9 @@ namespace bagel {
 			assert(saveNextNormalData == false && "Already Set to save next normal data, retrieve existing data first");
 			saveNextNormalData = true; 
 		}
+
+
+
 		//Using entt::entity and registry, this component builder will create components in the registry
 		// As of 2024-09-25 Attemping to load GLTF and getting normal data can cause error because gltf loading does not save info to normalDataVertices
 		// ComponentBuildMode::LINES is for wireframe rendering
@@ -311,6 +314,7 @@ namespace bagel {
 		}
 
 		void configureModelMaterialSet(std::vector<Material>* set);
+
 		void removeModelMaterialSet() { p_materialSet = nullptr; }
 	protected:
 		struct SubmeshInfo {
