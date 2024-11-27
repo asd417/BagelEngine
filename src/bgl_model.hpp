@@ -239,6 +239,7 @@ namespace bagel {
 			saveNextNormalData = true; 
 		}
 		//Using entt::entity and registry, this component builder will create components in the registry
+		// Copied from main branch: Attemping to load GLTF and getting normal data can cause error because gltf loading does not save info to normalDataVertices
 		// ComponentBuildMode::LINES is for wireframe rendering
 		// ComponentBuildMode::FACES is for pbr rendering
 		WireframeComponent& getNormalDataAsWireframe(entt::entity targetEnt) {
