@@ -12,6 +12,26 @@
 //#define SYNC_DEVICEWAITIDLE
 
 namespace bagel {
+    struct FrameBufferAttachment {
+        VkImage image;
+        VkDeviceMemory mem;
+        VkImageView view;
+        VkFormat format;
+    };
+    struct FrameBuffer {
+        int32_t width, height;
+        VkFramebuffer frameBuffer;
+        // One attachment for every component required for a deferred rendering setup
+        FrameBufferAttachment color, depth;
+        VkRenderPass renderPass;
+    };
+    struct FrameBufferDR {
+        int32_t width, height;
+        VkFramebuffer frameBuffer;
+        // One attachment for every component required for a deferred rendering setup
+        FrameBufferAttachment position, normal, albedo, depth;
+        VkRenderPass renderPass;
+    };
     class BGLSwapChain {
     public:
         static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
@@ -25,7 +45,6 @@ namespace bagel {
 
         VkFramebuffer getFrameBuffer(int index) { return swapChainFramebuffers[index]; }
         VkRenderPass getRenderPass() { return renderPass; }
-        VkRenderPass getOffscreenRenderPass() { return offscreenRenderPass; }
         VkImageView getImageView(int index) { return swapChainImageViews[index]; }
         size_t imageCount() { return swapChainImages.size(); }
         VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
@@ -66,16 +85,15 @@ namespace bagel {
         VkFormat swapChainDepthFormat;
         VkExtent2D swapChainExtent;
 
-        std::vector<VkFramebuffer> swapChainFramebuffers;
-
         VkRenderPass renderPass;
-        VkRenderPass offscreenRenderPass;
 
+
+        std::vector<VkFramebuffer> swapChainFramebuffers;
+        std::vector<VkImage> swapChainImages;
+        std::vector<VkImageView> swapChainImageViews;
         std::vector<VkImage> depthImages;
         std::vector<VkDeviceMemory> depthImageMemorys;
         std::vector<VkImageView> depthImageViews;
-        std::vector<VkImage> swapChainImages;
-        std::vector<VkImageView> swapChainImageViews;
 
         BGLDevice &device;
         VkExtent2D windowExtent;

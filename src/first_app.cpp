@@ -110,14 +110,6 @@ namespace bagel {
 
 		VkDescriptorBufferInfo bufferInfo = uboBuffers->descriptorInfo();
 		descriptorManager->storeUBO(bufferInfo, 0);
-		
-		bglRenderer.setUpOffScreenRenderPass(WIDTH / 2, HEIGHT / 2);
-
-		uint32_t offscreenRenderTargetHandle = descriptorManager->storeTexture(
-			bglRenderer.getOffscreenImageInfo(),
-			bglRenderer.getOffscreenMemory(),
-			bglRenderer.getOffscreenImage(),
-			"OffscreenRenderTarget", false, 0); // Use this name to access
 
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { descriptorManager->getDescriptorSetLayout() };
 
@@ -136,19 +128,6 @@ namespace bagel {
 
 		PointLightSystem pointLightSystem{
 			bglRenderer.getSwapChainRenderPass(),
-			pipelineDescriptorSetLayouts,
-			descriptorManager,
-			registry,
-			bglDevice };
-
-		ModelRenderSystem modelRenderSystemOffscreen{
-			bglRenderer.getOffscreenRenderPass(),
-			pipelineDescriptorSetLayouts,
-			descriptorManager,
-			registry };
-
-		PointLightSystem pointLightSystemOffscreen{
-			bglRenderer.getOffscreenRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
 			registry,
@@ -266,13 +245,6 @@ namespace bagel {
 				
 				uboBuffers->writeToBuffer(&ubo);
 				uboBuffers->flush();
-				
-				//Offscreen Render
-				bglRenderer.beginOffScreenRenderPass(primaryCommandBuffer);
-				modelRenderSystemOffscreen.renderEntities(frameInfo);
-				pointLightSystemOffscreen.render(frameInfo);
-				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
-
 
 				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
 				//always render solid objects before rendering transparent objects

@@ -15,12 +15,6 @@
 
 namespace bagel {
 	class BGLRenderer {
-		// Framebuffer for offscreen rendering
-		struct FrameBufferAttachment {
-			VkImage image;
-			VkDeviceMemory mem;
-			VkImageView view;
-		};
 	public:
 		BGLRenderer(BGLWindow& w, BGLDevice& d);
 		~BGLRenderer();
@@ -49,33 +43,7 @@ namespace bagel {
 			assert(isFrameStarted && "Cannot get frame index when frame not in progress");
 			return currentFrameIndex;
 		}
-
-		//Offscreen Render tasks
-		void setUpOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight);
-		void createOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight);
-		void beginOffScreenRenderPass(VkCommandBuffer commandBuffer);
-		// Store this VkDescriptorImageInfo in descriptor manager to include in the descriptor set
-		VkSampler getOffscreenSampler() const{ return offscreenPass.sampler; }
-		VkImageView getOffscreenImageView() const { return offscreenPass.color.view; }
-		VkDescriptorImageInfo getOffscreenImageInfo() const { return { offscreenPass.sampler, offscreenPass.color.view,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }; }
-		// Store this image as well
-		VkImage getOffscreenImage() const { return offscreenPass.color.image; }
-		// ... and this memory
-		VkDeviceMemory getOffscreenMemory() const { return offscreenPass.color.mem; }
-		VkRenderPass getOffscreenRenderPass() const { return offscreenPass.renderPass; };
-
 	private:
-		struct OffscreenPass {
-			uint32_t width, height;
-			VkFramebuffer frameBuffer;
-			FrameBufferAttachment color;
-			FrameBufferAttachment depth;
-			VkRenderPass renderPass;
-			VkSampler sampler;
-			uint32_t renderTargetHandle;
-			VkDescriptorImageInfo colorImageInfo;
-		} offscreenPass;
-
 		uint32_t currentImageIndex = 0;
 		int currentFrameIndex = 0; //Between 0 and Max_Frames_In_Flight, not tied to image index
 		bool isFrameStarted = false;
@@ -84,13 +52,6 @@ namespace bagel {
 		void createCommandBuffers();
 		void freeCommandBuffers();
 		void recreateSwapChain();
-
-		//Offscreen Render tasks
-		void createOffscreenColorAttachment();
-		void createOffscreenDepthsAttachment(VkFormat& depthsFormat);
-		void createOffscreenAttachmentDescriptors(std::array<VkAttachmentDescription,2>& descriptors, VkFormat& depthsFormat);
-		void createOffscreenSubpassDependencies(std::array<VkSubpassDependency, 2>& dependencies);
-		void createOffscreenFrameBuffer();
 
 		BGLWindow& bglWindow;
 		BGLDevice& bglDevice;

@@ -60,7 +60,6 @@ namespace bagel {
 			lightIndex++;
 		}
 		ubo.numLights = lightIndex;
-		
 	}
 
 	void PointLightSystem::render(FrameInfo& frameInfo)
