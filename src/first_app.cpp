@@ -534,8 +534,8 @@ namespace bagel {
 		
 		modelBuilder->saveNormalData();
 		modelBuilder->configureModelMaterialSet(&materials);
-		//ModelComponent& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/cylinder.obj", ComponentBuildMode::FACES);
-		ModelComponent& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/chinesedragon.gltf", ComponentBuildMode::FACES);
+		ModelComponent& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/cylinder.obj", ComponentBuildMode::FACES);
+		//ModelComponent& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/chinesedragon.gltf", ComponentBuildMode::FACES);
 		std::cout << "getNormalDataAsWireframe()\n";
 		WireframeComponent& normals = modelBuilder->getNormalDataAsWireframe(entity);
 
