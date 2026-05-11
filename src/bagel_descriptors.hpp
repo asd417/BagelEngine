@@ -133,9 +133,8 @@ namespace bagel {
             VkDescriptorImageInfo imageInfo;
             VkDeviceMemory memory;
             VkImage image;
-            // Texture can only be missing when it's bound but it's using temporary texture
-            // Or when marked as missing so that it can be overriden
             bool isMissing = false;
+            bool isOwned = true; // false for externally-managed resources (e.g. render targets)
         };
     public:
         BGLBindlessDescriptorManager(BGLDevice& bglDevice, BGLDescriptorPool& globalPool);
@@ -153,11 +152,12 @@ namespace bagel {
         //Existing texture sampler, view, etc are all destroyed.
         uint32_t storeTexture(
             VkDescriptorImageInfo imageInfo,
-            VkDeviceMemory memory, 
+            VkDeviceMemory memory,
             VkImage image,
-            const char* name, 
+            const char* name,
             bool useDesignatedHandle,
-            uint32_t handle = 0);
+            uint32_t handle = 0,
+            bool owned = true);
 
         void writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView positionView, VkImageView normalView, VkImageView albedoView);
 

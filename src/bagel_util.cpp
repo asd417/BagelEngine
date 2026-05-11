@@ -2,16 +2,15 @@
 
 #include <memory>
 #pragma warning(disable : 4996)
-#define ENGINEPATH "C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine"
 
 namespace bagel {
 namespace util {
 	std::string enginePathString(std::string path) {
-		return (ENGINEPATH + path);
+		return std::string(ENGINE_BASE_PATH) + path;
 	}
 
 	std::string enginePath(const char* path) {
-		return std::string(ENGINEPATH).append(path);
+		return std::string(ENGINE_BASE_PATH).append(path);
 	}
 
 }

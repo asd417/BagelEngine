@@ -1,14 +1,17 @@
-set(TINYGLTF_PATH       C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/tinygltf)
-set(TINYOBJ_PATH        C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/tinyobjloader)
-set(GLFW_PATH           C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glfw-3.3.8.bin.WIN64)
-set(GLM_PATH            C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/glm)
-set(KTX                 C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/include)
-set(KTX_LIB             C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/KTX-Software/build)
-set(STB                 C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/stb)
-set(ENTT                C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/entt/single_include/entt)
-set(VULKAN_SDK_PATH     C:/VulkanSDK/1.3.261.1)
-set(IMGUI               C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/imgui)
-set(JOLT                C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/Dependencies/JoltPhysics)
+set(DEPS "${CMAKE_CURRENT_LIST_DIR}/Dependencies")
+
+set(TINYGLTF_PATH       ${DEPS}/tinygltf)
+set(TINYOBJ_PATH        ${DEPS}/tinyobjloader)
+set(GLFW_PATH           ${DEPS}/glfw-3.3.8.bin.WIN64)
+set(GLM_PATH            ${DEPS}/glm)
+set(KTX                 ${DEPS}/KTX-Software/lib/include)
+set(KTX_KHR             ${DEPS}/KTX-Software/external/dfdutils)
+set(KTX_LIB             ${DEPS}/KTX-Software/build/lib)
+set(STB                 ${DEPS}/stb)
+set(ENTT                ${DEPS}/entt/single_include/entt)
+set(VULKAN_SDK_PATH     $ENV{VULKAN_SDK})
+set(IMGUI               ${DEPS}/imgui)
+set(JOLT                ${DEPS}/JoltPhysics)
 
 
 # Set MINGW_PATH if using mingwBuild.bat and not VisualStudio20XX

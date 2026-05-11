@@ -97,6 +97,8 @@ target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:NDEBUG;JPH_PR
 
 target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
 target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
+target_compile_definitions(BagelEngine PUBLIC JPH_OBJECT_STREAM)
+target_compile_definitions(BagelEngine PUBLIC ENGINE_BASE_PATH="${CMAKE_SOURCE_DIR}")
 
 
 if (WIN32)
@@ -110,6 +112,7 @@ if (WIN32)
     ${GLFW_INCLUDE_DIRS}
     ${GLM_PATH}
     ${KTX}
+    ${KTX_KHR}
     ${STB}
     ${ENTT}
     ${IMGUI}

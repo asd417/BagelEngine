@@ -17,6 +17,8 @@
 namespace bagel {
 	//Set up pipeline configuration here
 	void PointLightPipelineConfigModifier(PipelineConfigInfo& pipelineConfig) {
+		pipelineConfig.bindingDescriptions.clear();
+		pipelineConfig.attributeDescriptions.clear();
 		pipelineConfig.colorBlendAttachment.blendEnable = VK_TRUE;
 		pipelineConfig.colorBlendAttachment.colorWriteMask =
 			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -158,18 +160,10 @@ namespace bagel {
 		pipelineConfig.renderPass = renderPass;
 		pipelineConfig.pipelineLayout = pipelineLayout;
 
-#define USE_ABS_PATH
-#ifndef USE_ABS_PATH
 		bglPipeline = std::make_unique<BGLPipeline>(
 			"../shaders/point_light.vert.spv",
 			"../shaders/point_light.frag.spv",
 			pipelineConfig);
-#else
-		bglPipeline = std::make_unique<BGLPipeline>(
-			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/point_light.vert.spv",
-			"C:/Users/locti/OneDrive/Documents/VisualStudioProjects/VulkanEngine/shaders/point_light.frag.spv",
-			pipelineConfig);
-#endif
 	}
 #endif
 }

@@ -1,0 +1,37 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/src/render_systems",
+                "${workspaceFolder}/src/physics",
+                "${workspaceFolder}/src/math",
+                "${workspaceFolder}/Dependencies",
+                "${workspaceFolder}/Dependencies/tinygltf",
+                "${workspaceFolder}/Dependencies/tinyobjloader",
+                "${workspaceFolder}/Dependencies/glfw-3.3.8.bin.WIN64/include",
+                "${workspaceFolder}/Dependencies/glm",
+                "${workspaceFolder}/Dependencies/KTX-Software/lib/include",
+                "${workspaceFolder}/Dependencies/KTX-Software/external/dfdutils",
+                "${workspaceFolder}/Dependencies/stb",
+                "${workspaceFolder}/Dependencies/entt/single_include/entt",
+                "${workspaceFolder}/Dependencies/imgui",
+                "${workspaceFolder}/Dependencies/JoltPhysics",
+                "${env:VULKAN_SDK}/Include"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "JPH_PROFILE_ENABLED",
+                "JPH_DEBUG_RENDERER",
+                "JPH_FLOATING_POINT_EXCEPTIONS_ENABLED"
+            ],
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-msvc-x64"
+        }
+    ],
+    "version": 4
+}

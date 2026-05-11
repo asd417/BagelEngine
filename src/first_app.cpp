@@ -67,9 +67,9 @@ namespace bagel {
 	{
 		globalPool = BGLDescriptorPool::Builder(bglDevice)
 			.setMaxSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, GLOBAL_UBO_COUNT) //UBO count is decided in bagel_descriptors.hpp GLOBAL_UBO_COUNT
-			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, GLOBAL_DESCRIPTOR_COUNT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, GLOBAL_DESCRIPTOR_COUNT)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,          BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT + 10)
 			.build();
 
 		descriptorManager = std::make_unique<BGLBindlessDescriptorManager>(bglDevice, *globalPool);
@@ -123,7 +123,7 @@ namespace bagel {
 			bglRenderer.getOffscreenImageInfo(),
 			bglRenderer.getOffscreenMemory(),
 			bglRenderer.getOffscreenImage(),
-			"OffscreenRenderTarget", false, 0); // Use this name to access
+			"OffscreenRenderTarget", false, 0, false); // owned=false: lifetime managed by OffscreenPass
 
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { descriptorManager->getDescriptorSetLayout() };
 
@@ -183,12 +183,12 @@ namespace bagel {
 		}
 		entt::entity axis1 = makeAxisModel({ 1.0,0.5,2.0 }); 
 		*/
-		makeGrid();
+		//makeGrid();
 		BGLJolt::GetInstance()->SetGravity({0,-0.0f,0});
 		BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
 		BGLJolt::GetInstance()->SetComponentActivityAll(true);
 		//entt::entity monitor = createMonitor();
-		entt::entity ent = createCylinder();
+		//entt::entity ent = createCylinder();
 		createLights();
 		//------------------------------------------------------
 		// Game loop
@@ -215,12 +215,12 @@ namespace bagel {
 			camera.setPerspectiveProjection(glm::radians(100.0f), aspect, 0.1f, 300.0f);
 
 
-			auto& Transform = registry.get<TransformComponent>(ent);
-			glm::vec3 pos = Transform.getWorldTranslation();
-			if (pos.x > 5) forward = false;
-			if (pos.x < -5) forward = true;
-			if(forward) Transform.setTranslation(pos + glm::vec3(0.001f, 0, 0));
-			if(!forward) Transform.setTranslation(pos - glm::vec3(0.001f, 0, 0));
+			//auto& Transform = registry.get<TransformComponent>(ent);
+			//glm::vec3 pos = Transform.getWorldTranslation();
+			//if (pos.x > 5) forward = false;
+			//if (pos.x < -5) forward = true;
+			//if(forward) Transform.setTranslation(pos + glm::vec3(0.001f, 0, 0));
+			//if(!forward) Transform.setTranslation(pos - glm::vec3(0.001f, 0, 0));
 			
 			//monitorTransform.setRotation(GetLookVector(pos, camera.getPosition(), {0,1,0}));
 			// -----------------------------------------------------------------------------------------------------------
@@ -591,19 +591,19 @@ namespace bagel {
 
 		//this initializes imgui for Vulkan
 		ImGui_ImplVulkan_InitInfo init_info = {};
+		init_info.ApiVersion = VK_API_VERSION_1_3;
 		init_info.Instance = bglDevice.getInstance();
 		init_info.PhysicalDevice = bglDevice.getPhysicalDevice();
 		init_info.Device = BGLDevice::device();
+		init_info.QueueFamily = bglDevice.findPhysicalQueueFamilies().graphicsFamily;
 		init_info.Queue = bglDevice.graphicsQueue();
 		init_info.DescriptorPool = imguiPool;
 		init_info.MinImageCount = 3;
 		init_info.ImageCount = 3;
-		init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+		init_info.PipelineInfoMain.RenderPass = bglRenderer.getSwapChainRenderPass();
+		init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
-		ImGui_ImplVulkan_Init(&init_info, bglRenderer.getSwapChainRenderPass());
-
-		//execute a gpu command to upload imgui font textures
-		ImGui_ImplVulkan_CreateFontsTexture();
+		ImGui_ImplVulkan_Init(&init_info);
 		//clear font textures from cpu data. Done automatically now
 	}
 

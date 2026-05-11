@@ -222,6 +222,7 @@ namespace bagel {
             vkDestroyBuffer(BGLDevice::device(), bufferInfo.buffer, nullptr);
         }
         for (auto& package : textures) {
+            if (!package.isOwned) continue;
             vkDestroyImageView(BGLDevice::device(), package.imageInfo.imageView, nullptr);
             vkDestroySampler(BGLDevice::device(), package.imageInfo.sampler, nullptr);
             vkDestroyImage(BGLDevice::device(), package.image, nullptr);
@@ -331,11 +332,12 @@ namespace bagel {
 
     uint32_t BGLBindlessDescriptorManager::storeTexture(
         VkDescriptorImageInfo imageInfo,
-        VkDeviceMemory memory, 
-        VkImage image, 
-        const char* name, 
+        VkDeviceMemory memory,
+        VkImage image,
+        const char* name,
         bool useDesignatedHandle,
-        uint32_t _handle)
+        uint32_t _handle,
+        bool owned)
     {
         size_t handle;
         if (useDesignatedHandle) {
@@ -354,7 +356,7 @@ namespace bagel {
         }
         else {
             handle = textures.size();
-            textures.push_back({ imageInfo, memory, image });
+            textures.push_back({ imageInfo, memory, image, false, owned });
             std::cout << "Using new handle\n";
         }
 

@@ -56,6 +56,7 @@ namespace bagel {
 		VkDescriptorImageInfo colorImageInfo;
 		~OffscreenPass() {
 			std::cout << "Destroying OffscreenPass\n";
+			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
 			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
 			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer, nullptr);
 			std::cout << "Finished Destroying OffscreenPass\n";
