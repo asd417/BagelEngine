@@ -57,7 +57,12 @@ namespace bagel {
 			return nullptr;
 		}
 
-		if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+		if (result == VK_SUBOPTIMAL_KHR) {
+			recreateSwapChain();
+			return nullptr;
+		}
+
+		if (result != VK_SUCCESS) {
 			throw std::runtime_error("failed to acquire swapchain image");
 		}
 

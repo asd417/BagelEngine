@@ -2,7 +2,6 @@
     "configurations": [
         {
             "name": "Win32",
-            "configurationProvider": "ms-vscode.cmake-tools",
             "includePath": [
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/src/render_systems",
@@ -18,6 +17,7 @@
                 "${workspaceFolder}/Dependencies/stb",
                 "${workspaceFolder}/Dependencies/entt/single_include/entt",
                 "${workspaceFolder}/Dependencies/imgui",
+                "${workspaceFolder}/Dependencies/imgui/backends",
                 "${workspaceFolder}/Dependencies/JoltPhysics",
                 "${env:VULKAN_SDK}/Include"
             ],
@@ -27,10 +27,13 @@
                 "_UNICODE",
                 "JPH_PROFILE_ENABLED",
                 "JPH_DEBUG_RENDERER",
-                "JPH_FLOATING_POINT_EXCEPTIONS_ENABLED"
+                "JPH_FLOATING_POINT_EXCEPTIONS_ENABLED",
+                "JPH_OBJECT_STREAM",
+                "ENGINE_BASE_PATH=\"\""
             ],
             "cppStandard": "c++17",
-            "intelliSenseMode": "windows-msvc-x64"
+            "intelliSenseMode": "windows-msvc-x64",
+            "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.16.27023/bin/HostX64/x64/cl.exe"
         }
     ],
     "version": 4

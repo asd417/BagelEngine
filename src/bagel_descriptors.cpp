@@ -343,20 +343,29 @@ namespace bagel {
         if (useDesignatedHandle) {
             std::cout << "Using designated handle. Destroying existing textures\n";
             handle = _handle;
-            //Destroy existing data at the _handle index
-            vkDestroyImageView(BGLDevice::device(), textures[handle].imageInfo.imageView, nullptr);
-            vkDestroySampler(BGLDevice::device(), textures[handle].imageInfo.sampler, nullptr);
-            vkDestroyImage(BGLDevice::device(), textures[handle].image, nullptr);
-            vkFreeMemory(BGLDevice::device(), textures[handle].memory, nullptr);
+            //Destroy existing data at the _handle index (only if owned)
+            if (textures[handle].isOwned) {
+                vkDestroyImageView(BGLDevice::device(), textures[handle].imageInfo.imageView, nullptr);
+                vkDestroySampler(BGLDevice::device(), textures[handle].imageInfo.sampler, nullptr);
+                vkDestroyImage(BGLDevice::device(), textures[handle].image, nullptr);
+                vkFreeMemory(BGLDevice::device(), textures[handle].memory, nullptr);
+            }
 
             textures[handle].imageInfo = imageInfo;
             textures[handle].memory = memory;
             textures[handle].image = image;
             textures[handle].isMissing = false;
+            textures[handle].isOwned = owned;
         }
         else {
             handle = textures.size();
-            textures.push_back({ imageInfo, memory, image, false, owned });
+            TexturePackage pkg{};
+            pkg.imageInfo = imageInfo;
+            pkg.memory = memory;
+            pkg.image = image;
+            pkg.isMissing = false;
+            pkg.isOwned = owned;
+            textures.push_back(pkg);
             std::cout << "Using new handle\n";
         }
 
