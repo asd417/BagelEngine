@@ -31,7 +31,8 @@ namespace bagel {
 		float mouseSensitivity{ 0.001f };
 
 	private:
-		bool mouseCaptured{ false };
+		bool fpsMode{ false };
+		bool zKeyWasDown{ false };
 		glm::vec2 lastMousePos{ 0.0f };
 	};
 }
