@@ -3,6 +3,10 @@
 #include "bgl_gameobject.hpp"
 #include "bagel_window.hpp"
 
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+
 namespace bagel {
 	class KeyboardMovementController {
 	public:
@@ -24,5 +28,10 @@ namespace bagel {
 		KeyMappings keys{};
 		float moveSpeed{ 3.0f };
 		float lookSpeed{ 1.5f };
+		float mouseSensitivity{ 0.001f };
+
+	private:
+		bool mouseCaptured{ false };
+		glm::vec2 lastMousePos{ 0.0f };
 	};
 }

@@ -7,14 +7,43 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.WantCaptureKeyboard) return false;
 	bool updated = false;
+
+	// Mouse look — hold RMB to capture cursor and rotate camera
+	bool rmbDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+	if (rmbDown && !io.WantCaptureMouse) {
+		double mx, my;
+		glfwGetCursorPos(window, &mx, &my);
+		glm::vec2 mousePos{ static_cast<float>(mx), static_cast<float>(my) };
+
+		if (!mouseCaptured) {
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			lastMousePos = mousePos;
+			mouseCaptured = true;
+		}
+
+		glm::vec2 delta = mousePos - lastMousePos;
+		lastMousePos = mousePos;
+
+		if (glm::dot(delta, delta) > std::numeric_limits<float>::epsilon()) {
+			glm::vec3 rot = gameObject.transform.getRotation();
+			rot.y -= glm::radians(delta.x) * mouseSensitivity;
+			rot.x -= glm::radians(delta.y) * mouseSensitivity;
+			rot.x = glm::clamp(rot.x, -1.5f, 1.5f);
+			rot.y = glm::mod(rot.y, glm::two_pi<float>());
+			gameObject.transform.setRotation(rot);
+			updated = true;
+		}
+	} else if (mouseCaptured) {
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		mouseCaptured = false;
+	}
+
 	glm::vec3 rotate{ 0 };
 	if (glfwGetKey(window, keys.lookRight) == GLFW_PRESS) rotate.y -= 1.0f;
 	if (glfwGetKey(window, keys.lookLeft) == GLFW_PRESS) rotate.y += 1.0f;
 	if (glfwGetKey(window, keys.lookUp) == GLFW_PRESS) rotate.x += 1.0f;
 	if (glfwGetKey(window, keys.lookDown) == GLFW_PRESS) rotate.x -= 1.0f;
-	// Good idea to avoid comparing float against 0
 	if (glm::dot(rotate, rotate) > std::numeric_limits<float>::epsilon()) {
-
 		glm::vec3 newRot = gameObject.transform.getRotation() + lookSpeed * dt * glm::normalize(rotate);
 		gameObject.transform.setRotation(newRot);
 		updated = true;

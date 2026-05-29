@@ -190,6 +190,7 @@ namespace bagel {
 		//entt::entity monitor = createMonitor();
 		//entt::entity ent = createCylinder();
 		createLights();
+		placeCubes();
 		//------------------------------------------------------
 		// Game loop
 		bool forward = true;
@@ -272,12 +273,6 @@ namespace bagel {
 				uboBuffers->writeToBuffer(&ubo);
 				uboBuffers->flush();
 				
-				//Offscreen Render
-				bglRenderer.beginOffScreenRenderPass(primaryCommandBuffer);
-				modelRenderSystemOffscreen.renderEntities(frameInfo);
-				pointLightSystemOffscreen.render(frameInfo);
-				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
-
 				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
 				//always render solid objects before rendering transparent objects
 				modelRenderSystem.renderEntities(frameInfo);
@@ -481,6 +476,42 @@ namespace bagel {
 		delete textureBuilder;
 		return e1;
 	}
+	void FirstApp::placeCubes()
+	{
+		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
+		auto textureBuilder = new TextureComponentBuilder(bglDevice, *globalPool, *descriptorManager);
+
+		struct CubeDef { glm::vec3 pos; glm::vec3 scale; };
+		CubeDef defs[] = {
+			{{ 2.0f,  0.0f,  0.0f}, {0.4f, 0.4f, 0.4f}},
+			{{-2.0f,  0.0f,  0.0f}, {0.4f, 0.4f, 0.4f}},
+			{{ 0.0f,  0.0f,  2.0f}, {0.4f, 0.4f, 0.4f}},
+			{{ 0.0f,  0.0f, -2.0f}, {0.4f, 0.4f, 0.4f}},
+			{{ 1.5f,  0.6f,  1.5f}, {0.3f, 0.3f, 0.3f}},
+			{{-1.5f,  0.6f,  1.5f}, {0.3f, 0.3f, 0.3f}},
+			{{ 1.5f,  0.6f, -1.5f}, {0.3f, 0.3f, 0.3f}},
+			{{-1.5f,  0.6f, -1.5f}, {0.3f, 0.3f, 0.3f}},
+		};
+
+		for (auto& def : defs) {
+			auto entity = registry.create();
+			auto& tfc = registry.emplace<TransformComponent>(entity);
+			tfc.setTranslation(def.pos);
+			tfc.setScale(def.scale);
+
+			auto& tc = registry.emplace<DiffuseTextureComponent>(entity);
+			textureBuilder->setBuildTarget(&tc);
+			textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
+
+			ModelComponent& comp = modelBuilder->buildComponent<ModelComponent>(
+				entity, "/models/cube.obj", ComponentBuildMode::FACES);
+			comp.setDiffuseTextureToSubmesh(0, tc.textureHandle[0]);
+		}
+
+		delete modelBuilder;
+		delete textureBuilder;
+	}
+
 	void FirstApp::createLights()
 	{
 		std::vector<glm::vec3> lightColors{

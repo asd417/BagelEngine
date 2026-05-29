@@ -59,7 +59,7 @@ namespace bagel {
 		bool freeFly = true;
 		bool runPhys = false;
 		bool rotateLight = false;
-		bool showFPS = false;
+		bool showFPS = true;
 		bool showInfo = false;
 		bool showWireframe = false;
 
@@ -71,6 +71,7 @@ namespace bagel {
 		entt::entity createMonitor();
 		void createLights();
 		entt::entity createCylinder();
+		void placeCubes();
 		BGLWindow bglWindow{ WIDTH, HEIGHT, "Bagel Engine" };
 		BGLDevice bglDevice{ bglWindow };
 		BGLRenderer bglRenderer{ bglWindow,bglDevice };

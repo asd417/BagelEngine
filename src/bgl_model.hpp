@@ -329,6 +329,11 @@ namespace bagel {
 		void loadOBJModel(const char* filename, bool loadLines);
 		void loadModel(const char* filename, bool loadLines);
 		void generateGrid(int size);
+		void generateCube();
+		void generateFloor();
+		void generateWireCube();
+		void generateWireSphere();
+		void generateAxis();
 		void calculateTangent();
 		//Creates vertex buffer with any given set of BGLModel::Vertex
 		void createVertexBufferInputData(size_t bufferSize, void* bufferSrc, VkBuffer& bufferDst, VkDeviceMemory& memoryDst);

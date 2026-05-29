@@ -95,8 +95,7 @@ set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CM
 target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:_DEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER>")
 target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:NDEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER>")
 
-target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
-target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
+# JPH_FLOATING_POINT_EXCEPTIONS_ENABLED omitted — Jolt must be built with the same flag
 target_compile_definitions(BagelEngine PUBLIC JPH_OBJECT_STREAM)
 target_compile_definitions(BagelEngine PUBLIC ENGINE_BASE_PATH="${CMAKE_SOURCE_DIR}")
 

@@ -68,7 +68,6 @@ namespace bagel {
 
 	void ModelRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
-		std::cout << "renderEntities() at Model Render System\n";
 		bglPipeline->bind(frameInfo.commandBuffer);
 		vkCmdBindDescriptorSets(
 			frameInfo.commandBuffer,

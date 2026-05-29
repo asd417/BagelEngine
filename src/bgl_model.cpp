@@ -5,9 +5,15 @@
 
 #include <cassert>
 #include <cstring>
+#include <cmath>
 #include <iostream>
 #include <array>
 #include <map>
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/constants.hpp>
 
 #include "bagel_engine_device.hpp"
 
@@ -398,12 +404,147 @@ namespace bagel {
 		submeshes.push_back(gridMesh);
 	}
 
+	void ModelComponentBuilder::generateCube() {
+		struct Face { glm::vec3 normal; glm::vec3 c[4]; glm::vec2 uv[4]; };
+		Face faces[] = {
+			{ { 0, 1, 0}, {{-0.5f, 0.5f,-0.5f},{ 0.5f, 0.5f,-0.5f},{ 0.5f, 0.5f, 0.5f},{-0.5f, 0.5f, 0.5f}}, {{0,0},{1,0},{1,1},{0,1}} },
+			{ { 0,-1, 0}, {{-0.5f,-0.5f, 0.5f},{ 0.5f,-0.5f, 0.5f},{ 0.5f,-0.5f,-0.5f},{-0.5f,-0.5f,-0.5f}}, {{0,0},{1,0},{1,1},{0,1}} },
+			{ { 1, 0, 0}, {{ 0.5f,-0.5f, 0.5f},{ 0.5f, 0.5f, 0.5f},{ 0.5f, 0.5f,-0.5f},{ 0.5f,-0.5f,-0.5f}}, {{0,0},{0,1},{1,1},{1,0}} },
+			{ {-1, 0, 0}, {{-0.5f,-0.5f,-0.5f},{-0.5f, 0.5f,-0.5f},{-0.5f, 0.5f, 0.5f},{-0.5f,-0.5f, 0.5f}}, {{0,0},{0,1},{1,1},{1,0}} },
+			{ { 0, 0, 1}, {{-0.5f,-0.5f, 0.5f},{-0.5f, 0.5f, 0.5f},{ 0.5f, 0.5f, 0.5f},{ 0.5f,-0.5f, 0.5f}}, {{0,0},{0,1},{1,1},{1,0}} },
+			{ { 0, 0,-1}, {{ 0.5f,-0.5f,-0.5f},{ 0.5f, 0.5f,-0.5f},{-0.5f, 0.5f,-0.5f},{-0.5f,-0.5f,-0.5f}}, {{0,0},{0,1},{1,1},{1,0}} },
+		};
+		SubmeshInfo sm{};
+		sm.firstIndex = 0;
+		for (auto& f : faces) {
+			uint32_t base = static_cast<uint32_t>(vertices.size());
+			for (int i = 0; i < 4; i++) {
+				BGLModel::Vertex v{};
+				v.position = f.c[i]; v.normal = f.normal; v.color = {1,1,1}; v.uv = f.uv[i];
+				vertices.push_back(v);
+			}
+			indices.push_back(base);   indices.push_back(base+1); indices.push_back(base+2);
+			indices.push_back(base);   indices.push_back(base+2); indices.push_back(base+3);
+		}
+		sm.indexCount = static_cast<uint32_t>(indices.size());
+		submeshes.push_back(sm);
+	}
+
+	void ModelComponentBuilder::generateFloor() {
+		glm::vec3 n{0,1,0};
+		glm::vec3 pos[] = {{-0.5f,0,-0.5f},{0.5f,0,-0.5f},{0.5f,0,0.5f},{-0.5f,0,0.5f}};
+		glm::vec2 uv[]  = {{0,0},{1,0},{1,1},{0,1}};
+		uint32_t base = static_cast<uint32_t>(vertices.size());
+		for (int i = 0; i < 4; i++) {
+			BGLModel::Vertex v{}; v.position = pos[i]; v.normal = n; v.color = {1,1,1}; v.uv = uv[i];
+			vertices.push_back(v);
+		}
+		indices.push_back(base);   indices.push_back(base+1); indices.push_back(base+2);
+		indices.push_back(base);   indices.push_back(base+2); indices.push_back(base+3);
+		SubmeshInfo sm{}; sm.firstIndex = 0; sm.indexCount = static_cast<uint32_t>(indices.size());
+		submeshes.push_back(sm);
+	}
+
+	void ModelComponentBuilder::generateWireCube() {
+		glm::vec3 c[8] = {
+			{-0.5f,-0.5f,-0.5f},{0.5f,-0.5f,-0.5f},{0.5f,0.5f,-0.5f},{-0.5f,0.5f,-0.5f},
+			{-0.5f,-0.5f, 0.5f},{0.5f,-0.5f, 0.5f},{0.5f,0.5f, 0.5f},{-0.5f,0.5f, 0.5f},
+		};
+		int edges[12][2] = {
+			{0,1},{1,2},{2,3},{3,0},
+			{4,5},{5,6},{6,7},{7,4},
+			{0,4},{1,5},{2,6},{3,7},
+		};
+		for (auto& e : edges) {
+			BGLModel::Vertex v0{}, v1{};
+			v0.position = c[e[0]]; v0.color = {1,1,1};
+			v1.position = c[e[1]]; v1.color = {1,1,1};
+			vertices.push_back(v0); vertices.push_back(v1);
+		}
+		SubmeshInfo sm{}; sm.firstIndex = 0; sm.indexCount = 0;
+		submeshes.push_back(sm);
+	}
+
+	void ModelComponentBuilder::generateWireSphere() {
+		const int N = 32;
+		const float r = 0.5f;
+		for (int circle = 0; circle < 3; circle++) {
+			for (int i = 0; i < N; i++) {
+				float a0 = glm::two_pi<float>() * i / N;
+				float a1 = glm::two_pi<float>() * (i + 1) / N;
+				glm::vec3 p0, p1;
+				if      (circle == 0) { p0 = {r*cosf(a0), 0,         r*sinf(a0)}; p1 = {r*cosf(a1), 0,         r*sinf(a1)}; }
+				else if (circle == 1) { p0 = {r*cosf(a0), r*sinf(a0), 0        }; p1 = {r*cosf(a1), r*sinf(a1), 0        }; }
+				else                  { p0 = {0, r*cosf(a0), r*sinf(a0)        }; p1 = {0, r*cosf(a1), r*sinf(a1)        }; }
+				BGLModel::Vertex v0{}, v1{};
+				v0.position = p0; v0.color = {1,1,1};
+				v1.position = p1; v1.color = {1,1,1};
+				vertices.push_back(v0); vertices.push_back(v1);
+			}
+		}
+		SubmeshInfo sm{}; sm.firstIndex = 0; sm.indexCount = 0;
+		submeshes.push_back(sm);
+	}
+
+	void ModelComponentBuilder::generateAxis() {
+		const int   N      = 12;
+		const float length = 0.5f;
+		const float radius = 0.04f;
+
+		struct Arm { glm::vec3 dir; glm::vec3 color; };
+		Arm arms[] = { {{1,0,0},{1,0,0}}, {{0,1,0},{0,1,0}}, {{0,0,1},{0,0,1}} };
+
+		for (auto& arm : arms) {
+			glm::vec3 dir = arm.dir;
+			glm::vec3 arb = (glm::abs(dir.x) < 0.9f) ? glm::vec3(1,0,0) : glm::vec3(0,1,0);
+			glm::vec3 right = glm::normalize(glm::cross(dir, arb));
+			glm::vec3 up    = glm::normalize(glm::cross(right, dir));
+
+			uint32_t barrelBase = static_cast<uint32_t>(vertices.size());
+			for (int i = 0; i < N; i++) {
+				float angle  = glm::two_pi<float>() * i / N;
+				glm::vec3 rad = right * cosf(angle) + up * sinf(angle);
+				BGLModel::Vertex bv{}, tv{};
+				bv.position = rad * radius;          bv.normal = rad; bv.color = arm.color; bv.uv = {(float)i/N, 0};
+				tv.position = rad * radius + dir * length; tv.normal = rad; tv.color = arm.color; tv.uv = {(float)i/N, 1};
+				vertices.push_back(bv); vertices.push_back(tv);
+			}
+			for (int i = 0; i < N; i++) {
+				uint32_t i0 = barrelBase + i*2,     i1 = barrelBase + i*2+1;
+				uint32_t i2 = barrelBase + (i+1)%N*2+1, i3 = barrelBase + (i+1)%N*2;
+				indices.push_back(i0); indices.push_back(i1); indices.push_back(i2);
+				indices.push_back(i0); indices.push_back(i2); indices.push_back(i3);
+			}
+
+			// Top cap
+			uint32_t capCenter = static_cast<uint32_t>(vertices.size());
+			BGLModel::Vertex tip{}; tip.position = dir * length; tip.normal = dir; tip.color = arm.color;
+			vertices.push_back(tip);
+			for (int i = 0; i < N; i++) {
+				float angle = glm::two_pi<float>() * i / N;
+				glm::vec3 rad = right * cosf(angle) + up * sinf(angle);
+				BGLModel::Vertex v{}; v.position = rad * radius + dir * length; v.normal = dir; v.color = arm.color;
+				vertices.push_back(v);
+			}
+			for (int i = 0; i < N; i++) {
+				indices.push_back(capCenter);
+				indices.push_back(capCenter + 1 + (i+1)%N);
+				indices.push_back(capCenter + 1 + i);
+			}
+		}
+
+		SubmeshInfo sm{}; sm.firstIndex = 0; sm.indexCount = static_cast<uint32_t>(indices.size());
+		submeshes.push_back(sm);
+	}
+
 	void ModelComponentBuilder::loadModel(const char* filename, bool loadLines) {
 		//Load generated models here
-		if (strcmp(filename, "grid")==0) {
-			generateGrid(50);
-			return;
-		}
+		if (strcmp(filename, "grid") == 0)                  { generateGrid(50);    return; }
+		if (strcmp(filename, "/models/cube.obj") == 0)       { generateCube();      return; }
+		if (strcmp(filename, "/models/floor.obj") == 0)      { generateFloor();     return; }
+		if (strcmp(filename, "/models/wirecube.obj") == 0)   { generateWireCube();  return; }
+		if (strcmp(filename, "/models/wiresphere.obj") == 0) { generateWireSphere(); return; }
+		if (strcmp(filename, "/models/axis.obj") == 0)       { generateAxis();      return; }
 
 		//Load model by filetype
 		//Only requirement for each model-loading function is to separate model into submeshes by material
