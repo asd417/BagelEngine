@@ -95,6 +95,9 @@ layout(push_constant) uniform Push {
 
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
+	uint albedoMap;
+	uint normalMap;
+	uint roughMap;
 } push;
 
 
@@ -137,9 +140,9 @@ void main() {
 	//orthogonal matrices (each axis is a perpendicular unit vector) is that the transpose of an orthogonal matrix equals its inverse.
 	//Use it to move light pos and view dir to tangent space
 
-	vs_out.albedoMap = in_albedoMap;
-	vs_out.normalMap = in_normalMap;
-	vs_out.roughMap = in_roughMap;
+	vs_out.albedoMap = (push.albedoMap != 0) ? push.albedoMap : in_albedoMap;
+	vs_out.normalMap = (push.normalMap != 0) ? push.normalMap : in_normalMap;
+	vs_out.roughMap  = (push.roughMap  != 0) ? push.roughMap  : in_roughMap;
 	vs_out.metallicMap = in_metallicMap;
 	vs_out.specularMap = in_specularMap;
 	vs_out.heightMap = in_heightMap;

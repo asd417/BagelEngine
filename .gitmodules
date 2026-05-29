@@ -1,0 +1,18 @@
+[submodule "Dependencies/JoltPhysics"]
+	path = Dependencies/JoltPhysics
+	url = https://github.com/jrouwe/JoltPhysics.git
+[submodule "Dependencies/KTX-Software"]
+	path = Dependencies/KTX-Software
+	url = https://github.com/KhronosGroup/KTX-Software.git
+[submodule "Dependencies/entt"]
+	path = Dependencies/entt
+	url = https://github.com/skypjack/entt.git
+[submodule "Dependencies/imgui"]
+	path = Dependencies/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "Dependencies/stb"]
+	path = Dependencies/stb
+	url = https://github.com/nothings/stb.git
+[submodule "Dependencies/tinygltf"]
+	path = Dependencies/tinygltf
+	url = https://github.com/syoyo/tinygltf.git

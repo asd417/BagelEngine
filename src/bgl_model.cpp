@@ -423,8 +423,8 @@ namespace bagel {
 				v.position = f.c[i]; v.normal = f.normal; v.color = {1,1,1}; v.uv = f.uv[i];
 				vertices.push_back(v);
 			}
-			indices.push_back(base);   indices.push_back(base+1); indices.push_back(base+2);
-			indices.push_back(base);   indices.push_back(base+2); indices.push_back(base+3);
+			indices.push_back(base);   indices.push_back(base+2); indices.push_back(base+1);
+			indices.push_back(base);   indices.push_back(base+3); indices.push_back(base+2);
 		}
 		sm.indexCount = static_cast<uint32_t>(indices.size());
 		submeshes.push_back(sm);
@@ -593,7 +593,7 @@ namespace bagel {
 			}
 			for (int i = 0; i < vertices.size(); i++) {
 				vertices[i].tangent = glm::normalize(vertices[i].tangent);
-				vertices[i].bitangent = glm::normalize(vertices[i].tangent);
+				vertices[i].bitangent = glm::normalize(vertices[i].bitangent);
 			}
 		}
 		else {
@@ -628,7 +628,7 @@ namespace bagel {
 			}
 			for (int i = 0; i < vertices.size(); i++) {
 				vertices[i].tangent = glm::normalize(vertices[i].tangent);
-				vertices[i].bitangent = glm::normalize(vertices[i].tangent);
+				vertices[i].bitangent = glm::normalize(vertices[i].bitangent);
 			}
 		}
 	}

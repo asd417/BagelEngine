@@ -91,6 +91,9 @@ namespace bagel {
 				push.UsesBufferedTransform = 0;
 				push.modelMatrix = transformComp.mat4();
 				push.scale = glm::vec4{ transformComp.getWorldScale(), 1.0 };
+				push.albedoMap = sm.diffuseTextureHandle;
+				push.normalMap = sm.normalTextureHandle;
+				push.roughMap  = sm.roughmetalTextureHandle;
 
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 
@@ -115,6 +118,9 @@ namespace bagel {
 
 				push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
 				push.BufferedTransformHandle = transformComp.bufferHandle;
+				push.albedoMap = sm.diffuseTextureHandle;
+				push.normalMap = sm.normalTextureHandle;
+				push.roughMap  = sm.roughmetalTextureHandle;
 
 				if (!transformComp.useBuffer()) {
 					push.modelMatrix = transformComp.mat4(0);

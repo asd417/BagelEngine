@@ -21,6 +21,9 @@ namespace bagel {
 
 		uint32_t BufferedTransformHandle = 0;
 		uint32_t UsesBufferedTransform = 0;
+		uint32_t albedoMap = 0;
+		uint32_t normalMap = 0;
+		uint32_t roughMap = 0;
 	};
 
 	class ModelRenderSystem : BGLRenderSystem{

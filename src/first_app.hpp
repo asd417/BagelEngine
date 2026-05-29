@@ -59,7 +59,7 @@ namespace bagel {
 		bool freeFly = true;
 		bool runPhys = false;
 		bool rotateLight = false;
-		bool showFPS = true;
+		bool showFPS = false;
 		bool showInfo = false;
 		bool showWireframe = false;
 

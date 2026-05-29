@@ -12,26 +12,22 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 	if (zDown && !zKeyWasDown) {
 		fpsMode = !fpsMode;
 		if (fpsMode) {
-			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-			int w, h;
-			glfwGetWindowSize(window, &w, &h);
-			glfwSetCursorPos(window, w / 2.0, h / 2.0);
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			double mx, my;
+			glfwGetCursorPos(window, &mx, &my);
+			lastMousePos = { static_cast<float>(mx), static_cast<float>(my) };
 		} else {
 			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		}
 	}
 	zKeyWasDown = zDown;
 
-	// Mouse look — cursor locked to window center in FPS mode
+	// Mouse look — raw delta tracked via lastMousePos in FPS mode
 	if (fpsMode && !io.WantCaptureMouse) {
-		int w, h;
-		glfwGetWindowSize(window, &w, &h);
-		double cx = w / 2.0, cy = h / 2.0;
-
 		double mx, my;
 		glfwGetCursorPos(window, &mx, &my);
-		glm::vec2 delta{ static_cast<float>(mx - cx), static_cast<float>(my - cy) };
-		glfwSetCursorPos(window, cx, cy);
+		glm::vec2 delta{ static_cast<float>(mx) - lastMousePos.x, static_cast<float>(my) - lastMousePos.y };
+		lastMousePos = { static_cast<float>(mx), static_cast<float>(my) };
 
 		if (glm::dot(delta, delta) > std::numeric_limits<float>::epsilon()) {
 			glm::vec3 rot = gameObject.transform.getRotation();
@@ -61,9 +57,10 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 	}
 
 	// WASD movement
-	float yaw = gameObject.transform.getRotation().y;
-	const glm::vec3 forwardDir{ sinf(yaw), 0.0f, cosf(yaw) };
-	const glm::vec3 rightDir{ forwardDir.z, 0.0f, -forwardDir.x };
+	float yaw   = gameObject.transform.getRotation().y;
+	float pitch = gameObject.transform.getRotation().x;
+	const glm::vec3 forwardDir{ cosf(pitch) * sinf(yaw), -sinf(pitch), cosf(pitch) * cosf(yaw) };
+	const glm::vec3 rightDir{ cosf(yaw), 0.0f, -sinf(yaw) };
 	const glm::vec3 upDir{ 0.0f, 1.0f, 0.0f };
 
 	glm::vec3 moveDir{ 0.0f };

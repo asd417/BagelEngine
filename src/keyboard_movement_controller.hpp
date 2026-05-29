@@ -28,10 +28,11 @@ namespace bagel {
 		KeyMappings keys{};
 		float moveSpeed{ 3.0f };
 		float lookSpeed{ 1.5f };
-		float mouseSensitivity{ 0.001f };
+		float mouseSensitivity{ 0.1f };
 
 	private:
 		bool fpsMode{ false };
 		bool zKeyWasDown{ false };
+		glm::vec2 lastMousePos{ 0.0f, 0.0f };
 	};
 }

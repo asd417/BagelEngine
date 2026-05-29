@@ -253,7 +253,9 @@ namespace bagel {
 			//imgui draw commands
 			if(showInfo) DrawInfoPanels(registry, ext.width, ext.height, camera.getProjection(), camera.getView());
 			ConsoleApp::Instance()->Draw("Console", nullptr);
-			ImGui::ShowMetricsWindow();
+			ImGui::Begin("Settings");
+			ImGui::SliderFloat("Mouse Sensitivity", &cameraController.mouseSensitivity, 0.05f, 0.3f);
+			ImGui::End();
 			ImGui::Render();
 			
 			// bglRenderer.beginFrame returns nullptr if the swapchain needs to be recreated
@@ -499,13 +501,23 @@ namespace bagel {
 			tfc.setTranslation(def.pos);
 			tfc.setScale(def.scale);
 
-			auto& tc = registry.emplace<DiffuseTextureComponent>(entity);
-			textureBuilder->setBuildTarget(&tc);
+			auto& dc = registry.emplace<DiffuseTextureComponent>(entity);
+			textureBuilder->setBuildTarget(&dc);
 			textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Color.png");
+
+			auto& nc = registry.emplace<NormalTextureComponent>(entity);
+			textureBuilder->setBuildTarget(&nc);
+			textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_NormalGL.png", VK_FORMAT_R8G8B8A8_UNORM);
+
+			auto& rc = registry.emplace<RoughnessMetalTextureComponent>(entity);
+			textureBuilder->setBuildTarget(&rc);
+			textureBuilder->buildComponent("/materials/Bricks089_1K-PNG_Roughness.png");
 
 			ModelComponent& comp = modelBuilder->buildComponent<ModelComponent>(
 				entity, "/models/cube.obj", ComponentBuildMode::FACES);
-			comp.setDiffuseTextureToSubmesh(0, tc.textureHandle[0]);
+			comp.setDiffuseTextureToSubmesh(0, dc.textureHandle[0]);
+			comp.setNormalTextureToSubmesh(0, nc.textureHandle[0]);
+			comp.setRoughMetalTextureToSubmesh(0, rc.textureHandle[0]);
 		}
 
 		delete modelBuilder;

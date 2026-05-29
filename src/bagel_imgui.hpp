@@ -119,45 +119,17 @@ namespace bagel {
                 ImGui::EndPopup();
             }
 
-            ImGui::TextWrapped(
-                "This example implements a console with basic coloring, completion (TAB key) and history (Up/Down keys). A more elaborate "
-                "implementation may want to store entries along with extra data such as timestamp, emitter, etc.");
-            ImGui::TextWrapped("Enter 'HELP' for help.");
-            ImGui::TextWrapped("Press 'TAB' for auto-complete.");
-
-            // TODO: display items starting from the bottom
-            if (ImGui::SmallButton("Add Debug Text")) { AddLog("%d some text", Items.Size); AddLog("some more text"); AddLog("display very important message here!"); }
-            ImGui::SameLine();
-            if (ImGui::SmallButton("Add Button")) {
-                testToggle = !testToggle;
-            }
-            if (testToggle) {
-                ImGui::SameLine();
-                ImGui::SmallButton("More button??");
-            }
-            ImGui::SameLine();
-            if (ImGui::SmallButton("Add Debug Error")) AddLog("[error] something went wrong"); 
-            
-            ImGui::SameLine();
             if (ImGui::SmallButton("Clear")) { ClearLog(); }
             ImGui::SameLine();
-            bool copy_to_clipboard = ImGui::SmallButton("Copy");
-            //static float t = 0.0f; if (ImGui::GetTime() - t > 0.02f) { t = ImGui::GetTime(); AddLog("Spam %f", t); }
-
-            ImGui::Separator();
-
-            // Options menu
             if (ImGui::BeginPopup("Options"))
             {
                 ImGui::Checkbox("Auto-scroll", &AutoScroll);
                 ImGui::EndPopup();
             }
-
-            // Options, Filter
-            if (ImGui::Button("Options"))
+            if (ImGui::SmallButton("Options"))
                 ImGui::OpenPopup("Options");
             ImGui::SameLine();
-            Filter.Draw("Filter (\"incl,-excl\") (\"error\")", 180);
+            Filter.Draw("Search", 180);
             ImGui::Separator();
 
             // Reserve enough left-over height for 1 separator + 1 input text
@@ -195,8 +167,6 @@ namespace bagel {
                 // - Split them into same height items would be simpler and facilitate random-seeking into your list.
                 // - Consider using manual call to IsRectVisible() and skipping extraneous decoration from your items.
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1)); // Tighten spacing
-                if (copy_to_clipboard)
-                    ImGui::LogToClipboard();
                 for (const char* item : Items)
                 {
                     if (!Filter.PassFilter(item)) continue;
@@ -213,9 +183,6 @@ namespace bagel {
                     if (has_color)
                         ImGui::PopStyleColor();
                 }
-                if (copy_to_clipboard)
-                    ImGui::LogFinish();
-
                 // Keep up at the bottom of the scroll region if we were already at the bottom at the beginning of the frame.
                 // Using a scrollbar or mouse-wheel will take away from the bottom edge.
                 if (ScrollToBottom || (AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()))
@@ -258,8 +225,6 @@ namespace bagel {
     private:
         //Singleton
         static ConsoleApp* instance;
-
-        bool testToggle = false;
 
         std::unordered_map<const char*, std::pair<void*, std::function<char*(void*)>>> callbackMap;
 

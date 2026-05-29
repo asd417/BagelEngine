@@ -92,10 +92,9 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
  
 set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
 
-target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:_DEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER>")
-target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:NDEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER>")
+target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Debug>:_DEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER;JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
+target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:NDEBUG;JPH_PROFILE_ENABLED;JPH_DEBUG_RENDERER;JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
 
-# JPH_FLOATING_POINT_EXCEPTIONS_ENABLED omitted — Jolt must be built with the same flag
 target_compile_definitions(BagelEngine PUBLIC JPH_OBJECT_STREAM)
 target_compile_definitions(BagelEngine PUBLIC ENGINE_BASE_PATH="${CMAKE_SOURCE_DIR}")
 
@@ -133,6 +132,9 @@ if (WIN32)
 	$<$<CONFIG:Release>:${JOLT}/Build/VS2022_CL/Release>)
 
   target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1 ktx Jolt)
+
+  # glfw3.lib prebuilt with /MD; suppress conflicting MSVCRT defaultlib in Debug
+  target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:/NODEFAULTLIB:MSVCRT>)
 
 elseif (UNIX)
   message(STATUS "CREATING BUILD FOR LINUX")

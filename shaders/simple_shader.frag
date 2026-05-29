@@ -84,6 +84,9 @@ layout(push_constant) uniform Push {
 
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
+	uint albedoMap;
+	uint normalMap;
+	uint roughMap;
 } push;
 
 // Normal distribution function
