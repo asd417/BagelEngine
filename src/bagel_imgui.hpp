@@ -35,7 +35,7 @@ namespace bagel {
         window_flags |= ImGuiWindowFlags_NoMouseInputs;
         window_flags |= ImGuiWindowFlags_NoDecoration;
 
-        auto& view = registry.view<InfoComponent, TransformComponent>();
+        auto view = registry.view<InfoComponent, TransformComponent>();
         uint32_t infoPanelID = 0;
         std::string panelName = "InfoPanel";
         for (auto [ent, info, trans] : view.each()) {

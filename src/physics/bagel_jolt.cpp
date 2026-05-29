@@ -47,12 +47,12 @@ namespace bagel {
 
 	void BGLJolt::SetComponentActivityAll(bool activity)
 	{
-		auto& viewPhysics = registry.view<JoltPhysicsComponent>();
+		auto viewPhysics = registry.view<JoltPhysicsComponent>();
 		for (auto [ent,comp] : viewPhysics.each()) {
 			if (activity) bodyInterface->ActivateBody(comp.bodyID);
 			else bodyInterface->DeactivateBody(comp.bodyID);
 		}
-		auto& viewKinematic = registry.view<JoltKinematicComponent>();
+		auto viewKinematic = registry.view<JoltKinematicComponent>();
 		for (auto [ent, comp] : viewKinematic.each()) {
 			if (activity) bodyInterface->ActivateBody(comp.bodyID);
 			else bodyInterface->DeactivateBody(comp.bodyID);
@@ -162,7 +162,7 @@ namespace bagel {
 	}
 	inline void MyContactListener::OnContactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2, const JPH::ContactManifold& inManifold, JPH::ContactSettings& ioSettings)
 	{
-		auto& v = inManifold.GetWorldSpaceContactPointOn1(0);
+		auto v = inManifold.GetWorldSpaceContactPointOn1(0);
 		std::string contactSTR = "Contact on ";
 		char storage[32];
 		sprintf(storage, " %.2f %.2f %.2f", v.GetX(), v.GetY(), v.GetZ());

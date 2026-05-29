@@ -36,8 +36,8 @@ else()
 endif()
  
  
-# 2. Set GLFW_PATH in .env.cmake to target specific glfw
-if (DEFINED GLFW_PATH)
+# 2. Set GLFW_PATH in .env.cmake to target specific glfw (Windows only)
+if (DEFINED GLFW_PATH AND NOT UNIX)
   message(STATUS "Using GLFW path specified in .env")
   set(GLFW_INCLUDE_DIRS "${GLFW_PATH}/include")
   if (MSVC)
@@ -103,7 +103,7 @@ target_compile_definitions(BagelEngine PUBLIC ENGINE_BASE_PATH="${CMAKE_SOURCE_D
 
 if (WIN32)
   message(STATUS "CREATING BUILD FOR WINDOWS")
- 
+
   target_include_directories(${PROJECT_NAME} PUBLIC
     ${PROJECT_SOURCE_DIR}/src
     ${Vulkan_INCLUDE_DIRS}
@@ -118,22 +118,48 @@ if (WIN32)
     ${IMGUI}
     ${JOLT}
     )
-	
+
   target_include_directories(${PROJECT_NAME} PUBLIC ${JoltPhysics_SOURCE_DIR}/..)
- 
-  target_link_directories(${PROJECT_NAME} PUBLIC 
-	${Vulkan_LIBRARIES} 
-	${GLFW_LIB} 
-	$<$<CONFIG:Debug>:${KTX_LIB}/Debug> 
+
+  target_link_directories(${PROJECT_NAME} PUBLIC
+	${Vulkan_LIBRARIES}
+	${GLFW_LIB}
+	$<$<CONFIG:Debug>:${KTX_LIB}/Debug>
 	$<$<CONFIG:Debug>:${JOLT}/Build/VS2022_CL/Debug>)
-  
-  target_link_directories(${PROJECT_NAME} PUBLIC 
-	${Vulkan_LIBRARIES} 
-	${GLFW_LIB} 
-	$<$<CONFIG:Release>:${KTX_LIB}/Release> 
+
+  target_link_directories(${PROJECT_NAME} PUBLIC
+	${Vulkan_LIBRARIES}
+	${GLFW_LIB}
+	$<$<CONFIG:Release>:${KTX_LIB}/Release>
 	$<$<CONFIG:Release>:${JOLT}/Build/VS2022_CL/Release>)
 
   target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1 ktx Jolt)
+
+elseif (UNIX)
+  message(STATUS "CREATING BUILD FOR LINUX")
+
+  find_package(glfw3 3.3 REQUIRED)
+
+  target_include_directories(${PROJECT_NAME} PUBLIC
+    ${PROJECT_SOURCE_DIR}/src
+    ${Vulkan_INCLUDE_DIRS}
+    ${TINYGLTF_PATH}
+    ${TINYOBJ_PATH}
+    ${GLM_PATH}
+    ${DEPS}/KTX-Software/include
+    ${DEPS}/KTX-Software/external/dfdutils
+    ${STB}
+    ${ENTT}
+    ${IMGUI}
+    ${JOLT}
+    )
+
+  target_link_directories(${PROJECT_NAME} PUBLIC
+    ${Vulkan_LIBRARIES}
+    ${DEPS}/KTX-Software/build/Release
+    ${JOLT}/Build/Linux)
+
+  target_link_libraries(${PROJECT_NAME} glfw vulkan ktx Jolt)
 
 endif()
 

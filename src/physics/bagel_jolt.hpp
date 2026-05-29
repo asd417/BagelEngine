@@ -228,7 +228,7 @@ namespace bagel {
 			instance = new BGLJolt(device,registry);
 		}
 		static BGLJolt* GetInstance() { 
-			if (instance == nullptr) throw std::exception("BGLJolt must be initialized with entt registry reference");
+			if (instance == nullptr) throw std::runtime_error("BGLJolt must be initialized with entt registry reference");
 			return instance;
 		}
 		JPH::BodyInterface& GetBodyInterface() const { return *bodyInterface; }

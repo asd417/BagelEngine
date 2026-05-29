@@ -1,4 +1,5 @@
 #include "bagel_descriptors.hpp"
+#include <limits>
 
 
 #define VK_CHECK(x)                                                     \

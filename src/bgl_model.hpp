@@ -70,21 +70,21 @@ namespace bagel {
 			static std::vector<VkVertexInputBindingDescription> getBindingDescriptions();
 			static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
 
-			bool Vertex::operator=(const Vertex& other) const {
+			bool operator=(const Vertex& other) const {
 				return std::tie(
 					position.x,position.y,position.z,
 					normal.x,normal.y,normal.z) 
 					== std::tie(other.position.x, other.position.y, other.position.z,
 						other.normal.x, other.normal.y, other.normal.z);
 			}
-			bool Vertex::operator<(const Vertex& other) const {
+			bool operator<(const Vertex& other) const {
 				return std::tie(
 					position.x, position.y, position.z,
 					normal.x, normal.y, normal.z)
 					< std::tie(other.position.x, other.position.y, other.position.z,
 						other.normal.x, other.normal.y, other.normal.z);
 			}
-			bool Vertex::operator>(const Vertex& other) const {
+			bool operator>(const Vertex& other) const {
 				return std::tie(
 					position.x, position.y, position.z,
 					normal.x, normal.y, normal.z)
@@ -263,7 +263,7 @@ namespace bagel {
 		T& buildComponent(entt::entity targetEnt, const char* modelFileName, ComponentBuildMode buildmode)
 		{
 			//Check through registry if the model was already loaded by another entity
-			auto& regView = registry.view<T>();
+			auto regView = registry.view<T>();
 			for (auto [entity, comp] : regView.each()) {
 				//Already loaded. Copy over vk handles and mark as duplicate
 				if (comp.modelName == std::string(modelFileName))
@@ -274,7 +274,7 @@ namespace bagel {
 					comp.origin = &comp;
 
 					//copy over everything
-					for (ModelComponent::Submesh& const submesh : comp.submeshes) {
+					for (const ModelComponent::Submesh& submesh : comp.submeshes) {
 						newComp.submeshes.push_back(submesh);
 					}
 					newComp.vertexBuffer = comp.vertexBuffer;

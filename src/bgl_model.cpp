@@ -351,20 +351,20 @@ namespace bagel {
 					if (index.texcoord_index >= 0) {
 						vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0] , 1 - attrib.texcoords[2 * index.texcoord_index + 1] };
 					}
-					int index;
+					int vertexIndex;
 					if (auto search = vertexMap.find(vertex); search != vertexMap.end()) {
 						//vertex already exists in map
-						index = search->second;
+						vertexIndex = search->second;
 					}
 					else {
 						//new vertex
 						vertexMap.emplace(vertex, vertInt);
-						index = vertInt;
+						vertexIndex = vertInt;
 						vertInt++;
 						vertices.push_back(vertex);
 					}
 					//vertices.push_back(vertex);
-					indices.push_back(index);
+					indices.push_back(vertexIndex);
 				}
 			}
 		}
