@@ -12,23 +12,26 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 	if (zDown && !zKeyWasDown) {
 		fpsMode = !fpsMode;
 		if (fpsMode) {
-			double mx, my;
-			glfwGetCursorPos(window, &mx, &my);
-			lastMousePos = { static_cast<float>(mx), static_cast<float>(my) };
-			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+			int w, h;
+			glfwGetWindowSize(window, &w, &h);
+			glfwSetCursorPos(window, w / 2.0, h / 2.0);
 		} else {
 			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		}
 	}
 	zKeyWasDown = zDown;
 
-	// Mouse look — only in FPS mode
+	// Mouse look — cursor locked to window center in FPS mode
 	if (fpsMode && !io.WantCaptureMouse) {
+		int w, h;
+		glfwGetWindowSize(window, &w, &h);
+		double cx = w / 2.0, cy = h / 2.0;
+
 		double mx, my;
 		glfwGetCursorPos(window, &mx, &my);
-		glm::vec2 mousePos{ static_cast<float>(mx), static_cast<float>(my) };
-		glm::vec2 delta = mousePos - lastMousePos;
-		lastMousePos = mousePos;
+		glm::vec2 delta{ static_cast<float>(mx - cx), static_cast<float>(my - cy) };
+		glfwSetCursorPos(window, cx, cy);
 
 		if (glm::dot(delta, delta) > std::numeric_limits<float>::epsilon()) {
 			glm::vec3 rot = gameObject.transform.getRotation();

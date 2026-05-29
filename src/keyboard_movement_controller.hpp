@@ -33,6 +33,5 @@ namespace bagel {
 	private:
 		bool fpsMode{ false };
 		bool zKeyWasDown{ false };
-		glm::vec2 lastMousePos{ 0.0f };
 	};
 }
