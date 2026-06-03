@@ -181,24 +181,4 @@ namespace bagel {
         bufferHandle = bufferComponent.getBufferHandle();
         usingBuffer = true;
     }
-    void ModelComponent::useDiffuseComponent(DiffuseTextureComponent& dfc) {
-        for (int i = 0; i < submeshes.size(); i++) {
-            setDiffuseTextureToSubmesh(i, dfc.textureHandle[i]);
-        }
-    }
-    void ModelComponent::useEmissionComponent(EmissionTextureComponent& dfc) {
-        for (int i = 0; i < submeshes.size(); i++) {
-            setEmissionTextureToSubmesh(i, dfc.textureHandle[i]);
-        }
-    }
-    void ModelComponent::useNormalComponent(NormalTextureComponent& dfc) {
-        for (int i = 0; i < submeshes.size(); i++) {
-            setNormalTextureToSubmesh(i, dfc.textureHandle[i]);
-        }
-    }
-    void ModelComponent::useRoughMetalComponent(RoughnessMetalTextureComponent& dfc) {
-        for (int i = 0; i < submeshes.size(); i++) {
-            setRoughMetalTextureToSubmesh(i, dfc.textureHandle[i]);
-        }
-    }
 }

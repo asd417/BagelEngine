@@ -127,15 +127,49 @@ namespace bagel {
 
 	void BGLPipeline::enableAlphaBlending(PipelineConfigInfo& configInfo) {
 		configInfo.colorBlendAttachment.blendEnable = VK_TRUE;
-		configInfo.colorBlendAttachment.colorWriteMask = 
+		configInfo.colorBlendAttachment.colorWriteMask =
 			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		//src is the current value being output from the fragment
 		configInfo.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
 		configInfo.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		configInfo.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
 		configInfo.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 		configInfo.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 		configInfo.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	}
+
+	void BGLPipeline::setupGBufferPipeline(PipelineConfigInfo& configInfo) {
+		VkPipelineColorBlendAttachmentState att{};
+		att.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		att.blendEnable = VK_FALSE;
+		// Four outputs: position, normal, albedo, emission
+		configInfo.colorBlendAttachments = { att, att, att, att };
+	}
+
+	void BGLPipeline::setupTransparentPipeline(PipelineConfigInfo& configInfo) {
+		enableAlphaBlending(configInfo);
+		configInfo.depthStencilInfo.depthWriteEnable = VK_FALSE;
+	}
+
+	void BGLPipeline::setupFullScreenPipeline(PipelineConfigInfo& configInfo) {
+		// No vertex buffers — vertices are generated in the vertex shader from gl_VertexIndex
+		configInfo.bindingDescriptions.clear();
+		configInfo.attributeDescriptions.clear();
+		// Composition writes to every pixel; no depth testing needed
+		configInfo.depthStencilInfo.depthTestEnable  = VK_FALSE;
+		configInfo.depthStencilInfo.depthWriteEnable = VK_FALSE;
+		// No face culling for the full-screen triangle
+		configInfo.rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
+	}
+
+	void BGLPipeline::setupFullScreenAdditivePipeline(PipelineConfigInfo& configInfo) {
+		setupFullScreenPipeline(configInfo);
+		configInfo.colorBlendAttachment.blendEnable          = VK_TRUE;
+		configInfo.colorBlendAttachment.srcColorBlendFactor  = VK_BLEND_FACTOR_ONE;
+		configInfo.colorBlendAttachment.dstColorBlendFactor  = VK_BLEND_FACTOR_ONE;
+		configInfo.colorBlendAttachment.colorBlendOp         = VK_BLEND_OP_ADD;
+		configInfo.colorBlendAttachment.srcAlphaBlendFactor  = VK_BLEND_FACTOR_ONE;
+		configInfo.colorBlendAttachment.dstAlphaBlendFactor  = VK_BLEND_FACTOR_ONE;
+		configInfo.colorBlendAttachment.alphaBlendOp         = VK_BLEND_OP_ADD;
 	}
 
 	void BGLPipeline::bind(VkCommandBuffer commandBuffer)
@@ -206,8 +240,16 @@ namespace bagel {
 		vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 		vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
 
+		// When a colorBlendAttachments vector is provided (e.g. G-buffer 3-MRT), use it;
+		// otherwise fall back to the single colorBlendAttachment field.
+		VkPipelineColorBlendStateCreateInfo colorBlendInfo = configInfo.colorBlendInfo;
+		if (!configInfo.colorBlendAttachments.empty()) {
+			colorBlendInfo.attachmentCount = static_cast<uint32_t>(configInfo.colorBlendAttachments.size());
+			colorBlendInfo.pAttachments    = configInfo.colorBlendAttachments.data();
+		}
+
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
-		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;    
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		pipelineInfo.stageCount = 2;
 		pipelineInfo.pStages = shaderStages;
 		pipelineInfo.pVertexInputState = &vertexInputInfo;
@@ -215,9 +257,9 @@ namespace bagel {
 		pipelineInfo.pViewportState = &configInfo.viewportInfo;
 		pipelineInfo.pRasterizationState = &configInfo.rasterizationInfo;
 		pipelineInfo.pMultisampleState = &configInfo.multisampleInfo;
-		pipelineInfo.pColorBlendState = &configInfo.colorBlendInfo;
+		pipelineInfo.pColorBlendState = &colorBlendInfo;
 		pipelineInfo.pDepthStencilState = &configInfo.depthStencilInfo;
-		pipelineInfo.pDynamicState = &configInfo.dynamicStateInfo; //optional. Allows dynamic setting of pipeline configuration
+		pipelineInfo.pDynamicState = &configInfo.dynamicStateInfo;
 
 		pipelineInfo.layout = configInfo.pipelineLayout;
 		pipelineInfo.renderPass = configInfo.renderPass;

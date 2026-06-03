@@ -30,7 +30,7 @@ namespace bagel {
 		seed ^= static_cast<uint32_t>(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 	}
 
-	struct Material {
+	struct GLTFMaterial {
 		std::string name;
 		uint32_t albedoMap = 0;
 		uint32_t normalMap = 0;
@@ -251,9 +251,8 @@ namespace bagel {
 			WireframeComponent& comp = registry.emplace<WireframeComponent>(targetEnt);
 			createVertexBufferInputData(sizeof(BGLModel::Vertex) * normalDataVertices.size(), (void*) normalDataVertices.data(), comp.vertexBuffer, comp.vertexMemory);
 
-			ModelComponent::Submesh sm{};
-			comp.submeshes.push_back(sm);
-			comp.vertexCount = normalDataVertices.size();
+			comp.submeshes[comp.submeshCount++] = ModelComponent::Submesh{};
+			comp.vertexCount = static_cast<uint32_t>(normalDataVertices.size());
 			
 			normalDataVertices.clear();
 			return comp;
@@ -273,9 +272,10 @@ namespace bagel {
 					newComp.origin = &comp;
 					comp.origin = &comp;
 
-					//copy over everything
-					for (const ModelComponent::Submesh& submesh : comp.submeshes) {
-						newComp.submeshes.push_back(submesh);
+					newComp.submeshCount = comp.submeshCount;
+					for (uint32_t _i = 0; _i < comp.submeshCount; _i++) {
+						newComp.submeshes[_i] = comp.submeshes[_i];
+						newComp.materials[_i] = comp.materials[_i];
 					}
 					newComp.vertexBuffer = comp.vertexBuffer;
 					newComp.indexBuffer = comp.indexBuffer;
@@ -297,15 +297,15 @@ namespace bagel {
 				std::cout << "Model has Index Buffer. Allocating...\n";
 				createIndexBuffer(sizeof(uint32_t) * indices.size(), comp.indexBuffer, comp.indexMemory);
 			}
-			for (auto smi : submeshes) {
-				ModelComponent::Submesh sm{};
-				sm.firstIndex = smi.firstIndex;
-				sm.indexCount = smi.indexCount;
+			for (auto& smi : submeshes) {
+				assert(comp.submeshCount < ModelComponent::MAX_SUBMESHES && "Exceeded MAX_SUBMESHES");
+				ModelComponent::Submesh& sm = comp.submeshes[comp.submeshCount++];
+				sm.firstIndex    = smi.firstIndex;
+				sm.indexCount    = smi.indexCount;
 				sm.materialIndex = smi.materialIndex;
-				comp.submeshes.push_back(sm);
 			}
-			comp.indexCount = indices.size();
-			comp.vertexCount = vertices.size();
+			comp.indexCount  = static_cast<uint32_t>(indices.size());
+			comp.vertexCount = static_cast<uint32_t>(vertices.size());
 			submeshes.clear();
 			vertices.clear();
 			indices.clear();
@@ -313,7 +313,7 @@ namespace bagel {
 			return comp;
 		}
 
-		void configureModelMaterialSet(std::vector<Material>* set);
+		void configureModelMaterialSet(std::vector<GLTFMaterial>* set);
 
 		void removeModelMaterialSet() { p_materialSet = nullptr; }
 	protected:
@@ -350,7 +350,7 @@ namespace bagel {
 
 		std::vector<BGLModel::Vertex> normalDataVertices{};
 
-		std::vector<Material>* p_materialSet = nullptr;
+		std::vector<GLTFMaterial>* p_materialSet = nullptr;
 
 		entt::registry& registry;
 	};

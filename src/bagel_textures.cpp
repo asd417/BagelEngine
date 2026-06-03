@@ -280,7 +280,7 @@ namespace bagel {
 		}
 	}
 
-	TextureComponentBuilder::TextureComponentBuilder(
+	BGLTextureLoader::BGLTextureLoader(
 		BGLDevice& _bglDevice,
 		BGLDescriptorPool& _globalPool,
 		BGLBindlessDescriptorManager& _descriptorManager)
@@ -289,21 +289,16 @@ namespace bagel {
 		descriptorManager{ _descriptorManager }
 	{}
 
-	TextureComponentBuilder::~TextureComponentBuilder()
+	BGLTextureLoader::~BGLTextureLoader()
 	{}
 
-	void TextureComponentBuilder::buildComponent(std::string filePath, VkFormat imageFormat)
+	uint32_t BGLTextureLoader::loadTexture(const char* filePath, VkFormat imageFormat)
 	{
-		buildComponent(filePath.c_str(), imageFormat);
+		return buildAndStore(filePath, imageFormat);
 	}
 
-	// filePath relative to engine path starting with /
-	void TextureComponentBuilder::buildComponent(const char* filePath, VkFormat imageFormat)
+	uint32_t BGLTextureLoader::buildAndStore(const char* filePath, VkFormat imageFormat)
 	{
-		assert(targetComponent != nullptr && "No targetComponent set for TextureComponentBuilder");
-		assert(targetComponent->textureCount < TextureComponent::MAX_TEXTURE_COUNT && "targetComponent has reached MAX_TEXTURE_COUNT");
-		targetComponent->textureName[targetComponent->textureCount] = std::string(filePath);
-		
 		uint32_t storedIndex = descriptorManager.searchTextureName(filePath);
 		bool designatedIndex = false;
 		if (storedIndex != std::numeric_limits<uint32_t>::max())
@@ -312,17 +307,14 @@ namespace bagel {
 			if (!descriptorManager.checkMissingTexture(storedIndex))
 			{
 				sprintf(buff, "Texture %s is already bound", filePath);
-				CONSOLE->Log("TextureComponentBuilder::buildComponent", buff);
-				targetComponent->textureHandle[targetComponent->textureCount] = storedIndex;
-				return;
+				CONSOLE->Log("BGLTextureLoader", buff);
+				return storedIndex;
 			}
-			sprintf(buff, "Texture %s is bound but marked missing", filePath);
-			CONSOLE->Log("TextureComponentBuilder::buildComponent", buff);
-			sprintf(buff, "Overriding Texture %s", filePath);
-			CONSOLE->Log("TextureComponentBuilder::buildComponent", buff);
+			sprintf(buff, "Texture %s is bound but marked missing — reloading", filePath);
+			CONSOLE->Log("BGLTextureLoader", buff);
 			designatedIndex = true;
 		}
-		// Staging Buffer is created here
+
 		const char* filetype = strrchr(filePath, '.');
 		if (strcmp(filetype, ".ktx") == 0) {
 			loadKTXImageInStagingBuffer(util::enginePath(filePath).c_str(), imageFormat);
@@ -332,7 +324,6 @@ namespace bagel {
 
 		VkSampler sampler;
 		VkImageView imageView;
-		VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		VkImage image;
 		VkDeviceMemory memory;
 
@@ -342,36 +333,27 @@ namespace bagel {
 		setImageLayoutTransfer(image);
 
 		VkCommandBuffer cpyCmd = bglDevice.beginSingleTimeCommands();
-
-		vkCmdPipelineBarrier(cpyCmd,VK_PIPELINE_STAGE_HOST_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0, nullptr,0, nullptr,1, &imageMemBarrier);
+		vkCmdPipelineBarrier(cpyCmd, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemBarrier);
 		vkCmdCopyBufferToImage(cpyCmd, stagingBuffer->getBuffer(), image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(buffCpyRegions.size()), buffCpyRegions.data());
-		
-		// Once the data has been uploaded we transfer to the texture image to the shader read layout, so it can be sampled from
 		setImageLayoutShaderRead();
-		vkCmdPipelineBarrier(cpyCmd,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,0,0, nullptr,0, nullptr,1, &imageMemBarrier);
-		
+		vkCmdPipelineBarrier(cpyCmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemBarrier);
 		bglDevice.endSingleTimeCommands(cpyCmd);
 
 		generateSamplerCreateInfo();
 		VK_CHECK(vkCreateSampler(BGLDevice::device(), &samplerCreateInfo, nullptr, &sampler));
-
 		generateImageViewCreateInfo(imageFormat, image);
 		VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageViewCreateInfo, nullptr, &imageView));
 
-		targetComponent->textureHandle[targetComponent->textureCount] = descriptorManager.storeTexture(
-			{ sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, 
-			memory, 
-			image, 
-			filePath, 
-			designatedIndex, 
-			storedIndex);
+		uint32_t handle = descriptorManager.storeTexture(
+			{ sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+			memory, image, filePath, designatedIndex, storedIndex);
 
 		delete stagingBuffer;
 		buffCpyRegions.clear();
-		targetComponent->textureCount += 1;
+		return handle;
 	}
 
-	void TextureComponentBuilder::loadSTBImageInStagingBuffer(const char* filePath, VkFormat format)
+	void BGLTextureLoader::loadSTBImageInStagingBuffer(const char* filePath, VkFormat format)
 	{
 		int width_int; int height_int; int channels;
 		stbi_info(filePath, &width_int, &height_int, &channels);
@@ -415,7 +397,7 @@ namespace bagel {
 		delete pixels;
 	}
 
-	void TextureComponentBuilder::loadKTXImageInStagingBuffer(const char* filePath, VkFormat format)
+	void BGLTextureLoader::loadKTXImageInStagingBuffer(const char* filePath, VkFormat format)
 	{
 		ktxTexture* ktx_texture;
 		KTX_error_code result;
@@ -449,7 +431,7 @@ namespace bagel {
 		ktxTexture_Destroy(ktx_texture);
 	}
 
-	void TextureComponentBuilder::generateSubresRange()
+	void BGLTextureLoader::generateSubresRange()
 	{
 		subresRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		subresRange.baseMipLevel = 0;
@@ -457,7 +439,7 @@ namespace bagel {
 		subresRange.layerCount = 1;
 	}
 
-	void TextureComponentBuilder::setImageLayoutTransfer(VkImage image)
+	void BGLTextureLoader::setImageLayoutTransfer(VkImage image)
 	{
 		imageMemBarrier.pNext = nullptr;
 		imageMemBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -471,16 +453,16 @@ namespace bagel {
 		imageMemBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	}
 
-	void TextureComponentBuilder::setImageLayoutShaderRead()
+	void BGLTextureLoader::setImageLayoutShaderRead()
 	{
-		assert(imageMemBarrier.newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && "imageMemBarrier should be initialized with BGLTextureComponentBuilder::setImageLayoutTransfer()");
+		assert(imageMemBarrier.newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && "imageMemBarrier should be initialized with BGLBGLTextureLoader::setImageLayoutTransfer()");
 		imageMemBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		imageMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 		imageMemBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		imageMemBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
-	void TextureComponentBuilder::generateImageCreateInfo(VkFormat imageFormat)
+	void BGLTextureLoader::generateImageCreateInfo(VkFormat imageFormat)
 	{
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -495,7 +477,7 @@ namespace bagel {
 		imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	}
 
-	void TextureComponentBuilder::generateSamplerCreateInfo()
+	void BGLTextureLoader::generateSamplerCreateInfo()
 	{
 		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
@@ -523,7 +505,7 @@ namespace bagel {
 	}
 	// The subresource range describes the set of mip levels (and array layers) that can be accessed through this image view
 	// It's possible to create multiple image views for a single image referring to different (and/or overlapping) ranges of the image
-	void TextureComponentBuilder::generateImageViewCreateInfo(VkFormat imageFormat, VkImage image)
+	void BGLTextureLoader::generateImageViewCreateInfo(VkFormat imageFormat, VkImage image)
 	{
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;

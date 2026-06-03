@@ -238,18 +238,19 @@ namespace bagel {
         // uniform buffer, and combined image sampler
 
         //Bindings for deferred rendering
-        VkDescriptorSetLayoutBinding deferredPosition = createDescriptorSetLayoutBinding(BINDINGS::DR_POS, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
-        VkDescriptorSetLayoutBinding deferredNormal = createDescriptorSetLayoutBinding(BINDINGS::DR_NORMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
-        VkDescriptorSetLayoutBinding deferredAlbedo = createDescriptorSetLayoutBinding(BINDINGS::DR_ALBEDO, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
+        VkDescriptorSetLayoutBinding deferredPosition = createDescriptorSetLayoutBinding(BINDINGS::DR_POS,      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
+        VkDescriptorSetLayoutBinding deferredNormal   = createDescriptorSetLayoutBinding(BINDINGS::DR_NORMAL,   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
+        VkDescriptorSetLayoutBinding deferredAlbedo   = createDescriptorSetLayoutBinding(BINDINGS::DR_ALBEDO,   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
+        VkDescriptorSetLayoutBinding deferredEmission = createDescriptorSetLayoutBinding(BINDINGS::DR_EMISSION, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
 
-        VkDescriptorSetLayoutBinding uboBinding = createDescriptorSetLayoutBinding(BINDINGS::UNIFORM, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorCount, VK_SHADER_STAGE_ALL);
-        VkDescriptorSetLayoutBinding storageBinding = createDescriptorSetLayoutBinding(BINDINGS::BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount, VK_SHADER_STAGE_ALL);
-        VkDescriptorSetLayoutBinding imageBinding = createDescriptorSetLayoutBinding(BINDINGS::TEXTURE, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptorCount, VK_SHADER_STAGE_ALL);
+        VkDescriptorSetLayoutBinding uboBinding     = createDescriptorSetLayoutBinding(BINDINGS::UNIFORM, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,        descriptorCount, VK_SHADER_STAGE_ALL);
+        VkDescriptorSetLayoutBinding storageBinding = createDescriptorSetLayoutBinding(BINDINGS::BUFFER,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         descriptorCount, VK_SHADER_STAGE_ALL);
+        VkDescriptorSetLayoutBinding imageBinding   = createDescriptorSetLayoutBinding(BINDINGS::TEXTURE, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptorCount, VK_SHADER_STAGE_ALL);
 
         VkDescriptorBindingFlags bindFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-        
-        constexpr int bindingCount = 6;
-        std::array<VkDescriptorBindingFlags, bindingCount> flagsArray = { bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags };
+
+        constexpr int bindingCount = 7;
+        std::array<VkDescriptorBindingFlags, bindingCount> flagsArray = { bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags };
 
         VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlags{};
         bindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
@@ -257,13 +258,14 @@ namespace bagel {
         bindingFlags.pBindingFlags = flagsArray.data();
         bindingFlags.bindingCount = bindingCount;
 
-        std::array<VkDescriptorSetLayoutBinding, bindingCount> bindings = { 
-            uboBinding, 
-            storageBinding, 
-            imageBinding, 
-            deferredPosition, 
-            deferredNormal, 
-            deferredAlbedo };
+        std::array<VkDescriptorSetLayoutBinding, bindingCount> bindings = {
+            uboBinding,
+            storageBinding,
+            imageBinding,
+            deferredPosition,
+            deferredNormal,
+            deferredAlbedo,
+            deferredEmission };
 
         VkDescriptorSetLayoutCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -392,38 +394,20 @@ namespace bagel {
         return handle;
     }
 
-    void BGLBindlessDescriptorManager::writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView positionView, VkImageView normalView, VkImageView albedoView) {
-        VkDescriptorImageInfo texDescriptorPosition =
-            descriptorImageInfo(
-                colorSampler,
-                positionView,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    void BGLBindlessDescriptorManager::writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView positionView, VkImageView normalView, VkImageView albedoView, VkImageView emissionView) {
+        VkDescriptorImageInfo texDescriptorPosition = descriptorImageInfo(colorSampler, positionView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        VkDescriptorImageInfo texDescriptorNormal   = descriptorImageInfo(colorSampler, normalView,    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        VkDescriptorImageInfo texDescriptorAlbedo   = descriptorImageInfo(colorSampler, albedoView,    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        VkDescriptorImageInfo texDescriptorEmission = descriptorImageInfo(colorSampler, emissionView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-        VkDescriptorImageInfo texDescriptorNormal =
-            descriptorImageInfo(
-                colorSampler,
-                normalView,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-        VkDescriptorImageInfo texDescriptorAlbedo =
-            descriptorImageInfo(
-                colorSampler,
-                albedoView,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-        // Deferred composition
         for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-            std::vector<VkWriteDescriptorSet> writeDescriptorSets{};
-            writeDescriptorSets = {
-                // Binding 1 : Position texture target
-                writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_POS, &texDescriptorPosition),
-                // Binding 2 : Normals texture target
-                writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_NORMAL, &texDescriptorNormal),
-                // Binding 3 : Albedo texture target
-                writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_ALBEDO, &texDescriptorAlbedo),
+            std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+                writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_POS,      &texDescriptorPosition),
+                writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_NORMAL,   &texDescriptorNormal),
+                writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_ALBEDO,   &texDescriptorAlbedo),
+                writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_EMISSION, &texDescriptorEmission),
             };
             vkUpdateDescriptorSets(BGLDevice::device(), static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
-
         }
     }
 

@@ -87,7 +87,7 @@ namespace bagel {
 		registry{ _r }
 	{}
 
-	void ModelComponentBuilder::configureModelMaterialSet(std::vector<Material>* set)
+	void ModelComponentBuilder::configureModelMaterialSet(std::vector<GLTFMaterial>* set)
 	{
 		if (p_materialSet == nullptr) p_materialSet = set;
 		else std::cout << "ModelComponentBuilder::configureModelMaterialSet() Could not configure material set, remove existing material set first.";
@@ -293,7 +293,7 @@ namespace bagel {
 							std::cout << "Found " << materials.size() << " Materials\n";
 							try {
 								std::cout << "Face uses material " << materials[materialID].name << "\n";
-								const Material& mat = p_materialSet->at(materialID);
+								const GLTFMaterial& mat = p_materialSet->at(materialID);
 								vertex.albedoMap = mat.albedoMap;
 								vertex.aoMap = mat.aoMap;
 								vertex.emissionMap = mat.emissionMap;

@@ -1,5 +1,4 @@
 #pragma once
-
 #include <memory>
 #include <vector>
 
@@ -9,15 +8,13 @@
 #include "bagel_render_system.hpp"
 #include "../bagel_pipeline.hpp"
 #include "../bagel_frame_info.hpp"
-#include "../bgl_camera.hpp"
-#include "../bgl_gameobject.hpp"
-#include "../bgl_model.hpp"
 
-//#define MODELRENDER_ORIGINAL
 namespace bagel {
-	struct DepthsPushConstantData {
-		glm::mat4 modelMatrix{ 1.0f };
-		glm::mat4 normalMatrix{ 1.0f };
+
+	struct CompositionPush {
+		float    time        = 0.0f;
+		uint32_t debugMode   = 0;   // 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic 6=bloom 7=raw emission
+		uint32_t bloomHandle = 0;   // bindless texture handle for the bloom result
 	};
 
 	class CompositRenderSystem : BGLRenderSystem {
@@ -26,17 +23,15 @@ namespace bagel {
 			VkRenderPass renderPass,
 			std::vector<VkDescriptorSetLayout> setLayouts,
 			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-			entt::registry& _registry) :
-			BGLRenderSystem{ renderPass, setLayouts, sizeof(DepthsPushConstantData) },
-			descriptorManager{ _descriptorManager },
-			registry{ _registry }
-		{
-			createPipeline(renderPass, "/shaders/simple_shader.vert.spv", "/shaders/simple_shader.frag.spv", nullptr);
-		}
-		void renderEntities(FrameInfo& frameInfo);
+			entt::registry& _registry);
+
+		void render(FrameInfo& frameInfo);
+
+		CompositionPush pushParams{};
+
 	private:
 		entt::registry& registry;
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
 	};
 
-}
+} // namespace bagel

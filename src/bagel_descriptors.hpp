@@ -122,12 +122,13 @@ namespace bagel {
 
     class BGLBindlessDescriptorManager {
         enum BINDINGS {
-            DR_POS,
-            DR_NORMAL,
-            DR_ALBEDO,
-            UNIFORM,
-            BUFFER,
-            TEXTURE,
+            DR_POS      = 0,
+            DR_NORMAL   = 1,
+            DR_ALBEDO   = 2,
+            DR_EMISSION = 3,
+            UNIFORM     = 4,
+            BUFFER      = 5,
+            TEXTURE     = 6,
         };
         struct TexturePackage {
             VkDescriptorImageInfo imageInfo;
@@ -159,7 +160,7 @@ namespace bagel {
             uint32_t handle = 0,
             bool owned = true);
 
-        void writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView positionView, VkImageView normalView, VkImageView albedoView);
+        void writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView positionView, VkImageView normalView, VkImageView albedoView, VkImageView emissionView);
 
         uint32_t searchBufferName(std::string bufferName);
         uint32_t searchTextureName(std::string textureName);

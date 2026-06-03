@@ -36,8 +36,8 @@ namespace bagel {
 		recreateSwapChain();
 		createCommandBuffers();
 
-		//Deferred Rendering
 		prepareDeferredRenderFrameBuffer();
+		prepareBloomMips();
 	}
 	BGLRenderer::~BGLRenderer()
 	{
@@ -426,10 +426,115 @@ namespace bagel {
 		VK_CHECK(vkCreateFramebuffer(BGLDevice::device(), &fbufCreateInfo, nullptr, &offscreenPass.frameBuffer));
 	}
 
-	//Deferred rendering
-	
+	void BGLRenderer::beginDeferredRenderPass(VkCommandBuffer commandBuffer)
+	{
+		assert(isFrameStarted && "Cannot call beginDeferredRenderPass() while frame is not in progress");
+		assert(commandBuffer == getCurrentCommandBuffer() && "Cannot begin renderpass from a different frame");
 
-	void BGLRenderer::createAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment* attachment)
+		VkRenderPassBeginInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass  = deferredRenderFrameBuffer.renderPass;
+		renderPassInfo.framebuffer = deferredRenderFrameBuffer.frameBuffer;
+		renderPassInfo.renderArea.offset = { 0, 0 };
+		renderPassInfo.renderArea.extent = {
+			static_cast<uint32_t>(deferredRenderFrameBuffer.width),
+			static_cast<uint32_t>(deferredRenderFrameBuffer.height)
+		};
+
+		// 5 clear values: position, normal, albedo, emission, depth
+		std::array<VkClearValue, 5> clearValues{};
+		clearValues[0].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // position + metallic
+		clearValues[1].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // normal + roughness
+		clearValues[2].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // albedo (w=0 = background)
+		clearValues[3].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // emission
+		clearValues[4].depthStencil = { 1.0f, 0 };
+		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+		renderPassInfo.pClearValues    = clearValues.data();
+
+		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		VkViewport viewport{};
+		viewport.x        = 0.0f;
+		viewport.y        = 0.0f;
+		viewport.width    = static_cast<float>(deferredRenderFrameBuffer.width);
+		viewport.height   = static_cast<float>(deferredRenderFrameBuffer.height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		VkRect2D scissor{
+			{0, 0},
+			{ static_cast<uint32_t>(deferredRenderFrameBuffer.width),
+			  static_cast<uint32_t>(deferredRenderFrameBuffer.height) }
+		};
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+	}
+
+	void BGLRenderer::blitGBufferDepthToSwapchain(VkCommandBuffer commandBuffer)
+	{
+		VkImage srcDepth = deferredRenderFrameBuffer.depth.image;
+		VkImage dstDepth = bglSwapChain->getDepthImage(currentImageIndex);
+		VkImageAspectFlags aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+		VkImageMemoryBarrier srcBarrier{};
+		srcBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		srcBarrier.oldLayout           = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		srcBarrier.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		srcBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		srcBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		srcBarrier.image               = srcDepth;
+		srcBarrier.subresourceRange    = { aspect, 0, 1, 0, 1 };
+		srcBarrier.srcAccessMask       = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		srcBarrier.dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT;
+
+		// Use UNDEFINED as old layout so Vulkan discards previous swapchain depth contents (correct on first frame too)
+		VkImageMemoryBarrier dstBarrier{};
+		dstBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		dstBarrier.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED;
+		dstBarrier.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		dstBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		dstBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		dstBarrier.image               = dstDepth;
+		dstBarrier.subresourceRange    = { aspect, 0, 1, 0, 1 };
+		dstBarrier.srcAccessMask       = 0;
+		dstBarrier.dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+		std::array<VkImageMemoryBarrier, 2> preBarriers = { srcBarrier, dstBarrier };
+		vkCmdPipelineBarrier(commandBuffer,
+			VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0, 0, nullptr, 0, nullptr,
+			static_cast<uint32_t>(preBarriers.size()), preBarriers.data());
+
+		VkImageBlit region{};
+		region.srcSubresource = { aspect, 0, 0, 1 };
+		region.srcOffsets[0]  = { 0, 0, 0 };
+		region.srcOffsets[1]  = { deferredRenderFrameBuffer.width, deferredRenderFrameBuffer.height, 1 };
+		region.dstSubresource = { aspect, 0, 0, 1 };
+		region.dstOffsets[0]  = { 0, 0, 0 };
+		region.dstOffsets[1]  = { static_cast<int32_t>(bglSwapChain->width()), static_cast<int32_t>(bglSwapChain->height()), 1 };
+
+		vkCmdBlitImage(commandBuffer,
+			srcDepth, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			dstDepth, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1, &region, VK_FILTER_NEAREST);
+
+		srcBarrier.oldLayout    = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		srcBarrier.newLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		srcBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		srcBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+		dstBarrier.oldLayout    = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		dstBarrier.newLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		dstBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		dstBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+		std::array<VkImageMemoryBarrier, 2> postBarriers = { srcBarrier, dstBarrier };
+		vkCmdPipelineBarrier(commandBuffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+			0, 0, nullptr, 0, nullptr,
+			static_cast<uint32_t>(postBarriers.size()), postBarriers.data());
+	}
+
+	void BGLRenderer::createAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment* attachment, uint32_t width, uint32_t height)
 	{
 		VkImageAspectFlags aspectMask = 0;
 		VkImageLayout imageLayout;
@@ -455,14 +560,17 @@ namespace bagel {
 		image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		image.imageType = VK_IMAGE_TYPE_2D;
 		image.format = format;
-		image.extent.width = deferredRenderFrameBuffer.width;
-		image.extent.height = deferredRenderFrameBuffer.height;
+		image.extent.width  = width;
+		image.extent.height = height;
 		image.extent.depth = 1;
 		image.mipLevels = 1;
 		image.arrayLayers = 1;
 		image.samples = VK_SAMPLE_COUNT_1_BIT;
 		image.tiling = VK_IMAGE_TILING_OPTIMAL;
-		image.usage = usage | VK_IMAGE_USAGE_SAMPLED_BIT;
+		// Depth attachments additionally need TRANSFER_SRC_BIT so the G-buffer depth can be blitted to the swapchain depth
+		VkImageUsageFlags extraFlags = (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+			? VK_IMAGE_USAGE_TRANSFER_SRC_BIT : 0;
+		image.usage = usage | VK_IMAGE_USAGE_SAMPLED_BIT | extraFlags;
 
 		VkMemoryAllocateInfo memAlloc{};
 		memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -493,50 +601,40 @@ namespace bagel {
 
 	void BGLRenderer::prepareDeferredRenderFrameBuffer()
 	{
-		// Note: Instead of using fixed sizes, one could also match the window size and recreate the attachments on resize
-		deferredRenderFrameBuffer.width = 2048;
-		deferredRenderFrameBuffer.height = 2048;
+		// Match swapchain resolution — no reason to render G-buffer larger than the display
+		auto ext = bglSwapChain->getSwapChainExtent();
+		deferredRenderFrameBuffer.width  = ext.width;
+		deferredRenderFrameBuffer.height = ext.height;
 
 		// Color attachments
 
-		// (World space) Positions
-		createAttachment(
-			VK_FORMAT_R16G16B16A16_SFLOAT,
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-			&deferredRenderFrameBuffer.position);
+		const uint32_t dw = deferredRenderFrameBuffer.width;
+		const uint32_t dh = deferredRenderFrameBuffer.height;
 
+		// (World space) Positions — R32 for precision at large distances
+		createAttachment(VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.position, dw, dh);
 		// (World space) Normals
-		createAttachment(
-			VK_FORMAT_R16G16B16A16_SFLOAT,
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-			&deferredRenderFrameBuffer.normal);
-
+		createAttachment(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.normal,   dw, dh);
 		// Albedo (color)
-		createAttachment(
-			VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-			&deferredRenderFrameBuffer.albedo);
-
+		createAttachment(VK_FORMAT_R8G8B8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.albedo,   dw, dh);
+		// Emission (RGB, sRGB-encoded)
+		createAttachment(VK_FORMAT_R8G8B8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.emission, dw, dh);
 		// Depth attachment
 		VkFormat depthFormat = bglSwapChain->findDepthFormat();
-
-		createAttachment(
-			depthFormat,
-			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-			&deferredRenderFrameBuffer.depth);
+		createAttachment(depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, &deferredRenderFrameBuffer.depth, dw, dh);
 
 		// Set up separate renderpass with references to the color and depth attachments
-		std::array<VkAttachmentDescription, 4> attachmentDescs = {};
+		// Attachment order: 0=position, 1=normal, 2=albedo, 3=emission, 4=depth
+		std::array<VkAttachmentDescription, 5> attachmentDescs = {};
 
-		// Init attachment properties
-		for (uint32_t i = 0; i < 4; ++i)
+		for (uint32_t i = 0; i < 5; ++i)
 		{
 			attachmentDescs[i].samples = VK_SAMPLE_COUNT_1_BIT;
 			attachmentDescs[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			attachmentDescs[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 			attachmentDescs[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			attachmentDescs[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			if (i == 3)
+			if (i == 4)
 			{
 				attachmentDescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 				attachmentDescs[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -552,15 +650,17 @@ namespace bagel {
 		attachmentDescs[0].format = deferredRenderFrameBuffer.position.format;
 		attachmentDescs[1].format = deferredRenderFrameBuffer.normal.format;
 		attachmentDescs[2].format = deferredRenderFrameBuffer.albedo.format;
-		attachmentDescs[3].format = deferredRenderFrameBuffer.depth.format;
+		attachmentDescs[3].format = deferredRenderFrameBuffer.emission.format;
+		attachmentDescs[4].format = deferredRenderFrameBuffer.depth.format;
 
 		std::vector<VkAttachmentReference> colorReferences;
 		colorReferences.push_back({ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
 		colorReferences.push_back({ 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
 		colorReferences.push_back({ 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
+		colorReferences.push_back({ 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
 
 		VkAttachmentReference depthReference = {};
-		depthReference.attachment = 3;
+		depthReference.attachment = 4;
 		depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 		VkSubpassDescription subpass = {};
@@ -599,11 +699,12 @@ namespace bagel {
 
 		VK_CHECK(vkCreateRenderPass(BGLDevice::device(), &renderPassInfo, nullptr, &deferredRenderFrameBuffer.renderPass));
 
-		std::array<VkImageView, 4> attachments;
+		std::array<VkImageView, 5> attachments;
 		attachments[0] = deferredRenderFrameBuffer.position.view;
 		attachments[1] = deferredRenderFrameBuffer.normal.view;
 		attachments[2] = deferredRenderFrameBuffer.albedo.view;
-		attachments[3] = deferredRenderFrameBuffer.depth.view;
+		attachments[3] = deferredRenderFrameBuffer.emission.view;
+		attachments[4] = deferredRenderFrameBuffer.depth.view;
 
 		VkFramebufferCreateInfo fbufCreateInfo = {};
 		fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -633,6 +734,121 @@ namespace bagel {
 		VK_CHECK(vkCreateSampler(BGLDevice::device(), &sampler, nullptr, &deferredRenderFrameBuffer.sampler));
 	}
 	
+	void BGLRenderer::prepareBloomMips()
+	{
+		// Mip 0 starts at swapchain/4 — keeps bloom well below display res for perf
+		// 5 mips at 256: 256, 128, 64, 32, 16
+		constexpr uint32_t BASE = 256;
+		for (uint32_t i = 0; i < BLOOM_MIPS; i++) {
+			BloomBuffer& buf = bloomMips[i];
+			buf.width  = BASE >> i;
+			buf.height = BASE >> i;
+
+			createAttachment(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &buf.color, buf.width, buf.height);
+
+			VkAttachmentReference colorRef{ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+
+			VkSubpassDescription subpass{};
+			subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			subpass.colorAttachmentCount = 1;
+			subpass.pColorAttachments    = &colorRef;
+
+			// Shared subpass dependencies
+			std::array<VkSubpassDependency, 2> deps{};
+			deps[0] = { VK_SUBPASS_EXTERNAL, 0,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+				VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+				VK_DEPENDENCY_BY_REGION_BIT };
+			deps[1] = { 0, VK_SUBPASS_EXTERNAL,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+				VK_ACCESS_SHADER_READ_BIT,
+				VK_DEPENDENCY_BY_REGION_BIT };
+
+			VkRenderPassCreateInfo rpInfo{};
+			rpInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+			rpInfo.subpassCount    = 1; rpInfo.pSubpasses   = &subpass;
+			rpInfo.attachmentCount = 1;
+			rpInfo.dependencyCount = static_cast<uint32_t>(deps.size());
+			rpInfo.pDependencies   = deps.data();
+
+			// CLEAR render pass — for downsample (overwrites the mip)
+			VkAttachmentDescription clearDesc{};
+			clearDesc.format         = VK_FORMAT_R16G16B16A16_SFLOAT;
+			clearDesc.samples        = VK_SAMPLE_COUNT_1_BIT;
+			clearDesc.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			clearDesc.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+			clearDesc.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			clearDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			clearDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+			clearDesc.finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			rpInfo.pAttachments = &clearDesc;
+			VK_CHECK(vkCreateRenderPass(BGLDevice::device(), &rpInfo, nullptr, &buf.renderPassClear));
+
+			// LOAD render pass — for upsample accumulation (additively blends into existing content)
+			VkAttachmentDescription loadDesc = clearDesc;
+			loadDesc.loadOp        = VK_ATTACHMENT_LOAD_OP_LOAD;
+			loadDesc.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			rpInfo.pAttachments = &loadDesc;
+			VK_CHECK(vkCreateRenderPass(BGLDevice::device(), &rpInfo, nullptr, &buf.renderPassLoad));
+
+			VkFramebufferCreateInfo fbInfo{};
+			fbInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			fbInfo.renderPass      = buf.renderPassClear; // compatible with both render passes
+			fbInfo.attachmentCount = 1;
+			fbInfo.pAttachments    = &buf.color.view;
+			fbInfo.width = buf.width; fbInfo.height = buf.height; fbInfo.layers = 1;
+			VK_CHECK(vkCreateFramebuffer(BGLDevice::device(), &fbInfo, nullptr, &buf.frameBuffer));
+
+			VkSamplerCreateInfo samplerInfo{};
+			samplerInfo.sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerInfo.magFilter    = samplerInfo.minFilter = VK_FILTER_LINEAR;
+			samplerInfo.mipmapMode   = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			samplerInfo.addressModeU = samplerInfo.addressModeV = samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerInfo.maxAnisotropy = 1.0f; samplerInfo.maxLod = 1.0f;
+			samplerInfo.borderColor  = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+			VK_CHECK(vkCreateSampler(BGLDevice::device(), &samplerInfo, nullptr, &buf.sampler));
+		}
+	}
+
+	void BGLRenderer::beginBloomDownsamplePass(VkCommandBuffer commandBuffer, int mip)
+	{
+		assert(isFrameStarted);
+		BloomBuffer& buf = bloomMips[mip];
+		VkRenderPassBeginInfo rpInfo{};
+		rpInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		rpInfo.renderPass      = buf.renderPassClear;
+		rpInfo.framebuffer     = buf.frameBuffer;
+		rpInfo.renderArea      = { {0,0}, {buf.width, buf.height} };
+		VkClearValue cv{}; cv.color = {0,0,0,0};
+		rpInfo.clearValueCount = 1; rpInfo.pClearValues = &cv;
+		vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+		VkViewport vp{ 0,0,(float)buf.width,(float)buf.height,0,1 };
+		VkRect2D   sc{ {0,0},{buf.width,buf.height} };
+		vkCmdSetViewport(commandBuffer, 0, 1, &vp);
+		vkCmdSetScissor(commandBuffer, 0, 1, &sc);
+	}
+
+	void BGLRenderer::beginBloomUpsamplePass(VkCommandBuffer commandBuffer, int mip)
+	{
+		assert(isFrameStarted);
+		BloomBuffer& buf = bloomMips[mip];
+		VkRenderPassBeginInfo rpInfo{};
+		rpInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		rpInfo.renderPass      = buf.renderPassLoad;
+		rpInfo.framebuffer     = buf.frameBuffer;
+		rpInfo.renderArea      = { {0,0}, {buf.width, buf.height} };
+		rpInfo.clearValueCount = 0; // LOAD_OP_LOAD — no clear value needed
+		vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+		VkViewport vp{ 0,0,(float)buf.width,(float)buf.height,0,1 };
+		VkRect2D   sc{ {0,0},{buf.width,buf.height} };
+		vkCmdSetViewport(commandBuffer, 0, 1, &vp);
+		vkCmdSetScissor(commandBuffer, 0, 1, &sc);
+	}
+
 	void BGLRenderer::createCommandBuffers()
 	{
 		commandBuffers.resize(BGLSwapChain::MAX_FRAMES_IN_FLIGHT);

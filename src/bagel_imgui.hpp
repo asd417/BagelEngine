@@ -8,6 +8,7 @@
 #include <stdlib.h>         // NULL, malloc, free, atoi
 #include <stdint.h>         // intptr_t
 #include <map>
+#include <unordered_map>
 #include <functional>
 
 #include "entt.hpp"
@@ -91,6 +92,11 @@ namespace bagel {
         void AddCommand(const char* name, void* obj, std::function<char*(void*)> callback) {
             Commands.push_back(name);
             callbackMap.emplace(name, std::pair{ obj, callback});
+        }
+
+        void AddCommandWithArg(const char* name, void* obj, std::function<char*(void*, const char*)> callback) {
+            Commands.push_back(name);
+            callbackMapWithArgs.emplace(name, std::pair{ obj, callback });
         }
 
         void ClearLog()
@@ -227,6 +233,7 @@ namespace bagel {
         static ConsoleApp* instance;
 
         std::unordered_map<const char*, std::pair<void*, std::function<char*(void*)>>> callbackMap;
+        std::unordered_map<const char*, std::pair<void*, std::function<char*(void*, const char*)>>> callbackMapWithArgs;
 
         ConsoleApp()
         {
@@ -271,16 +278,33 @@ namespace bagel {
                 }
             History.push_back(Strdup(command_line));
 
-            // Process command
-            // Loop through callbackMap to check against all commands
+            // Split into command name and optional argument
+            char cmdBuf[256];
+            strncpy(cmdBuf, command_line, sizeof(cmdBuf) - 1);
+            cmdBuf[sizeof(cmdBuf) - 1] = '\0';
+            char* spacePos = strchr(cmdBuf, ' ');
+            const char* args = "";
+            if (spacePos) {
+                *spacePos = '\0';
+                args = spacePos + 1;
+                while (*args == ' ') ++args; // trim leading spaces
+            }
+
             bool ran = false;
-            for (auto it = callbackMap.begin(); it != callbackMap.end();it++)
-            {
-                if (stringCompare(command_line, it->first) == 0) {
-                    //Find and call callback function. It will only run the first command that fits
-                    AddLog((it->second.second)(it->second.first));
+            for (auto it = callbackMapWithArgs.begin(); it != callbackMapWithArgs.end(); it++) {
+                if (stringCompare(cmdBuf, it->first) == 0) {
+                    AddLog((it->second.second)(it->second.first, args));
                     ran = true;
                     break;
+                }
+            }
+            if (!ran) {
+                for (auto it = callbackMap.begin(); it != callbackMap.end(); it++) {
+                    if (stringCompare(command_line, it->first) == 0) {
+                        AddLog((it->second.second)(it->second.first));
+                        ran = true;
+                        break;
+                    }
                 }
             }
             if(!ran) AddLog("Unknown command: '%s'\n", command_line);

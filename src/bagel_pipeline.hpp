@@ -7,11 +7,10 @@
 namespace bagel {
 
 	struct PipelineConfigInfo {
-		// When removing copy constructors, either implement or default the constructor 
 		PipelineConfigInfo() = default;
 		PipelineConfigInfo(const PipelineConfigInfo&) = delete;
 		PipelineConfigInfo operator=(const PipelineConfigInfo&) = delete;
-		
+
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions{};
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions{};
 
@@ -20,6 +19,8 @@ namespace bagel {
 		VkPipelineRasterizationStateCreateInfo rasterizationInfo;
 		VkPipelineMultisampleStateCreateInfo multisampleInfo;
 		VkPipelineColorBlendAttachmentState colorBlendAttachment;
+		// If non-empty, overrides colorBlendAttachment for multi-attachment pipelines (e.g. G-buffer)
+		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments{};
 		VkPipelineColorBlendStateCreateInfo colorBlendInfo;
 		VkPipelineDepthStencilStateCreateInfo depthStencilInfo;
 		std::vector<VkDynamicState> dynamicStateEnables;
@@ -42,6 +43,14 @@ namespace bagel {
 
 		static void defaultPipelineConfigInfo(PipelineConfigInfo& configInfo);
 		static void enableAlphaBlending(PipelineConfigInfo& configInfo);
+		// 3-attachment pipeline for G-buffer fill pass (position, normal, albedo)
+		static void setupGBufferPipeline(PipelineConfigInfo& configInfo);
+		// No-vertex-input, depth-disabled pipeline for full-screen composition pass
+		static void setupFullScreenPipeline(PipelineConfigInfo& configInfo);
+		// Alpha-blended forward pipeline for transparent objects: depth test ON, depth write OFF
+		static void setupTransparentPipeline(PipelineConfigInfo& configInfo);
+		// Full-screen pipeline with additive blending (src=ONE, dst=ONE) for bloom upsample accumulation
+		static void setupFullScreenAdditivePipeline(PipelineConfigInfo& configInfo);
 
 		VkSubpassDescription createSubpassDescription(int colorAttachmentCount, const VkAttachmentReference* colorAttachmentReferences, const VkAttachmentReference* depthAttachmentReferences) {
 			VkSubpassDescription sd;

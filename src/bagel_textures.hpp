@@ -1,7 +1,6 @@
 #pragma once
 #include "bagel_engine_device.hpp"
 #include "bagel_buffer.hpp"
-#include "bagel_ecs_components.hpp"
 #include "bagel_descriptors.hpp"
 
 
@@ -48,21 +47,23 @@ namespace bagel {
 	enum class TextureHandle : uint32_t { Invalid = 0 };
 	enum class BufferHandle : uint32_t { Invalid = 0 };
 
-	class TextureComponentBuilder
+	class BGLTextureLoader
 	{
 	public:
 
-		TextureComponentBuilder(
+		BGLTextureLoader(
 			BGLDevice& _bglDevice,
 			BGLDescriptorPool& _globalPool,
 			BGLBindlessDescriptorManager& descriptorManager);
 
-		~TextureComponentBuilder();
-		void setBuildTarget(TextureComponent* _tC) { targetComponent = _tC; }
-		void buildComponent(std::string filePath, VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB);
-		void buildComponent(const char* filePath, VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB);
+		~BGLTextureLoader();
+
+		// Load a texture and return its bindless handle.
+		// Deduplication is handled by BGLBindlessDescriptorManager — same path returns the same handle.
+		uint32_t loadTexture(const char* filePath, VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB);
 
 	private:
+		uint32_t buildAndStore(const char* filePath, VkFormat imageFormat);
 		void loadSTBImageInStagingBuffer(const char* filePath, VkFormat format);
 		void loadKTXImageInStagingBuffer(const char* filePath, VkFormat format);
 		void generateImageCreateInfo(VkFormat imageFormat);
@@ -91,8 +92,6 @@ namespace bagel {
 		BGLBuffer* stagingBuffer = nullptr;
 		BGLDevice& bglDevice;
 		BGLDescriptorPool& globalPool;
-		TextureComponent* targetComponent = nullptr;
-
 		BGLBindlessDescriptorManager& descriptorManager;
 	};
 }

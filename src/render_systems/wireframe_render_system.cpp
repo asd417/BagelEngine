@@ -110,12 +110,11 @@ namespace bagel {
 
 			WireframePushConstantData push{};
 			push.UsesBufferedTransform = 0;
-			for (const auto& sm : modelDescComp.submeshes) {
-				push.modelMatrix = transformComp.mat4();
-				push.scale = glm::vec4{ transformComp.getWorldScale(), 1.0 };
-
+			push.modelMatrix = transformComp.mat4();
+			push.scale = glm::vec4{ transformComp.getWorldScale(), 1.0 };
+			for (uint32_t i = 0; i < modelDescComp.submeshCount; i++) {
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-				DrawByIndexCount(frameInfo.commandBuffer, modelDescComp.vertexCount, modelDescComp.indexCount, 1, sm.firstIndex);
+				DrawByIndexCount(frameInfo.commandBuffer, modelDescComp.vertexCount, modelDescComp.indexCount, 1, modelDescComp.submeshes[i].firstIndex);
 			}
 		}
 		
@@ -124,16 +123,15 @@ namespace bagel {
 			BindVertexIndexBuffer(frameInfo.commandBuffer, &modelDescComp.vertexBuffer, offsets, modelDescComp.indexCount, modelDescComp.indexBuffer);
 
 			WireframePushConstantData push{};
-			for (const auto& sm : modelDescComp.submeshes) {
-				push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
-				push.BufferedTransformHandle = transformComp.bufferHandle;
-				if (!transformComp.useBuffer()) {
-					push.modelMatrix = transformComp.mat4(0);
-					push.scale = glm::vec4{ transformComp.getWorldScale(0), 1.0 };
-				}
-
+			push.UsesBufferedTransform   = transformComp.useBuffer() ? 1 : 0;
+			push.BufferedTransformHandle = transformComp.bufferHandle;
+			if (!transformComp.useBuffer()) {
+				push.modelMatrix = transformComp.mat4(0);
+				push.scale = glm::vec4{ transformComp.getWorldScale(0), 1.0 };
+			}
+			for (uint32_t i = 0; i < modelDescComp.submeshCount; i++) {
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-				DrawByIndexCount(frameInfo.commandBuffer, modelDescComp.vertexCount, modelDescComp.indexCount, transformComp.count(), sm.firstIndex);
+				DrawByIndexCount(frameInfo.commandBuffer, modelDescComp.vertexCount, modelDescComp.indexCount, transformComp.count(), modelDescComp.submeshes[i].firstIndex);
 			}
 		}
 
@@ -147,13 +145,12 @@ namespace bagel {
 			BindVertexIndexBuffer(frameInfo.commandBuffer, &collisionModelComp.vertexBuffer, offsets, collisionModelComp.indexCount, collisionModelComp.indexBuffer);
 
 			WireframePushConstantData push{};
-			for (auto sm : collisionModelComp.submeshes) {
-				push.UsesBufferedTransform = 0;
-				push.modelMatrix = transformComp.mat4();
-				push.scale = glm::vec4{ collisionModelComp.collisionScale, 1.0 };
-
+			push.UsesBufferedTransform = 0;
+			push.modelMatrix = transformComp.mat4();
+			push.scale = glm::vec4{ collisionModelComp.collisionScale, 1.0 };
+			for (uint32_t i = 0; i < collisionModelComp.submeshCount; i++) {
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-				DrawByIndexCount(frameInfo.commandBuffer, collisionModelComp.vertexCount, collisionModelComp.indexCount, 1, sm.firstIndex);
+				DrawByIndexCount(frameInfo.commandBuffer, collisionModelComp.vertexCount, collisionModelComp.indexCount, 1, collisionModelComp.submeshes[i].firstIndex);
 			}
 		}
 	}

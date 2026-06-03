@@ -158,58 +158,40 @@ namespace bagel {
 		float radius = 1.0f;
 	};
 
-	struct TextureComponent {
-		/// <summary>
-		/// Since descriptors are handled by descriptor manager, rendering only requires texture handle.
-		/// This allows component to be as compact as possible
-		/// </summary>
-		static constexpr uint32_t MAX_TEXTURE_COUNT = 5;
-		std::string textureName[MAX_TEXTURE_COUNT] = { "" };
-		uint32_t    width[MAX_TEXTURE_COUNT] = { 0 };
-		uint32_t	height[MAX_TEXTURE_COUNT] = { 0 };
-		uint32_t    mip_levels[MAX_TEXTURE_COUNT] = { 0 };
-		uint32_t	textureHandle[MAX_TEXTURE_COUNT] = { 0 };
-		uint32_t	textureCount = 0;
+// Marks an entity for alpha-blended forward rendering instead of the G-buffer pass
+	struct TransparentComponent {};
+
+	// PBR material — bindless texture handles for each map slot.
+	// Used per-submesh inside ModelComponent. Single-mesh entities use materials[0].
+	struct Material {
+		uint32_t albedoMap   = 0;
+		uint32_t normalMap   = 0;
+		uint32_t roughMap    = 0;
+		uint32_t metallicMap = 0;
+		uint32_t emissionMap = 0;
 	};
 
-	struct DiffuseTextureComponent : TextureComponent {};
-	struct EmissionTextureComponent : TextureComponent {};
-	struct NormalTextureComponent : TextureComponent {};
-	struct RoughnessMetalTextureComponent : TextureComponent {};
-
 	struct ModelComponent {
-		//Describes what composes the material of this submes
-		enum TextureCompositeFlag {
-			DIFFUSE = 1,
-			EMISSION = 2,
-			NORMAL = 4,
-			ROUGHMETAL = 8
-		};
+		static constexpr uint32_t MAX_SUBMESHES = 16;
+
 		struct Submesh {
-			//primitives in gltf terms
-			uint32_t firstIndex;
-			uint32_t indexCount;
-			uint32_t materialIndex;
-
-			uint32_t diffuseTextureHandle;
-			uint32_t emissionTextureHandle;
-			uint32_t normalTextureHandle;
-			uint32_t roughmetalTextureHandle;
-			// Stores flags to determine which textures are present
-			uint32_t textureMapFlag;
-
-			glm::vec4 roughmetalmultiplier{ 1.0f };
+			uint32_t firstIndex   = 0;
+			uint32_t indexCount   = 0;
+			uint32_t materialIndex = 0;
 		};
-		std::string modelName = "";
-		std::vector<Submesh> submeshes{};
+
+		std::string modelName  = "";
+		Submesh  submeshes[MAX_SUBMESHES]{};
+		bagel::Material materials[MAX_SUBMESHES]{};
+		uint32_t submeshCount = 0;
 
 		VkBuffer vertexBuffer;
 		VkBuffer indexBuffer;
 		VkDeviceMemory vertexMemory;
 		VkDeviceMemory indexMemory;
 
-		uint32_t indexCount;
-		uint32_t vertexCount;
+		uint32_t indexCount  = 0;
+		uint32_t vertexCount = 0;
 
 		ModelComponent* origin = nullptr;
 		~ModelComponent() {
@@ -220,54 +202,11 @@ namespace bagel {
 				vkFreeMemory(BGLDevice::device(), indexMemory, nullptr);
 			}
 		}
-		void setDiffuseTextureToSubmesh(uint32_t i, uint32_t handle) {
-			assert(i < submeshes.size() && "Submesh at index does not exist");
-			submeshes[i].diffuseTextureHandle = handle;
-			submeshes[i].textureMapFlag |= TextureCompositeFlag::DIFFUSE;
-		}
-		void setEmissionTextureToSubmesh(uint32_t i, uint32_t handle) {
-			assert(i < submeshes.size() && "Submesh at index does not exist");
-			submeshes[i].emissionTextureHandle = handle;
-			submeshes[i].textureMapFlag |= TextureCompositeFlag::EMISSION;
-		}
-		void setNormalTextureToSubmesh(uint32_t i, uint32_t handle) {
-			assert(i < submeshes.size() && "Submesh at index does not exist");
-			submeshes[i].normalTextureHandle = handle;
-			submeshes[i].textureMapFlag |= TextureCompositeFlag::NORMAL;
-		}
-		void setRoughMetalTextureToSubmesh(uint32_t i, uint32_t handle) {
-			assert(i < submeshes.size() && "Submesh at index does not exist");
-			submeshes[i].roughmetalTextureHandle = handle;
-			submeshes[i].textureMapFlag |= TextureCompositeFlag::ROUGHMETAL;
-		}
-		void setRoughMetalMultiplier(uint32_t i, glm::vec4 mult) {
-			assert(i < submeshes.size() && "Submesh at index does not exist");
-			submeshes[i].roughmetalmultiplier = mult;
-		}
-		void useDiffuseComponent(DiffuseTextureComponent& dfc);
-		void useEmissionComponent(EmissionTextureComponent& dfc);
-		void useNormalComponent(NormalTextureComponent& dfc);
-		void useRoughMetalComponent(RoughnessMetalTextureComponent& dfc);
-	};
 
-	struct TransparentModelComponent {
-		struct Submesh {
-			//primitives in gltf terms
-			VkBuffer vertexBuffer;
-			VkBuffer indexBuffer;
-
-			VkDeviceMemory vertexMemory;
-			VkDeviceMemory indexMemory;
-
-			uint32_t diffuseTextureHandle;
-			uint32_t emissionTextureHandle;
-			uint32_t normalTextureHandle;
-			uint32_t roughmetalTextureHandle;
-			// Stores flags to determine which textures are present
-			uint32_t textureMapFlag;
-		};
-		std::string modelName = "";
-		std::vector<Submesh> submeshes{};
+		void setMaterial(uint32_t submesh, const bagel::Material& mat) {
+			assert(submesh < MAX_SUBMESHES);
+			materials[submesh] = mat;
+		}
 	};
 
 	struct WireframeComponent : ModelComponent {
@@ -299,4 +238,5 @@ namespace bagel {
 	struct InfoComponent {
 		bool a;
 	};
+
 }

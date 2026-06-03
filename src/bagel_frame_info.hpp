@@ -17,6 +17,7 @@ namespace bagel {
 
 	struct FrameInfo {
 		float frameTime;
+		float time;          // cumulative elapsed time in seconds
 		VkCommandBuffer commandBuffer;
 		BGLCamera& camera;
 		VkDescriptorSet globalDescriptorSets;

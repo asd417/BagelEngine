@@ -31,22 +31,24 @@ namespace bagel {
 	void BGLRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts, size_t pushConstantSize)
 	{
 		VkPushConstantRange pushConstantRange{};
-		// This flag indicates that we want this pushconstantdata to be accessible in both vertex and fragment shaders
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-		// offset mainly for if you want to use separate ranges for vertex and fragment shader
 		pushConstantRange.offset = 0;
-		pushConstantRange.size = pushConstantSize;
+		pushConstantRange.size = static_cast<uint32_t>(pushConstantSize);
 
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
-		//desciptor set layout information
-		std::cout << "Creating Model Render System Pipeline with descriptorSetLayout count of " << setLayouts.size() << "\n";
+		std::cout << "Creating pipeline with descriptorSetLayout count of " << setLayouts.size() << "\n";
 		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
-		pipelineLayoutInfo.pSetLayouts = setLayouts.data();
+		pipelineLayoutInfo.pSetLayouts    = setLayouts.data();
 
-		pipelineLayoutInfo.pushConstantRangeCount = 1;
-		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+		if (pushConstantSize > 0) {
+			pipelineLayoutInfo.pushConstantRangeCount = 1;
+			pipelineLayoutInfo.pPushConstantRanges    = &pushConstantRange;
+		} else {
+			pipelineLayoutInfo.pushConstantRangeCount = 0;
+			pipelineLayoutInfo.pPushConstantRanges    = nullptr;
+		}
 
 		if (vkCreatePipelineLayout(BGLDevice::device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
 		{

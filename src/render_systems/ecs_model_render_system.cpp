@@ -84,57 +84,49 @@ namespace bagel {
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &modelDescComp.vertexBuffer, offsets);
 			if (modelDescComp.indexCount > 0) vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-			//Send pushconstant per submesh
-			for (const ModelComponent::Submesh& sm : modelDescComp.submeshes) {
+			for (uint32_t i = 0; i < modelDescComp.submeshCount; i++) {
+				const ModelComponent::Submesh& sm  = modelDescComp.submeshes[i];
+				const Material&                mat = modelDescComp.materials[i];
 				ECSPushConstantData push{};
-
 				push.UsesBufferedTransform = 0;
 				push.modelMatrix = transformComp.mat4();
-				push.scale = glm::vec4{ transformComp.getWorldScale(), 1.0 };
-				push.albedoMap = sm.diffuseTextureHandle;
-				push.normalMap = sm.normalTextureHandle;
-				push.roughMap  = sm.roughmetalTextureHandle;
-
+				push.scale       = glm::vec4{ transformComp.getWorldScale(), 1.0 };
+				push.albedoMap   = mat.albedoMap;
+				push.normalMap   = mat.normalMap;
+				push.roughMap    = mat.roughMap;
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 
-				if (modelDescComp.indexCount > 0) {
-					vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, 1, sm.firstIndex, 0, 0);
-				}
-				else {
+				if (modelDescComp.indexCount > 0)
+					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
+				else
 					vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, 1, sm.firstIndex, 0);
-				}
 			}
 		}
 
 		auto transformArrayCompGroup = registry.group<>(entt::get<TransformArrayComponent, ModelComponent>);
 		for (auto [entity, transformComp, modelDescComp] : transformArrayCompGroup.each()) {
-
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &modelDescComp.vertexBuffer, offsets);
 			if (modelDescComp.indexCount > 0) vkCmdBindIndexBuffer(frameInfo.commandBuffer, modelDescComp.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-			//Send pushconstant per submesh
-			for (const ModelComponent::Submesh &sm : modelDescComp.submeshes) {
+			for (uint32_t i = 0; i < modelDescComp.submeshCount; i++) {
+				const ModelComponent::Submesh& sm  = modelDescComp.submeshes[i];
+				const Material&                mat = modelDescComp.materials[i];
 				ECSPushConstantData push{};
-
-				push.UsesBufferedTransform = transformComp.useBuffer() ? 1 : 0;
+				push.UsesBufferedTransform   = transformComp.useBuffer() ? 1 : 0;
 				push.BufferedTransformHandle = transformComp.bufferHandle;
-				push.albedoMap = sm.diffuseTextureHandle;
-				push.normalMap = sm.normalTextureHandle;
-				push.roughMap  = sm.roughmetalTextureHandle;
-
+				push.albedoMap = mat.albedoMap;
+				push.normalMap = mat.normalMap;
+				push.roughMap  = mat.roughMap;
 				if (!transformComp.useBuffer()) {
 					push.modelMatrix = transformComp.mat4(0);
 					push.scale = glm::vec4{ transformComp.getWorldScale(0), 1.0 };
 				}
-
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 
-				if (modelDescComp.indexCount > 0) {
-					vkCmdDrawIndexed(frameInfo.commandBuffer, modelDescComp.indexCount, transformComp.count(), sm.firstIndex, 0, 0);
-				}
-				else {
+				if (modelDescComp.indexCount > 0)
+					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, transformComp.count(), sm.firstIndex, 0, 0);
+				else
 					vkCmdDraw(frameInfo.commandBuffer, modelDescComp.vertexCount, transformComp.count(), sm.firstIndex, 0);
-				}
 			}
 		}
 	}
