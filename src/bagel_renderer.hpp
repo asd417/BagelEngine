@@ -20,29 +20,26 @@ namespace bagel {
 		VkFormat format;
 		const FrameBufferAttachment operator=(const FrameBufferAttachment&) = delete;
 		~FrameBufferAttachment() {
-			std::cout << "Destroying FrameBufferAttachment\n";
+			if (view == VK_NULL_HANDLE) return; // already explicitly destroyed
 			vkDestroyImageView(BGLDevice::device(), view, nullptr);
 			vkDestroyImage(BGLDevice::device(), image, nullptr);
 			vkFreeMemory(BGLDevice::device(), mem, nullptr);
-			std::cout << "Finished Destroying FrameBufferAttachment\n";
 		}
 	};
 
 	struct FrameBuffer {
-		int32_t width, height;
-		VkFramebuffer frameBuffer;
-		// One attachment for every component required for a deferred rendering setup
+		int32_t width = 0, height = 0;
+		VkFramebuffer frameBuffer = VK_NULL_HANDLE;
 		FrameBufferAttachment position, normal, albedo, emission;
 		FrameBufferAttachment depth;
-		VkRenderPass renderPass;
-		VkSampler sampler;
+		VkRenderPass renderPass = VK_NULL_HANDLE;
+		VkSampler sampler = VK_NULL_HANDLE;
 		const FrameBuffer operator=(const FrameBuffer&) = delete;
 		~FrameBuffer() {
-			std::cout << "Destroying FrameBuffer\n";
+			if (frameBuffer == VK_NULL_HANDLE) return; // already explicitly destroyed
 			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer, nullptr);
 			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
 			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
-			std::cout << "Finished Destroying FrameBuffer\n";
 		}
 	};
 
@@ -149,12 +146,22 @@ namespace bagel {
 		VkImageView getDRNormalView() const { return deferredRenderFrameBuffer.normal.view; }
 		VkImageView getDRAlbedoView() const { return deferredRenderFrameBuffer.albedo.view; }
 		VkImageView getDREmissionView() const { return deferredRenderFrameBuffer.emission.view; }
-		
+
+		// Returns true (and resets the flag) if the G-buffer and bloom mips were recreated
+		// this frame (e.g. window resize). The caller must re-register descriptor entries.
+		bool consumeGBufferRecreated() {
+			bool v = gbufferRecreated;
+			gbufferRecreated = false;
+			return v;
+		}
+
 	private:
 
 		uint32_t currentImageIndex = 0;
-		int currentFrameIndex = 0; //Between 0 and Max_Frames_In_Flight, not tied to image index
+		int currentFrameIndex = 0;
 		bool isFrameStarted = false;
+		VkExtent2D gbufferExtent{};     // size the G-buffer was last built at
+		bool gbufferRecreated = false;  // set when G-buffer is rebuilt due to resize
 
 		//Renderer tasks
 		void createCommandBuffers();
@@ -171,6 +178,8 @@ namespace bagel {
 		void createAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment* attachment, uint32_t width, uint32_t height);
 		void prepareDeferredRenderFrameBuffer();
 		void prepareBloomMips();
+		void destroyDeferredFrameBuffer();
+		void destroyBloomMips();
 		
 
 		BGLWindow& bglWindow;

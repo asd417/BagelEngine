@@ -3,6 +3,7 @@
 // vulkan headers
 #include <vulkan/vulkan.h>
 
+#include <algorithm>
 #include <stdexcept>
 #include <array>
 #include <iostream>
@@ -35,9 +36,9 @@ namespace bagel {
 	{
 		recreateSwapChain();
 		createCommandBuffers();
-
 		prepareDeferredRenderFrameBuffer();
 		prepareBloomMips();
+		gbufferExtent = bglSwapChain->getSwapChainExtent();
 	}
 	BGLRenderer::~BGLRenderer()
 	{
@@ -213,8 +214,17 @@ namespace bagel {
 			}
 
 		}
-		//Pipeline relies on swapchain so the createPipeline() must follow after creating a new swapchain
-		// if render pass is compatible do nothing else
+		// Rebuild G-buffer and bloom mips if the swapchain extent changed
+		auto newExtent = bglSwapChain->getSwapChainExtent();
+		if (gbufferExtent.width != 0 &&
+			(newExtent.width != gbufferExtent.width || newExtent.height != gbufferExtent.height)) {
+			destroyDeferredFrameBuffer();
+			destroyBloomMips();
+			prepareDeferredRenderFrameBuffer();
+			prepareBloomMips();
+			gbufferExtent = newExtent;
+			gbufferRecreated = true;
+		}
 	}
 
 	void BGLRenderer::setUpOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight)
@@ -734,15 +744,58 @@ namespace bagel {
 		VK_CHECK(vkCreateSampler(BGLDevice::device(), &sampler, nullptr, &deferredRenderFrameBuffer.sampler));
 	}
 	
+	void BGLRenderer::destroyDeferredFrameBuffer()
+	{
+		auto destroyAtt = [](FrameBufferAttachment& att) {
+			vkDestroyImageView(BGLDevice::device(), att.view,  nullptr);
+			vkDestroyImage    (BGLDevice::device(), att.image, nullptr);
+			vkFreeMemory      (BGLDevice::device(), att.mem,   nullptr);
+			att.view = VK_NULL_HANDLE; att.image = VK_NULL_HANDLE; att.mem = VK_NULL_HANDLE;
+		};
+		vkDestroyFramebuffer(BGLDevice::device(), deferredRenderFrameBuffer.frameBuffer, nullptr);
+		vkDestroyRenderPass (BGLDevice::device(), deferredRenderFrameBuffer.renderPass,  nullptr);
+		vkDestroySampler    (BGLDevice::device(), deferredRenderFrameBuffer.sampler,     nullptr);
+		deferredRenderFrameBuffer.frameBuffer = VK_NULL_HANDLE;
+		deferredRenderFrameBuffer.renderPass  = VK_NULL_HANDLE;
+		deferredRenderFrameBuffer.sampler     = VK_NULL_HANDLE;
+		destroyAtt(deferredRenderFrameBuffer.position);
+		destroyAtt(deferredRenderFrameBuffer.normal);
+		destroyAtt(deferredRenderFrameBuffer.albedo);
+		destroyAtt(deferredRenderFrameBuffer.emission);
+		destroyAtt(deferredRenderFrameBuffer.depth);
+	}
+
+	void BGLRenderer::destroyBloomMips()
+	{
+		for (auto& buf : bloomMips) {
+			vkDestroySampler    (BGLDevice::device(), buf.sampler,        nullptr);
+			vkDestroyRenderPass (BGLDevice::device(), buf.renderPassClear, nullptr);
+			vkDestroyRenderPass (BGLDevice::device(), buf.renderPassLoad,  nullptr);
+			vkDestroyFramebuffer(BGLDevice::device(), buf.frameBuffer,     nullptr);
+			vkDestroyImageView  (BGLDevice::device(), buf.color.view,      nullptr);
+			vkDestroyImage      (BGLDevice::device(), buf.color.image,     nullptr);
+			vkFreeMemory        (BGLDevice::device(), buf.color.mem,       nullptr);
+			buf.sampler        = VK_NULL_HANDLE;
+			buf.renderPassClear = VK_NULL_HANDLE;
+			buf.renderPassLoad  = VK_NULL_HANDLE;
+			buf.frameBuffer    = VK_NULL_HANDLE;
+			buf.color.view     = VK_NULL_HANDLE;
+			buf.color.image    = VK_NULL_HANDLE;
+			buf.color.mem      = VK_NULL_HANDLE;
+		}
+	}
+
 	void BGLRenderer::prepareBloomMips()
 	{
-		// Mip 0 starts at swapchain/4 — keeps bloom well below display res for perf
-		// 5 mips at 256: 256, 128, 64, 32, 16
-		constexpr uint32_t BASE = 256;
+		// Mip 0 is swapchain/4, preserving the window's aspect ratio.
+		// Clamped so no mip is smaller than 8px in either axis.
+		auto sc = bglSwapChain->getSwapChainExtent();
+		const uint32_t baseW = std::max(sc.width  / 4, 8u);
+		const uint32_t baseH = std::max(sc.height / 4, 8u);
 		for (uint32_t i = 0; i < BLOOM_MIPS; i++) {
 			BloomBuffer& buf = bloomMips[i];
-			buf.width  = BASE >> i;
-			buf.height = BASE >> i;
+			buf.width  = std::max(baseW >> i, 1u);
+			buf.height = std::max(baseH >> i, 1u);
 
 			createAttachment(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &buf.color, buf.width, buf.height);
 

@@ -73,7 +73,6 @@ void main() {
     if (push.inputHandle == 0u) {
         vec4 albedoData = texture(gAlbedo, fragUV);
         bool hasGeometry = albedoData.w > 0.5;
-
         for (int li = 0; li < int(ubo.numLights); li++) {
             PointLight pl = ubo.pointLights[li];
             vec3 lightColor = pl.color.rgb * pl.color.w;
@@ -88,8 +87,11 @@ void main() {
                 if (clipPos.w <= 0.0) continue;
                 clipPos /= clipPos.w;
                 vec2 lightUV = clipPos.xy * 0.5 + 0.5;
-                float d = length(fragUV - lightUV);
-                result += lightColor * exp(-d * d * 60.0) * 0.6;
+                // Pixel-space distance: circular halo of fixed screen-pixel radius
+                // regardless of window size or aspect ratio.
+                float d = length((fragUV - lightUV) * srcSize);
+                const float R = 80.0; // halo radius in pixels — tune to taste
+                result += lightColor * exp(-d * d / (R * R)) * 0.6;
             }
         }
     }

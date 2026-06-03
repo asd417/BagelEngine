@@ -204,6 +204,23 @@ namespace bagel {
 			ImGui::End();
 			ImGui::Render();
 
+			// Re-register G-buffer and bloom mip descriptor entries after a window resize
+			if (bglRenderer.consumeGBufferRecreated()) {
+				descriptorManager->writeDeferredRenderTargetToDescriptor(
+					bglRenderer.getDRSampler(),
+					bglRenderer.getDRPositionView(),
+					bglRenderer.getDRNormalView(),
+					bglRenderer.getDRAlbedoView(),
+					bglRenderer.getDREmissionView());
+				for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++) {
+					descriptorManager->storeTexture(
+						bglRenderer.getBloomMipImageInfo(i),
+						bglRenderer.getBloomMipMemory(i),
+						bglRenderer.getBloomMipImage(i),
+						"BloomMip", true, bloomMipHandles[i], false);
+				}
+			}
+
 			if (auto primaryCommandBuffer = bglRenderer.beginPrimaryCMD()) {
 				FrameInfo frameInfo{
 					frameTime,
