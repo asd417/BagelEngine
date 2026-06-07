@@ -79,7 +79,7 @@ namespace bagel {
 				push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
 				push.albedoMap   = mat.albedoMap;
 				push.normalMap   = mat.normalMap;
-				push.roughMap    = mat.roughMap;
+				push.metalRoughMap = mat.metalRoughMap;
 				push.emissionMap = mat.emissionMap;
 
 				vkCmdPushConstants(frameInfo.commandBuffer, pipelineLayout,

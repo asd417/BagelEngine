@@ -1,6 +1,6 @@
 #include "physics/bagel_jolt.hpp"
 #include "bagel_ecs_components.hpp"
-#include "../bgl_model.hpp"
+#include "../bagel_model.hpp"
 #include "../bagel_util.hpp"
 
 #include "bagel_imgui.hpp"

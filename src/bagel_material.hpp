@@ -20,10 +20,11 @@ namespace bagel {
 		// Build a Material from paths. Any null path leaves that slot as 0 (no map).
 		Material loadMaterial(
 			const char* albedo,
-			const char* normal    = nullptr,
-			const char* roughness = nullptr,
-			const char* metallic  = nullptr,
-			const char* emission  = nullptr);
+			const char* normal      = nullptr,
+			const char* metalRough  = nullptr,
+			const char* emission    = nullptr);
+
+		BGLTextureLoader& getTextureLoader() { return builder; }
 
 	private:
 		BGLTextureLoader builder;

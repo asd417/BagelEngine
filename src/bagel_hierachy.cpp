@@ -23,19 +23,32 @@ namespace bagel {
 	void HierachySystem::ApplyHiarchialChange()
 	{
 		registry.sort<TransformHierachyComponent>(
-			[&](const TransformHierachyComponent& lhs, const TransformHierachyComponent& rhs) {
-			// Sort to put the components with lower depths value at the front
-			return lhs.depth < rhs.depth;
+			[](const TransformHierachyComponent& lhs, const TransformHierachyComponent& rhs) {
+				return lhs.depth < rhs.depth;
 			});
+
 		auto view = registry.view<TransformHierachyComponent, TransformComponent>();
 		view.use<TransformHierachyComponent>();
-		for (auto [entity, hierachyComp, transComp] : view.each()) {
-			if (!hierachyComp.hasParent) continue;
-			auto& ptc = registry.get<TransformComponent>(hierachyComp.parent);
-			glm::vec3 loc = ptc.getTranslation() + ptc.getLocalTranslation();
-			glm::vec3 rot = ptc.getRotation() + ptc.getLocalRotation();
-			transComp.setTranslation(ptc.mat4() * glm::vec4(transComp.getLocalTranslation(),1.0f));
-			transComp.setRotation(rot);
+
+		for (auto [entity, hier, tc] : view.each()) {
+			if (!hier.hasParent) continue;
+			auto& ptc = registry.get<TransformComponent>(hier.parent);
+
+			// Pure rotation matrix from parent's world rotation (XYZ Euler, no scale/translation)
+			const glm::vec3 pr = ptc.getRotation();
+			const float c3 = cosf(pr.z), s3 = sinf(pr.z);
+			const float c2 = cosf(pr.y), s2 = sinf(pr.y);
+			const float c1 = cosf(pr.x), s1 = sinf(pr.x);
+			const glm::mat3 parentRot{
+				{ c2*c3,           c1*s3 + c3*s1*s2,  s1*s3 - c1*c3*s2 },
+				{-c2*s3,           c1*c3 - s1*s2*s3,  c3*s1 + c1*s2*s3 },
+				{ s2,             -c2*s1,              c1*c2            }
+			};
+
+			const glm::vec3 ps = ptc.getScale();
+			tc.setTranslation(ptc.getTranslation() + parentRot * (ps * hier.localTranslation));
+			tc.setRotation(pr + hier.localRotation);
+			tc.setScale(ps * hier.localScale);
 		}
 	}
 }

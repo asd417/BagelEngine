@@ -2,6 +2,7 @@
 #include "../bagel_ecs_components.hpp"
 #include "../bagel_engine_device.hpp"
 #include "../bagel_util.hpp"
+#include "../bagel_frustum.hpp"
 
 #include <vulkan/vulkan.h>
 #include <stdexcept>
@@ -38,14 +39,18 @@ namespace bagel {
 
 	static void FillMaterialPush(GBufferPushConstantData& push, const Material& mat)
 	{
-		push.albedoMap   = mat.albedoMap;
-		push.normalMap   = mat.normalMap;
-		push.roughMap    = mat.roughMap;
-		push.emissionMap = mat.emissionMap;
+		push.albedoMap        = mat.albedoMap;
+		push.normalMap        = mat.normalMap;
+		push.metalRoughMap    = mat.metalRoughMap;
+		push.emissionMap      = mat.emissionMap;
+		push.emissionLux = mat.emissionLux;
 	}
 
 	void GBufferRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
+		Frustum frustum;
+		frustum.extractFromVP(frameInfo.camera.getProjection() * frameInfo.camera.getView());
+
 		bglPipeline->bind(frameInfo.commandBuffer);
 		vkCmdBindDescriptorSets(
 			frameInfo.commandBuffer,
@@ -59,23 +64,31 @@ namespace bagel {
 
 		auto singleGroup = registry.view<TransformComponent, ModelComponent>(entt::exclude<TransparentComponent>);
 		for (auto [entity, transform, model] : singleGroup.each()) {
+			glm::mat4 modelMatrix = transform.mat4();
+			if (model.frustumCull && !frustum.testAABB(model.aabbMin, model.aabbMax, modelMatrix))
+				continue;
+
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
 			if (model.indexCount > 0)
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
+			GBufferPushConstantData push{};
+			push.UsesBufferedTransform = 0;
+			push.modelMatrix = modelMatrix;
+			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
+			push.fallbackAlbedoMap = frameInfo.fallbackAlbedoMap;
+
 			for (uint32_t i = 0; i < model.submeshCount; i++) {
 				const ModelComponent::Submesh& sm = model.submeshes[i];
-				GBufferPushConstantData push{};
-				push.UsesBufferedTransform = 0;
-				push.modelMatrix = transform.mat4();
-				push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
+				if (model.frustumCull && !frustum.testAABB(sm.aabbMin, sm.aabbMax, modelMatrix))
+					continue;
 				FillMaterialPush(push, model.materials[i]);
 				SendGBufferPush(frameInfo.commandBuffer, pipelineLayout, push);
 
 				if (model.indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
 				else
-					vkCmdDraw(frameInfo.commandBuffer, model.vertexCount, 1, sm.firstIndex, 0);
+					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, 1, sm.firstVertex, 0);
 			}
 		}
 
@@ -85,22 +98,24 @@ namespace bagel {
 			if (model.indexCount > 0)
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
+			GBufferPushConstantData push{};
+			push.UsesBufferedTransform   = transform.useBuffer() ? 1 : 0;
+			push.BufferedTransformHandle = transform.bufferHandle;
+			push.fallbackAlbedoMap = frameInfo.fallbackAlbedoMap;
+			if (!transform.useBuffer()) {
+				push.modelMatrix = transform.mat4(0);
+				push.scale       = glm::vec4{ transform.getWorldScale(0), 1.0f };
+			}
+
 			for (uint32_t i = 0; i < model.submeshCount; i++) {
 				const ModelComponent::Submesh& sm = model.submeshes[i];
-				GBufferPushConstantData push{};
-				push.UsesBufferedTransform   = transform.useBuffer() ? 1 : 0;
-				push.BufferedTransformHandle = transform.bufferHandle;
 				FillMaterialPush(push, model.materials[i]);
-				if (!transform.useBuffer()) {
-					push.modelMatrix = transform.mat4(0);
-					push.scale       = glm::vec4{ transform.getWorldScale(0), 1.0f };
-				}
 				SendGBufferPush(frameInfo.commandBuffer, pipelineLayout, push);
 
 				if (model.indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, transform.count(), sm.firstIndex, 0, 0);
 				else
-					vkCmdDraw(frameInfo.commandBuffer, model.vertexCount, transform.count(), sm.firstIndex, 0);
+					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, transform.count(), sm.firstVertex, 0);
 			}
 		}
 	}

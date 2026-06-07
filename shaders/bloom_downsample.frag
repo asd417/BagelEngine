@@ -4,45 +4,35 @@
 layout(location=0) in  vec2 fragUV;
 layout(location=0) out vec4 outColor;
 
-layout(set=0, binding=0) uniform sampler2D gPosition;
-layout(set=0, binding=2) uniform sampler2D gAlbedo;
-layout(set=0, binding=3) uniform sampler2D gEmission;
 layout(set=0, binding=6) uniform sampler2D samplerColor[];
 
-const int MAX_LIGHTS = 10;
-struct PointLight { vec4 position; vec4 color; };
-layout(set=0, binding=4) uniform GlobalUBO {
-    mat4 projectionMatrix;
-    mat4 viewMatrix;
-    mat4 inverseViewMatrix;
-    vec4 ambientLightColor;
-    PointLight pointLights[MAX_LIGHTS];
-    uint numLights;
-    vec4 lineColor;
-} ubo;
-
 layout(push_constant) uniform Push {
-    float    threshold;   // luminance cutoff (0 = no threshold)
+    float    threshold;   // luminance cutoff (nonzero only on first mip)
     float    intensity;   // output brightness scale
-    uint     inputHandle; // 0 = gEmission + point-light halos, else samplerColor[inputHandle]
+    uint     inputHandle; // bindless handle of the source texture (radiosity or previous mip)
 } push;
 
 vec3 sampleSrc(vec2 uv) {
-    return (push.inputHandle != 0u)
-        ? texture(samplerColor[push.inputHandle], uv).rgb
-        : texture(gEmission, uv).rgb;
+    return texture(samplerColor[push.inputHandle], uv).rgb;
 }
 
 vec3 applyThreshold(vec3 c) {
-    if (push.threshold <= 0.0) return c;
     float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
     return c * max(lum - push.threshold, 0.0) / max(lum, 1e-4);
 }
 
+// Karis average: down-weights bright firefly pixels to prevent them from dominating
+float karisWeight(vec3 c) {
+    return 1.0 / (1.0 + dot(c, vec3(0.2126, 0.7152, 0.0722)));
+}
+
+vec3 karisAvg(vec3 a, vec3 b, vec3 c, vec3 d) {
+    float wa = karisWeight(a), wb = karisWeight(b), wc = karisWeight(c), wd = karisWeight(d);
+    return (a*wa + b*wb + c*wc + d*wd) / (wa + wb + wc + wd);
+}
+
 void main() {
-    vec2 srcSize = (push.inputHandle != 0u)
-        ? vec2(textureSize(samplerColor[push.inputHandle], 0))
-        : vec2(textureSize(gEmission, 0));
+    vec2 srcSize = vec2(textureSize(samplerColor[push.inputHandle], 0));
     vec2 t = 1.0 / srcSize;
 
     // 13-tap Kawase dual filter (Jimenez 2014)
@@ -61,39 +51,28 @@ void main() {
     vec3 L = sampleSrc(fragUV + vec2( 0.0,  1.0) * t);
     vec3 M = sampleSrc(fragUV + vec2( 1.0,  1.0) * t);
 
-    vec3 result = (D + E + I + J) * 0.125;
-    result += (A + B + G + F) * 0.03125;
-    result += (B + C + H + G) * 0.03125;
-    result += (F + G + L + K) * 0.03125;
-    result += (G + H + M + L) * 0.03125;
+    vec3 result;
+    if (push.threshold > 0.0) {
+        // First mip only: apply threshold per-sample, then Karis-weighted average
+        // This prevents bright specular spikes from spreading into large bloom patches
+        vec3 tA = applyThreshold(A), tB = applyThreshold(B), tC = applyThreshold(C);
+        vec3 tD = applyThreshold(D), tE = applyThreshold(E), tF = applyThreshold(F);
+        vec3 tG = applyThreshold(G), tH = applyThreshold(H), tI = applyThreshold(I);
+        vec3 tJ = applyThreshold(J), tK = applyThreshold(K), tL = applyThreshold(L);
+        vec3 tM = applyThreshold(M);
 
-    result = applyThreshold(result);
-
-    // Point light halos — only on the first pass (reading from gEmission)
-    if (push.inputHandle == 0u) {
-        vec4 albedoData = texture(gAlbedo, fragUV);
-        bool hasGeometry = albedoData.w > 0.5;
-        for (int li = 0; li < int(ubo.numLights); li++) {
-            PointLight pl = ubo.pointLights[li];
-            vec3 lightColor = pl.color.rgb * pl.color.w;
-
-            if (hasGeometry) {
-                vec3 fragPos = texture(gPosition, fragUV).xyz;
-                vec3 toLight = pl.position.xyz - fragPos;
-                float distSq = dot(toLight, toLight);
-                result += lightColor * 0.04 / (distSq + 1.0);
-            } else {
-                vec4 clipPos = ubo.projectionMatrix * ubo.viewMatrix * vec4(pl.position.xyz, 1.0);
-                if (clipPos.w <= 0.0) continue;
-                clipPos /= clipPos.w;
-                vec2 lightUV = clipPos.xy * 0.5 + 0.5;
-                // Pixel-space distance: circular halo of fixed screen-pixel radius
-                // regardless of window size or aspect ratio.
-                float d = length((fragUV - lightUV) * srcSize);
-                const float R = 80.0; // halo radius in pixels — tune to taste
-                result += lightColor * exp(-d * d / (R * R)) * 0.6;
-            }
-        }
+        result  = karisAvg(tD, tE, tI, tJ) * 0.5;
+        result += karisAvg(tA, tB, tG, tF) * 0.125;
+        result += karisAvg(tB, tC, tH, tG) * 0.125;
+        result += karisAvg(tF, tG, tL, tK) * 0.125;
+        result += karisAvg(tG, tH, tM, tL) * 0.125;
+    } else {
+        // Subsequent mips: standard weighted average, no threshold
+        result  = (D + E + I + J) * 0.125;
+        result += (A + B + G + F) * 0.03125;
+        result += (B + C + H + G) * 0.03125;
+        result += (F + G + L + K) * 0.03125;
+        result += (G + H + M + L) * 0.03125;
     }
 
     outColor = vec4(result * push.intensity, 1.0);

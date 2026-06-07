@@ -37,8 +37,7 @@ namespace bagel {
 
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-
-		std::cout << "Creating pipeline with descriptorSetLayout count of " << setLayouts.size() << "\n";
+		if (setLayouts.size() != 1) std::cout << "Creating pipeline with descriptorSetLayout count of " << setLayouts.size() << "\n";
 		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
 		pipelineLayoutInfo.pSetLayouts    = setLayouts.data();
 

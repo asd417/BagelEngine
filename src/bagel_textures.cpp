@@ -1,3 +1,7 @@
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_FAILURE_USERMSG
+#include "stb_image.h"
+
 #include "bagel_textures.hpp"
 #include "bagel_engine_swap_chain.hpp"
 #include "bagel_util.hpp"
@@ -5,14 +9,14 @@
 
 // vulkan headers
 #include <vulkan/vulkan.h>
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <array>
 #include <limits>
+#include <vector>
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STBI_FAILURE_USERMSG
-#include "stb_image.h"
+
 
 #include "bagel_imgui.hpp"
 #define CONSOLE ConsoleApp::Instance()
@@ -322,6 +326,11 @@ namespace bagel {
 			loadSTBImageInStagingBuffer(util::enginePath(filePath).c_str(), imageFormat);
 		}
 
+		return buildAndStoreFromMemory(filePath, imageFormat, designatedIndex, storedIndex);
+	}
+
+	uint32_t BGLTextureLoader::buildAndStoreFromMemory(const char* name, VkFormat imageFormat, bool designatedIndex, uint32_t storedIndex)
+	{
 		VkSampler sampler;
 		VkImageView imageView;
 		VkImage image;
@@ -346,11 +355,90 @@ namespace bagel {
 
 		uint32_t handle = descriptorManager.storeTexture(
 			{ sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
-			memory, image, filePath, designatedIndex, storedIndex);
+			memory, image, name, designatedIndex, storedIndex);
 
 		delete stagingBuffer;
+		stagingBuffer = nullptr;
 		buffCpyRegions.clear();
 		return handle;
+	}
+
+	uint32_t BGLTextureLoader::loadTextureFromMemory(const char* name, const uint8_t* rgba, uint32_t w, uint32_t h, VkFormat imageFormat)
+	{
+		uint32_t storedIndex = descriptorManager.searchTextureName(name);
+		bool designatedIndex = false;
+		if (storedIndex != std::numeric_limits<uint32_t>::max())
+		{
+			if (!descriptorManager.checkMissingTexture(storedIndex)) return storedIndex;
+			designatedIndex = true;
+		}
+		loadPixelDataInStagingBuffer(rgba, w, h);
+		return buildAndStoreFromMemory(name, imageFormat, designatedIndex, storedIndex);
+	}
+
+	uint32_t BGLTextureLoader::loadCombinedMetalRough(const char* roughPath, const char* metalPath)
+	{
+		std::string name = std::string("__mr_") + roughPath + "_" + metalPath;
+
+		uint32_t storedIndex = descriptorManager.searchTextureName(name.c_str());
+		bool designatedIndex = false;
+		if (storedIndex != std::numeric_limits<uint32_t>::max())
+		{
+			if (!descriptorManager.checkMissingTexture(storedIndex)) return storedIndex;
+			designatedIndex = true;
+		}
+
+		std::string fullRough = util::enginePath(roughPath);
+		std::string fullMetal = util::enginePath(metalPath);
+
+		int rw, rh, rc, mw, mh, mc;
+		// Force single channel — we only need the gray value from each map
+		unsigned char* roughPix = stbi_load(fullRough.c_str(), &rw, &rh, &rc, 1);
+		unsigned char* metalPix = stbi_load(fullMetal.c_str(), &mw, &mh, &mc, 1);
+
+		if (!roughPix || !metalPix)
+		{
+			std::cerr << "[BGLTextureLoader] failed to combine metalrough: "
+			          << roughPath << " + " << metalPath << "\n";
+			if (roughPix) stbi_image_free(roughPix);
+			if (metalPix) stbi_image_free(metalPix);
+			return 0;
+		}
+
+		// Use the smaller of the two dimensions if they differ
+		uint32_t w = static_cast<uint32_t>(std::min(rw, mw));
+		uint32_t h = static_cast<uint32_t>(std::min(rh, mh));
+
+		std::vector<uint8_t> combined(w * h * 4);
+		for (uint32_t i = 0; i < w * h; i++)
+		{
+			combined[i*4 + 0] = 255;          // R: AO (not available, default full)
+			combined[i*4 + 1] = roughPix[i];  // G: roughness
+			combined[i*4 + 2] = metalPix[i];  // B: metallic
+			combined[i*4 + 3] = 255;          // A: unused
+		}
+
+		stbi_image_free(roughPix);
+		stbi_image_free(metalPix);
+
+		loadPixelDataInStagingBuffer(combined.data(), w, h);
+		return buildAndStoreFromMemory(name.c_str(), VK_FORMAT_R8G8B8A8_UNORM, designatedIndex, storedIndex);
+	}
+
+	void BGLTextureLoader::loadPixelDataInStagingBuffer(const uint8_t* rgba, uint32_t w, uint32_t h)
+	{
+		width     = w;
+		height    = h;
+		mipLvl    = 1;
+		imageSize = static_cast<size_t>(w) * h * 4;
+
+		stagingBuffer = new BGLBuffer(
+			bglDevice, 1, static_cast<uint32_t>(imageSize),
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		stagingBuffer->map();
+		stagingBuffer->writeToBuffer(const_cast<uint8_t*>(rgba));
+		populateBufferCopyRegionSTB(buffCpyRegions, width, height);
 	}
 
 	void BGLTextureLoader::loadSTBImageInStagingBuffer(const char* filePath, VkFormat format)

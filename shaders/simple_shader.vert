@@ -7,18 +7,17 @@ layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
 layout(location=2) in vec3 normal;
 layout(location=3) in vec3 tangent;
-layout(location=4) in vec3 bitangent;
+layout(location=4) in float tangentSign;
 layout(location=5) in vec2 uv;
 layout(location=6) in uint in_albedoMap;
 layout(location=7) in uint in_normalMap;
-layout(location=8) in uint in_roughMap;
-layout(location=9) in uint in_metallicMap;
-layout(location=10) in uint in_specularMap;
-layout(location=11) in uint in_heightMap;
-layout(location=12) in uint in_opacityMap;
-layout(location=13) in uint in_aoMap;
-layout(location=14) in uint in_refractionMap;
-layout(location=15) in uint in_emissionMap;
+layout(location=8) in uint in_metalRoughMap;
+layout(location=9) in uint in_specularMap;
+layout(location=10) in uint in_heightMap;
+layout(location=11) in uint in_opacityMap;
+layout(location=12) in uint in_aoMap;
+layout(location=13) in uint in_refractionMap;
+layout(location=14) in uint in_emissionMap;
 
 // layout(location=0) out mat3 TBN;
 // layout(location=1) out vec3 fragPosWorld;
@@ -43,8 +42,7 @@ struct VS_OUT {
 	int isInstancedTransform;
 	uint albedoMap;
 	uint normalMap;
-	uint roughMap;
-	uint metallicMap;
+	uint metalRoughMap;
 	uint specularMap;
 	uint heightMap;
 	uint opacityMap;
@@ -97,7 +95,7 @@ layout(push_constant) uniform Push {
 	uint UsesBufferedTransform;
 	uint albedoMap;
 	uint normalMap;
-	uint roughMap;
+	uint metalRoughMap;
 } push;
 
 
@@ -124,15 +122,13 @@ void main() {
 	vec4 pos = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
 	gl_Position = pos;
 	
-	vec3 T = normalize(normalMatrix * tangent);
-	vec3 B = normalize(normalMatrix * cross(tangent,normal));
 	vec3 N = normalize(normalMatrix * normal);
+	vec3 T = normalize(normalMatrix * tangent);
 
-	//Reorthogonize tangent vector
-	fragPosWorld = positionWorld.xyz;
-	fragUV = uv;
-	fragTangent = T;
-	fragBitangent = B;
+	fragPosWorld    = positionWorld.xyz;
+	fragUV          = uv;
+	fragTangent     = T;
+	fragBitangent   = cross(N, T) * tangentSign;
 	fragNormalWorld = N;
 	
 	vs_out.isInstancedTransform = 0;
@@ -142,9 +138,8 @@ void main() {
 
 	vs_out.albedoMap = (push.albedoMap != 0) ? push.albedoMap : in_albedoMap;
 	vs_out.normalMap = (push.normalMap != 0) ? push.normalMap : in_normalMap;
-	vs_out.roughMap  = (push.roughMap  != 0) ? push.roughMap  : in_roughMap;
-	vs_out.metallicMap = in_metallicMap;
-	vs_out.specularMap = in_specularMap;
+	vs_out.metalRoughMap = (push.metalRoughMap != 0) ? push.metalRoughMap : in_metalRoughMap;
+	vs_out.specularMap   = in_specularMap;
 	vs_out.heightMap = in_heightMap;
 	vs_out.opacityMap = in_opacityMap;
 	vs_out.aoMap = in_aoMap;

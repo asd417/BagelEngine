@@ -151,11 +151,16 @@ namespace bagel {
 		entt::entity parent;
 		bool hasParent = false;
 		uint32_t depth = 0;
+		glm::vec3 localTranslation = { 0.0f, 0.0f, 0.0f };
+		glm::vec3 localRotation    = { 0.0f, 0.0f, 0.0f };
+		glm::vec3 localScale       = { 1.0f, 1.0f, 1.0f };
 	};
 
 	struct PointLightComponent {
-		glm::vec4 color = { 1.0f,1.0f,1.0f,1.0f }; //4th is strength
+		glm::vec4 color = { 1.0f,1.0f,1.0f,1.0f }; // rgb=color, w unused
 		float radius = 1.0f;
+		float bloomHaloRadius = 1.0f;
+		float lux = 800.0f; // luminous intensity in lux; multiplied by exposure in radiosity shader
 	};
 
 // Marks an entity for alpha-blended forward rendering instead of the G-buffer pass
@@ -166,24 +171,32 @@ namespace bagel {
 	struct Material {
 		uint32_t albedoMap   = 0;
 		uint32_t normalMap   = 0;
-		uint32_t roughMap    = 0;
-		uint32_t metallicMap = 0;
-		uint32_t emissionMap = 0;
+		uint32_t metalRoughMap = 0;
+		uint32_t emissionMap   = 0;
+		float emissionLux = 800.0f;
 	};
 
 	struct ModelComponent {
-		static constexpr uint32_t MAX_SUBMESHES = 16;
+		static constexpr uint32_t MAX_SUBMESHES = 128;
 
 		struct Submesh {
 			uint32_t firstIndex   = 0;
 			uint32_t indexCount   = 0;
+			uint32_t firstVertex  = 0;
+			uint32_t vertexCount  = 0;
 			uint32_t materialIndex = 0;
+			glm::vec3 aabbMin{ 0.0f };
+			glm::vec3 aabbMax{ 0.0f };
 		};
 
 		std::string modelName  = "";
 		Submesh  submeshes[MAX_SUBMESHES]{};
 		bagel::Material materials[MAX_SUBMESHES]{};
 		uint32_t submeshCount = 0;
+
+		glm::vec3 aabbMin{ 0.0f };
+		glm::vec3 aabbMax{ 0.0f };
+		bool frustumCull = true;
 
 		VkBuffer vertexBuffer;
 		VkBuffer indexBuffer;

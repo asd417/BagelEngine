@@ -9,6 +9,7 @@ layout(set=0, binding=6) uniform sampler2D samplerColor[];
 layout(push_constant) uniform Push {
     float filterRadius; // UV-space radius for tent kernel
     uint  inputHandle;  // bindless handle of the smaller mip to upsample
+    float weight;       // contribution weight for this mip level
 } push;
 
 void main() {
@@ -29,5 +30,5 @@ void main() {
                 + (b + d + f + h) * (2.0 / 16.0)
                 + e               * (4.0 / 16.0);
 
-    outColor = vec4(result, 1.0);
+    outColor = vec4(result * push.weight, 1.0);
 }

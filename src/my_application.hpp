@@ -13,6 +13,11 @@ namespace bagel {
 		void placeCubes();
 		void placePurpleCube();
 		void createLights();
+		void buildHierarchyStack();
+		void loadSponza();
+
+		entt::entity hierarchyRoot = entt::null;
+		float stackAngle = 0.0f;
 	};
 
 } // namespace bagel

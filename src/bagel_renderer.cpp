@@ -38,6 +38,7 @@ namespace bagel {
 		createCommandBuffers();
 		prepareDeferredRenderFrameBuffer();
 		prepareBloomMips();
+		prepareRadiosityBuffer();
 		gbufferExtent = bglSwapChain->getSwapChainExtent();
 	}
 	BGLRenderer::~BGLRenderer()
@@ -220,8 +221,10 @@ namespace bagel {
 			(newExtent.width != gbufferExtent.width || newExtent.height != gbufferExtent.height)) {
 			destroyDeferredFrameBuffer();
 			destroyBloomMips();
+			destroyRadiosityBuffer();
 			prepareDeferredRenderFrameBuffer();
 			prepareBloomMips();
+			prepareRadiosityBuffer();
 			gbufferExtent = newExtent;
 			gbufferRecreated = true;
 		}
@@ -451,13 +454,12 @@ namespace bagel {
 			static_cast<uint32_t>(deferredRenderFrameBuffer.height)
 		};
 
-		// 5 clear values: position, normal, albedo, emission, depth
-		std::array<VkClearValue, 5> clearValues{};
-		clearValues[0].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // position + metallic
-		clearValues[1].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // normal + roughness
-		clearValues[2].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // albedo (w=0 = background)
-		clearValues[3].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // emission
-		clearValues[4].depthStencil = { 1.0f, 0 };
+		// 4 clear values: normal, albedo, emission, depth
+		std::array<VkClearValue, 4> clearValues{};
+		clearValues[0].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // normal + roughness
+		clearValues[1].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // albedo (w=0 = background)
+		clearValues[2].color        = { 0.0f, 0.0f, 0.0f, 0.0f }; // emission
+		clearValues[3].depthStencil = { 1.0f, 0 };                 // depth
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 		renderPassInfo.pClearValues    = clearValues.data();
 
@@ -487,7 +489,7 @@ namespace bagel {
 
 		VkImageMemoryBarrier srcBarrier{};
 		srcBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		srcBarrier.oldLayout           = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		srcBarrier.oldLayout           = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 		srcBarrier.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 		srcBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		srcBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -528,9 +530,9 @@ namespace bagel {
 			1, &region, VK_FILTER_NEAREST);
 
 		srcBarrier.oldLayout    = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		srcBarrier.newLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		srcBarrier.newLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 		srcBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		srcBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		srcBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
 		dstBarrier.oldLayout    = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		dstBarrier.newLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -539,7 +541,8 @@ namespace bagel {
 
 		std::array<VkImageMemoryBarrier, 2> postBarriers = { srcBarrier, dstBarrier };
 		vkCmdPipelineBarrier(commandBuffer,
-			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
 			0, 0, nullptr, 0, nullptr,
 			static_cast<uint32_t>(postBarriers.size()), postBarriers.data());
 	}
@@ -621,33 +624,31 @@ namespace bagel {
 		const uint32_t dw = deferredRenderFrameBuffer.width;
 		const uint32_t dh = deferredRenderFrameBuffer.height;
 
-		// (World space) Positions — R32 for precision at large distances
-		createAttachment(VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.position, dw, dh);
-		// (World space) Normals
-		createAttachment(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.normal,   dw, dh);
+		// (World space) Normals — oct-encoded xy + roughness + metallic, 16 bits each
+		createAttachment(VK_FORMAT_R16G16B16A16_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.normal,   dw, dh);
 		// Albedo (color)
-		createAttachment(VK_FORMAT_R8G8B8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.albedo,   dw, dh);
+		createAttachment(VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.albedo,   dw, dh);
 		// Emission (RGB, sRGB-encoded)
-		createAttachment(VK_FORMAT_R8G8B8A8_UNORM,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.emission, dw, dh);
-		// Depth attachment
+		createAttachment(VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &deferredRenderFrameBuffer.emission, dw, dh);
+		// Depth — also sampled in the lighting pass for position reconstruction
 		VkFormat depthFormat = bglSwapChain->findDepthFormat();
 		createAttachment(depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, &deferredRenderFrameBuffer.depth, dw, dh);
 
 		// Set up separate renderpass with references to the color and depth attachments
-		// Attachment order: 0=position, 1=normal, 2=albedo, 3=emission, 4=depth
-		std::array<VkAttachmentDescription, 5> attachmentDescs = {};
+		// Attachment order: 0=normal, 1=albedo, 2=emission, 3=depth
+		std::array<VkAttachmentDescription, 4> attachmentDescs = {};
 
-		for (uint32_t i = 0; i < 5; ++i)
+		for (uint32_t i = 0; i < 4; ++i)
 		{
 			attachmentDescs[i].samples = VK_SAMPLE_COUNT_1_BIT;
 			attachmentDescs[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			attachmentDescs[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 			attachmentDescs[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			attachmentDescs[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			if (i == 4)
+			if (i == 3)
 			{
 				attachmentDescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				attachmentDescs[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+				attachmentDescs[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 			}
 			else
 			{
@@ -657,20 +658,18 @@ namespace bagel {
 		}
 
 		// Formats
-		attachmentDescs[0].format = deferredRenderFrameBuffer.position.format;
-		attachmentDescs[1].format = deferredRenderFrameBuffer.normal.format;
-		attachmentDescs[2].format = deferredRenderFrameBuffer.albedo.format;
-		attachmentDescs[3].format = deferredRenderFrameBuffer.emission.format;
-		attachmentDescs[4].format = deferredRenderFrameBuffer.depth.format;
+		attachmentDescs[0].format = deferredRenderFrameBuffer.normal.format;
+		attachmentDescs[1].format = deferredRenderFrameBuffer.albedo.format;
+		attachmentDescs[2].format = deferredRenderFrameBuffer.emission.format;
+		attachmentDescs[3].format = deferredRenderFrameBuffer.depth.format;
 
 		std::vector<VkAttachmentReference> colorReferences;
 		colorReferences.push_back({ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
 		colorReferences.push_back({ 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
 		colorReferences.push_back({ 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
-		colorReferences.push_back({ 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
 
 		VkAttachmentReference depthReference = {};
-		depthReference.attachment = 4;
+		depthReference.attachment = 3;
 		depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 		VkSubpassDescription subpass = {};
@@ -709,12 +708,11 @@ namespace bagel {
 
 		VK_CHECK(vkCreateRenderPass(BGLDevice::device(), &renderPassInfo, nullptr, &deferredRenderFrameBuffer.renderPass));
 
-		std::array<VkImageView, 5> attachments;
-		attachments[0] = deferredRenderFrameBuffer.position.view;
-		attachments[1] = deferredRenderFrameBuffer.normal.view;
-		attachments[2] = deferredRenderFrameBuffer.albedo.view;
-		attachments[3] = deferredRenderFrameBuffer.emission.view;
-		attachments[4] = deferredRenderFrameBuffer.depth.view;
+		std::array<VkImageView, 4> attachments;
+		attachments[0] = deferredRenderFrameBuffer.normal.view;
+		attachments[1] = deferredRenderFrameBuffer.albedo.view;
+		attachments[2] = deferredRenderFrameBuffer.emission.view;
+		attachments[3] = deferredRenderFrameBuffer.depth.view;
 
 		VkFramebufferCreateInfo fbufCreateInfo = {};
 		fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -758,7 +756,6 @@ namespace bagel {
 		deferredRenderFrameBuffer.frameBuffer = VK_NULL_HANDLE;
 		deferredRenderFrameBuffer.renderPass  = VK_NULL_HANDLE;
 		deferredRenderFrameBuffer.sampler     = VK_NULL_HANDLE;
-		destroyAtt(deferredRenderFrameBuffer.position);
 		destroyAtt(deferredRenderFrameBuffer.normal);
 		destroyAtt(deferredRenderFrameBuffer.albedo);
 		destroyAtt(deferredRenderFrameBuffer.emission);
@@ -783,6 +780,112 @@ namespace bagel {
 			buf.color.image    = VK_NULL_HANDLE;
 			buf.color.mem      = VK_NULL_HANDLE;
 		}
+	}
+
+	void BGLRenderer::prepareRadiosityBuffer()
+	{
+		auto sc = bglSwapChain->getSwapChainExtent();
+		radiosityBuffer.width  = sc.width;
+		radiosityBuffer.height = sc.height;
+
+		createAttachment(VK_FORMAT_R16G16B16A16_SFLOAT,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			&radiosityBuffer.color,
+			radiosityBuffer.width, radiosityBuffer.height);
+
+		VkAttachmentDescription desc{};
+		desc.format         = VK_FORMAT_R16G16B16A16_SFLOAT;
+		desc.samples        = VK_SAMPLE_COUNT_1_BIT;
+		desc.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		desc.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+		desc.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		desc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+		desc.finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkAttachmentReference colorRef{ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+
+		VkSubpassDescription subpass{};
+		subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments    = &colorRef;
+
+		std::array<VkSubpassDependency, 2> deps{};
+		deps[0] = { VK_SUBPASS_EXTERNAL, 0,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+			VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			VK_DEPENDENCY_BY_REGION_BIT };
+		deps[1] = { 0, VK_SUBPASS_EXTERNAL,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			VK_ACCESS_SHADER_READ_BIT,
+			VK_DEPENDENCY_BY_REGION_BIT };
+
+		VkRenderPassCreateInfo rpInfo{};
+		rpInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		rpInfo.attachmentCount = 1;
+		rpInfo.pAttachments    = &desc;
+		rpInfo.subpassCount    = 1;
+		rpInfo.pSubpasses      = &subpass;
+		rpInfo.dependencyCount = static_cast<uint32_t>(deps.size());
+		rpInfo.pDependencies   = deps.data();
+		VK_CHECK(vkCreateRenderPass(BGLDevice::device(), &rpInfo, nullptr, &radiosityBuffer.renderPass));
+
+		VkFramebufferCreateInfo fbInfo{};
+		fbInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		fbInfo.renderPass      = radiosityBuffer.renderPass;
+		fbInfo.attachmentCount = 1;
+		fbInfo.pAttachments    = &radiosityBuffer.color.view;
+		fbInfo.width           = radiosityBuffer.width;
+		fbInfo.height          = radiosityBuffer.height;
+		fbInfo.layers          = 1;
+		VK_CHECK(vkCreateFramebuffer(BGLDevice::device(), &fbInfo, nullptr, &radiosityBuffer.frameBuffer));
+
+		VkSamplerCreateInfo samplerInfo{};
+		samplerInfo.sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerInfo.magFilter    = samplerInfo.minFilter = VK_FILTER_LINEAR;
+		samplerInfo.mipmapMode   = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerInfo.addressModeU = samplerInfo.addressModeV = samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerInfo.maxAnisotropy = 1.0f;
+		samplerInfo.maxLod       = 1.0f;
+		samplerInfo.borderColor  = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		VK_CHECK(vkCreateSampler(BGLDevice::device(), &samplerInfo, nullptr, &radiosityBuffer.sampler));
+	}
+
+	void BGLRenderer::destroyRadiosityBuffer()
+	{
+		vkDestroySampler    (BGLDevice::device(), radiosityBuffer.sampler,      nullptr);
+		vkDestroyRenderPass (BGLDevice::device(), radiosityBuffer.renderPass,   nullptr);
+		vkDestroyFramebuffer(BGLDevice::device(), radiosityBuffer.frameBuffer,  nullptr);
+		vkDestroyImageView  (BGLDevice::device(), radiosityBuffer.color.view,   nullptr);
+		vkDestroyImage      (BGLDevice::device(), radiosityBuffer.color.image,  nullptr);
+		vkFreeMemory        (BGLDevice::device(), radiosityBuffer.color.mem,    nullptr);
+		radiosityBuffer.sampler      = VK_NULL_HANDLE;
+		radiosityBuffer.renderPass   = VK_NULL_HANDLE;
+		radiosityBuffer.frameBuffer  = VK_NULL_HANDLE;
+		radiosityBuffer.color.view   = VK_NULL_HANDLE;
+		radiosityBuffer.color.image  = VK_NULL_HANDLE;
+		radiosityBuffer.color.mem    = VK_NULL_HANDLE;
+	}
+
+	void BGLRenderer::beginRadiosityPass(VkCommandBuffer commandBuffer)
+	{
+		assert(isFrameStarted);
+		VkRenderPassBeginInfo rpInfo{};
+		rpInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		rpInfo.renderPass      = radiosityBuffer.renderPass;
+		rpInfo.framebuffer     = radiosityBuffer.frameBuffer;
+		rpInfo.renderArea      = { {0,0}, {radiosityBuffer.width, radiosityBuffer.height} };
+		VkClearValue cv{}; cv.color = {0,0,0,0};
+		rpInfo.clearValueCount = 1; rpInfo.pClearValues = &cv;
+		vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+		VkViewport vp{ 0,0,(float)radiosityBuffer.width,(float)radiosityBuffer.height,0,1 };
+		VkRect2D   sc{ {0,0},{radiosityBuffer.width,radiosityBuffer.height} };
+		vkCmdSetViewport(commandBuffer, 0, 1, &vp);
+		vkCmdSetScissor(commandBuffer, 0, 1, &sc);
 	}
 
 	void BGLRenderer::prepareBloomMips()

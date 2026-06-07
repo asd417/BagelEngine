@@ -25,8 +25,7 @@ struct VS_OUT {
 	int isInstancedTransform;
 	uint albedoMap;
 	uint normalMap;
-	uint roughMap;
-	uint metallicMap;
+	uint metalRoughMap;
 	uint specularMap;
 	uint heightMap;
 	uint opacityMap;
@@ -86,7 +85,7 @@ layout(push_constant) uniform Push {
 	uint UsesBufferedTransform;
 	uint albedoMap;
 	uint normalMap;
-	uint roughMap;
+	uint metalRoughMap;
 } push;
 
 // Normal distribution function
@@ -150,7 +149,7 @@ void main(){
 	float roughness = 0.5f; //Half roughness by default. Uses Y value
 
 	//Create new axis with tangent, bitangent, normal
-	mat3 TBN = mat3(fragTangent,fragBitangent,fragNormalWorld);
+	mat3 TBN = mat3(fragTangent, fragBitangent, fragNormalWorld);
 	if(fs_in.albedoMap != 0){
 		diffuse = texture(samplerColor[fs_in.albedoMap], vec2(fragUV.x,fragUV.y)).xyz;
 	}
@@ -162,13 +161,10 @@ void main(){
 		normal = normal * 2.0 - 1.0;   //-1.0~1.0 range
 		normal = normalize(TBN * normal); //move the normal to world space
 	}
-	if(fs_in.roughMap != 0){
-		vec3 roughness_v = texture(samplerColor[fs_in.roughMap], vec2(fragUV.x,fragUV.y)).xyz;
-		roughness = clamp(roughness_v.x,0.0,1.0);
-	}
-	if(fs_in.metallicMap != 0){
-		vec3 metallic_v = texture(samplerColor[fs_in.metallicMap], vec2(fragUV.x,fragUV.y)).xyz;
-		metallic = clamp(metallic_v.x,0.0,1.0);
+	if(fs_in.metalRoughMap != 0){
+		vec3 mr = texture(samplerColor[fs_in.metalRoughMap], vec2(fragUV.x,fragUV.y)).rgb;
+		roughness = clamp(mr.g, 0.0, 1.0);
+		metallic  = clamp(mr.b, 0.0, 1.0);
 	}
 
 	vec3 albedo = diffuse;

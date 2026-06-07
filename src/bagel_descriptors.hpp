@@ -1,5 +1,5 @@
 #pragma once
-
+//dsadsa
 #include "bagel_engine_device.hpp"
 #include "bagel_buffer.hpp"
 #include "bagel_engine_swap_chain.hpp"
@@ -122,7 +122,7 @@ namespace bagel {
 
     class BGLBindlessDescriptorManager {
         enum BINDINGS {
-            DR_POS      = 0,
+            DR_DEPTH    = 0,
             DR_NORMAL   = 1,
             DR_ALBEDO   = 2,
             DR_EMISSION = 3,
@@ -147,6 +147,7 @@ namespace bagel {
         void createBindlessDescriptorSet(uint32_t descriptorCount);
         //Since this engine is built with bindless design, it is critical to keep track of the ubo index. Therefore UBO storages are not in vectors
         void storeUBO(VkDescriptorBufferInfo bufferInfo, uint32_t targetIndex);
+        void storeUBOPerFrame(std::array<VkDescriptorBufferInfo, BGLSwapChain::MAX_FRAMES_IN_FLIGHT> frameBufferInfos, uint32_t targetIndex);
         uint32_t storeBuffer(VkDescriptorBufferInfo bufferInfo, const char* name);
 
         //If useDesignatedHandle == true, write to the specified descriptor array element, overriding existing texture. 
@@ -160,14 +161,14 @@ namespace bagel {
             uint32_t handle = 0,
             bool owned = true);
 
-        void writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView positionView, VkImageView normalView, VkImageView albedoView, VkImageView emissionView);
+        void writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView depthView, VkImageView normalView, VkImageView albedoView, VkImageView emissionView);
 
         uint32_t searchBufferName(std::string bufferName);
         uint32_t searchTextureName(std::string textureName);
 
         //Can use these functions to store handle if the last bound resource is the same as one being bound;
-        uint32_t getLastBufferHandle() { return textures.size() - 1; };
-        uint32_t getLastTextureHandle() { return textures.size() - 1; };
+        uint32_t getLastBufferHandle() { return static_cast<uint32_t>(textures.size() - 1); };
+        uint32_t getLastTextureHandle() { return static_cast<uint32_t>(textures.size() - 1); };
 
         //Check if texture is missing
         //When loading model, missing textures will be loaded in place of the real textures before texture allocation

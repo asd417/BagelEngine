@@ -132,9 +132,6 @@ namespace bagel {
         auto result = vkQueuePresentKHR(device.presentQueue(), &presentInfo);
 
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-#ifndef SYNC_DEVICEWAITIDLE
-        vkQueueWaitIdle(device.presentQueue());
-#endif
         return result;
     }
 
@@ -475,6 +472,10 @@ namespace bagel {
     // Mailbox means gpu never idles therefore high power consumption. Not suitable for mobile
     VkPresentModeKHR BGLSwapChain::chooseSwapPresentMode(
         const std::vector<VkPresentModeKHR> &availablePresentModes) {
+        if (vsyncEnabled) {
+            std::cout << "Present mode: V-Sync (FIFO)" << std::endl;
+            return VK_PRESENT_MODE_FIFO_KHR;
+        }
         for (const auto &availablePresentMode : availablePresentModes) {
             if (availablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
                 std::cout << "Present mode: Immediate (uncapped)" << std::endl;

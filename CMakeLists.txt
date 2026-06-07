@@ -66,6 +66,7 @@ file(GLOB SOURCES "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*
 file(GLOB RENDERSYSTEM 	"${PROJECT_SOURCE_DIR}/src/render_systems/*.cpp" "${PROJECT_SOURCE_DIR}/src/render_systems/*.hpp")
 file(GLOB PHYSICS 	"${PROJECT_SOURCE_DIR}/src/physics/*.cpp" "${PROJECT_SOURCE_DIR}/src/physics/*.hpp")
 file(GLOB MATH		"${PROJECT_SOURCE_DIR}/src/math/*.cpp" "${PROJECT_SOURCE_DIR}/src/math/*.hpp")
+file(GLOB MODEL_LOADERS "${PROJECT_SOURCE_DIR}/src/model_loaders/*.cpp" "${PROJECT_SOURCE_DIR}/src/model_loaders/*.hpp")
 
 file(GLOB IMGUI_SRC "${IMGUI}/*.cpp" "${IMGUI}/*.h")
 file(GLOB IMGUI_BCKEND_vk ${IMGUI}/backends/imgui_impl_vulkan.*)
@@ -73,19 +74,21 @@ file(GLOB IMGUI_BCKEND_glfw ${IMGUI}/backends/imgui_impl_glfw.*)
 
 file(GLOB TINYGLTF "${TINYGLTF_PATH}/tiny_gltf.h")
 
-add_executable(${PROJECT_NAME} 
-	${SOURCES} 
+add_executable(${PROJECT_NAME}
+	${SOURCES}
 	${RENDERSYSTEM}
 	${PHYSICS}
 	${MATH}
-	${IMGUI_SRC} 
-	${IMGUI_BCKEND_vk} 
+	${MODEL_LOADERS}
+	${IMGUI_SRC}
+	${IMGUI_BCKEND_vk}
 	${IMGUI_BCKEND_glfw}
 	${TINYGLTF})
 
 source_group("Render Systems"	FILES ${RENDERSYSTEM})
 source_group("Physics"		FILES ${PHYSICS})
 source_group("Math"		FILES ${MATH})
+source_group("Model Loaders"	FILES ${MODEL_LOADERS})
 source_group("Imgui"            FILES ${IMGUI_SRC} ${IMGUI_BCKEND_vk} ${IMGUI_BCKEND_glfw})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
@@ -97,6 +100,11 @@ target_compile_definitions(BagelEngine PUBLIC "$<$<CONFIG:Release>:NDEBUG;JPH_PR
 
 target_compile_definitions(BagelEngine PUBLIC JPH_OBJECT_STREAM)
 target_compile_definitions(BagelEngine PUBLIC ENGINE_BASE_PATH="${CMAKE_SOURCE_DIR}")
+
+if (MSVC)
+  target_compile_options(BagelEngine PRIVATE /wd4819 $<$<CONFIG:Debug>:/Z7>)
+  # /Z7 embeds debug info per .obj so parallel cl.exe never share a PDB file
+endif()
 
 
 if (WIN32)

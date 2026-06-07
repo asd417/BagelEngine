@@ -6,8 +6,7 @@ struct VS_OUT {
 	int isInstancedTransform;
 	uint albedoMap;
 	uint normalMap;
-	uint roughMap;
-	uint metallicMap;
+	uint metalRoughMap;
 	uint specularMap;
 	uint heightMap;
 	uint opacityMap;
@@ -49,7 +48,7 @@ layout(push_constant) uniform Push {
 	uint UsesBufferedTransform;
 	uint albedoMap;
 	uint normalMap;
-	uint roughMap;
+	uint metalRoughMap;
 	uint emissionMap;
 } push;
 
@@ -90,12 +89,12 @@ void main() {
 		normal   = normalize(TBN * n);
 	}
 
-	uint roughIdx = (push.roughMap != 0) ? push.roughMap : fs_in.roughMap;
-	if (roughIdx != 0)
-		roughness = clamp(texture(samplerColor[roughIdx], fragUV).x, 0.0, 1.0);
-
-	if (fs_in.metallicMap != 0)
-		metallic = clamp(texture(samplerColor[fs_in.metallicMap], fragUV).x, 0.0, 1.0);
+	uint mrIdx = (push.metalRoughMap != 0) ? push.metalRoughMap : fs_in.metalRoughMap;
+	if (mrIdx != 0) {
+		vec3 mr  = texture(samplerColor[mrIdx], fragUV).rgb;
+		roughness = clamp(mr.g, 0.0, 1.0);
+		metallic  = clamp(mr.b, 0.0, 1.0);
+	}
 
 	vec3 camPos = ubo.inverseViewMatrix[3].xyz;
 	vec3 V      = normalize(camPos - fragPosWorld);

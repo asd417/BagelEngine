@@ -2,7 +2,6 @@
 #include "../bagel_ecs_components.hpp"
 #include "../bagel_engine_device.hpp"
 #include "../bagel_util.hpp"
-//#include "../bagel_console_commands.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -10,10 +9,12 @@
 #include <array>
 #include <chrono>
 #include <iostream>
+#include <cstring>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace bagel {
 	// PushConstantData is a performant and simple way to send data to vertex and fragment shader
@@ -76,6 +77,25 @@ namespace bagel {
 		pipelineConfig.rasterizationInfo.lineWidth = 1.0f;
 	}
 
+	static void uploadBuffer(BGLDevice& dev, VkBufferUsageFlags usage,
+	                         const void* src, VkDeviceSize size,
+	                         VkBuffer& dstBuf, VkDeviceMemory& dstMem)
+	{
+		VkBuffer stagingBuf; VkDeviceMemory stagingMem;
+		dev.createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			stagingBuf, stagingMem);
+		void* mapped;
+		vkMapMemory(BGLDevice::device(), stagingMem, 0, VK_WHOLE_SIZE, 0, &mapped);
+		memcpy(mapped, src, size);
+		vkUnmapMemory(BGLDevice::device(), stagingMem);
+		dev.createBuffer(size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, dstBuf, dstMem);
+		dev.copyBuffer(stagingBuf, dstBuf, size);
+		vkDestroyBuffer(BGLDevice::device(), stagingBuf, nullptr);
+		vkFreeMemory(BGLDevice::device(), stagingMem, nullptr);
+	}
+
 	WireframeRenderSystem::WireframeRenderSystem(
 		VkRenderPass renderPass,
 		std::vector<VkDescriptorSetLayout> setLayouts,
@@ -84,11 +104,46 @@ namespace bagel {
 		BGLDevice &bglDevice) :
 		BGLRenderSystem{ renderPass, setLayouts, sizeof(WireframePushConstantData) },
 		descriptorManager{ _descriptorManager },
-		registry{ _registry }
+		registry{ _registry },
+		device{ bglDevice }
 	{
 		std::cout << "Creating Wireframe Render System\n";
 		createPipeline(renderPass, "/shaders/wireframe_shader.vert.spv", "/shaders/wireframe_shader.frag.spv", WireframePipelineConfigModifier);
-		//Add console commands here
+
+		// Build shared unit wire cube [-1,-1,-1]→[1,1,1] for bbox drawing
+		auto corner = [](float x, float y, float z) {
+			BGLModel::Vertex v{};
+			v.position = {x, y, z};
+			return v;
+		};
+		const std::array<BGLModel::Vertex, 8> verts = {
+			corner(-1,-1,-1), corner( 1,-1,-1),
+			corner( 1, 1,-1), corner(-1, 1,-1),
+			corner(-1,-1, 1), corner( 1,-1, 1),
+			corner( 1, 1, 1), corner(-1, 1, 1),
+		};
+		// 12 edges: bottom face, top face, 4 verticals
+		const std::array<uint32_t, BBOX_INDEX_COUNT> idx = {
+			0,1, 1,2, 2,3, 3,0,
+			4,5, 5,6, 6,7, 7,4,
+			0,4, 1,5, 2,6, 3,7,
+		};
+		uploadBuffer(bglDevice, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			verts.data(), sizeof(verts), bboxVertexBuffer, bboxVertexMemory);
+		uploadBuffer(bglDevice, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			idx.data(), sizeof(idx), bboxIndexBuffer, bboxIndexMemory);
+	}
+
+	WireframeRenderSystem::~WireframeRenderSystem()
+	{
+		if (bboxVertexBuffer != VK_NULL_HANDLE) {
+			vkDestroyBuffer(BGLDevice::device(), bboxVertexBuffer, nullptr);
+			vkFreeMemory(BGLDevice::device(), bboxVertexMemory, nullptr);
+		}
+		if (bboxIndexBuffer != VK_NULL_HANDLE) {
+			vkDestroyBuffer(BGLDevice::device(), bboxIndexBuffer, nullptr);
+			vkFreeMemory(BGLDevice::device(), bboxIndexMemory, nullptr);
+		}
 	}
 
 	void WireframeRenderSystem::renderEntities(FrameInfo& frameInfo)
@@ -152,6 +207,42 @@ namespace bagel {
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 				DrawByIndexCount(frameInfo.commandBuffer, collisionModelComp.vertexCount, collisionModelComp.indexCount, 1, collisionModelComp.submeshes[i].firstIndex);
 			}
+		}
+	}
+
+	void WireframeRenderSystem::renderBBoxes(FrameInfo& frameInfo)
+	{
+		bglPipeline->bind(frameInfo.commandBuffer);
+		vkCmdBindDescriptorSets(
+			frameInfo.commandBuffer,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipelineLayout,
+			0, 1,
+			&frameInfo.globalDescriptorSets,
+			0, nullptr);
+
+		VkDeviceSize zero = 0;
+		vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &bboxVertexBuffer, &zero);
+		vkCmdBindIndexBuffer(frameInfo.commandBuffer, bboxIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+		auto view = registry.view<TransformComponent, ModelComponent>();
+		for (auto [entity, transformComp, modelComp] : view.each()) {
+			if (modelComp.aabbMin == modelComp.aabbMax) continue;
+
+			glm::vec3 center  = (modelComp.aabbMin + modelComp.aabbMax) * 0.5f;
+			glm::vec3 halfExt = (modelComp.aabbMax - modelComp.aabbMin) * 0.5f;
+
+			glm::mat4 bboxMat = transformComp.mat4()
+				* glm::translate(glm::mat4{1.0f}, center)
+				* glm::scale(glm::mat4{1.0f}, halfExt);
+
+			WireframePushConstantData push{};
+			push.UsesBufferedTransform = 0;
+			push.modelMatrix = bboxMat;
+			push.scale = glm::vec4{1.0f};
+			push.color = glm::vec4{0.0f, 1.0f, 0.0f, 1.0f};
+			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+			vkCmdDrawIndexed(frameInfo.commandBuffer, BBOX_INDEX_COUNT, 1, 0, 0, 0);
 		}
 	}
 }

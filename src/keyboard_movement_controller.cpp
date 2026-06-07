@@ -22,8 +22,11 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 	}
 	zKeyWasDown = zDown;
 
-	// Mouse look — raw delta tracked via lastMousePos in FPS mode
-	if (fpsMode && !io.WantCaptureMouse) {
+	// Mouse look — raw delta tracked via lastMousePos in FPS mode.
+	// WantCaptureMouse is NOT checked here: in FPS mode the cursor is GLFW_CURSOR_DISABLED
+	// so ImGui cannot actually receive clicks, but its virtual-position logic can still set
+	// WantCaptureMouse=true, which would incorrectly block camera rotation.
+	if (fpsMode) {
 		double mx, my;
 		glfwGetCursorPos(window, &mx, &my);
 		glm::vec2 delta{ static_cast<float>(mx) - lastMousePos.x, static_cast<float>(my) - lastMousePos.y };

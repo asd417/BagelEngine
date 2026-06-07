@@ -238,7 +238,7 @@ namespace bagel {
         // uniform buffer, and combined image sampler
 
         //Bindings for deferred rendering
-        VkDescriptorSetLayoutBinding deferredPosition = createDescriptorSetLayoutBinding(BINDINGS::DR_POS,      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
+        VkDescriptorSetLayoutBinding deferredPosition = createDescriptorSetLayoutBinding(BINDINGS::DR_DEPTH,    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
         VkDescriptorSetLayoutBinding deferredNormal   = createDescriptorSetLayoutBinding(BINDINGS::DR_NORMAL,   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
         VkDescriptorSetLayoutBinding deferredAlbedo   = createDescriptorSetLayoutBinding(BINDINGS::DR_ALBEDO,   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
         VkDescriptorSetLayoutBinding deferredEmission = createDescriptorSetLayoutBinding(BINDINGS::DR_EMISSION, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -284,6 +284,24 @@ namespace bagel {
     }
 
 
+
+    void BGLBindlessDescriptorManager::storeUBOPerFrame(
+        std::array<VkDescriptorBufferInfo, BGLSwapChain::MAX_FRAMES_IN_FLIGHT> frameBufferInfos,
+        uint32_t targetIndex)
+    {
+        for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+            VkWriteDescriptorSet write{};
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            write.dstBinding = BINDINGS::UNIFORM;
+            write.descriptorCount = 1;
+            write.pBufferInfo = &frameBufferInfos[i];
+            write.dstArrayElement = targetIndex;
+            write.dstSet = bindlessDescriptorSet[i];
+            vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        }
+        UBObuffers[targetIndex] = frameBufferInfos[0];
+    }
 
     void BGLBindlessDescriptorManager::storeUBO(VkDescriptorBufferInfo bufferInfo, uint32_t targetIndex)
     {
@@ -394,15 +412,15 @@ namespace bagel {
         return handle;
     }
 
-    void BGLBindlessDescriptorManager::writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView positionView, VkImageView normalView, VkImageView albedoView, VkImageView emissionView) {
-        VkDescriptorImageInfo texDescriptorPosition = descriptorImageInfo(colorSampler, positionView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    void BGLBindlessDescriptorManager::writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView depthView, VkImageView normalView, VkImageView albedoView, VkImageView emissionView) {
+        VkDescriptorImageInfo texDescriptorDepth    = descriptorImageInfo(colorSampler, depthView,     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
         VkDescriptorImageInfo texDescriptorNormal   = descriptorImageInfo(colorSampler, normalView,    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         VkDescriptorImageInfo texDescriptorAlbedo   = descriptorImageInfo(colorSampler, albedoView,    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         VkDescriptorImageInfo texDescriptorEmission = descriptorImageInfo(colorSampler, emissionView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
         for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
             std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-                writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_POS,      &texDescriptorPosition),
+                writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_DEPTH,    &texDescriptorDepth),
                 writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_NORMAL,   &texDescriptorNormal),
                 writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_ALBEDO,   &texDescriptorAlbedo),
                 writeDescriptorSet(bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::DR_EMISSION, &texDescriptorEmission),

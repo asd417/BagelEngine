@@ -58,14 +58,25 @@ namespace bagel {
 
 		~BGLTextureLoader();
 
-		// Load a texture and return its bindless handle.
-		// Deduplication is handled by BGLBindlessDescriptorManager — same path returns the same handle.
+		// Load a texture file and return its bindless handle.
+		// Deduplication: same path returns the same handle.
 		uint32_t loadTexture(const char* filePath, VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB);
+
+		// Upload pre-decoded RGBA pixels and return a bindless handle.
+		// 'name' is the deduplication key (use a unique synthetic string for generated textures).
+		uint32_t loadTextureFromMemory(const char* name, const uint8_t* rgba, uint32_t w, uint32_t h,
+		                               VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM);
+
+		// Combine separate grayscale roughness and metallic maps into a single ORM texture
+		// (R=255, G=roughness, B=metallic) and upload it. Both paths are engine-relative.
+		uint32_t loadCombinedMetalRough(const char* roughPath, const char* metalPath);
 
 	private:
 		uint32_t buildAndStore(const char* filePath, VkFormat imageFormat);
+		uint32_t buildAndStoreFromMemory(const char* name, VkFormat imageFormat, bool designatedIndex, uint32_t storedIndex);
 		void loadSTBImageInStagingBuffer(const char* filePath, VkFormat format);
 		void loadKTXImageInStagingBuffer(const char* filePath, VkFormat format);
+		void loadPixelDataInStagingBuffer(const uint8_t* rgba, uint32_t w, uint32_t h);
 		void generateImageCreateInfo(VkFormat imageFormat);
 		void generateSubresRange();
 		void setImageLayoutTransfer(VkImage image);

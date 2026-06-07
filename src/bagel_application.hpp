@@ -13,13 +13,14 @@
 #include "render_systems/composit_render_system.hpp"
 #include "render_systems/transparent_render_system.hpp"
 #include "render_systems/bloom_render_system.hpp"
+#include "render_systems/radiosity_render_system.hpp"
 
 #ifdef PHYSTEST
 #include "physics/bagel_physics.h"
 #endif
 
-#include "bgl_gameobject.hpp"
-#include "bgl_model.hpp"
+#include "bagel_gameobject.hpp"
+#include "bagel_model.hpp"
 #include "bagel_textures.hpp"
 #include "bagel_material.hpp"
 
@@ -53,14 +54,27 @@ namespace bagel
 		bool showFPS = false;
 		bool showInfo = false;
 		bool showWireframe = false;
-		bool bloomEnabled = true;
+		bool drawBBox = false;
+		bool  bloomEnabled   = true;
+		float bloomIntensity = 1.0f;
+		float bloomThreshold = 0.05f;
+		float bloomMipDecay  = 1.0f;
 		int gbufferDebugMode = 0; // 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic 6=bloom 7=raw emission
-
+		bool showProfile = false;
+		bool stutterDetect = true;
+		float stutterThresholdMs = 33.3f; // flag frames slower than this (~30fps)
+		int maxFps = 0; // 0 = unlimited; minimum enforced value is 15
+		bool vsync = false;
+		bool vsyncDirty = false;
+		float exposure = 0.0025f;
+	
 		// Override in derived classes
 		virtual void OnSceneLoad() {}
 		virtual void OnUpdate(float dt) {}
 
 	protected:
+		uint32_t fallbackAlbedoMap = 0;
+
 		// Engine subsystems — accessible to derived application classes
 		entt::registry registry;
 		BGLWindow bglWindow{WIDTH, HEIGHT, "Bagel Engine"};

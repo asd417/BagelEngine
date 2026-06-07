@@ -5,7 +5,7 @@
 #include "bagel_window.hpp"
 #include "bagel_engine_device.hpp"
 #include "bagel_engine_swap_chain.hpp"
-#include "bgl_model.hpp"
+#include "bagel_model.hpp"
 
 #include <array>
 #include <cassert>
@@ -30,7 +30,7 @@ namespace bagel {
 	struct FrameBuffer {
 		int32_t width = 0, height = 0;
 		VkFramebuffer frameBuffer = VK_NULL_HANDLE;
-		FrameBufferAttachment position, normal, albedo, emission;
+		FrameBufferAttachment normal, albedo, emission;
 		FrameBufferAttachment depth;
 		VkRenderPass renderPass = VK_NULL_HANDLE;
 		VkSampler sampler = VK_NULL_HANDLE;
@@ -40,6 +40,20 @@ namespace bagel {
 			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer, nullptr);
 			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
 			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
+		}
+	};
+
+	struct RadiosityBuffer {
+		uint32_t width  = 0;
+		uint32_t height = 0;
+		FrameBufferAttachment color{};
+		VkRenderPass  renderPass  = VK_NULL_HANDLE;
+		VkFramebuffer frameBuffer = VK_NULL_HANDLE;
+		VkSampler     sampler     = VK_NULL_HANDLE;
+		~RadiosityBuffer() {
+			vkDestroySampler    (BGLDevice::device(), sampler,      nullptr);
+			vkDestroyRenderPass (BGLDevice::device(), renderPass,   nullptr);
+			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer,  nullptr);
 		}
 	};
 
@@ -79,7 +93,7 @@ namespace bagel {
 
 	class BGLRenderer {
 	public:
-		static constexpr uint32_t BLOOM_MIPS = 5;
+		static constexpr uint32_t BLOOM_MIPS = 3;
 
 		BGLRenderer(BGLWindow& w, BGLDevice& d);
 		~BGLRenderer();
@@ -141,8 +155,17 @@ namespace bagel {
 
 		FrameBuffer getDeferredRenderFrameBuffer() const { return deferredRenderFrameBuffer; }
 
+		// Radiosity buffer — HDR PBR lighting result, read by bloom and composite passes
+		void beginRadiosityPass(VkCommandBuffer commandBuffer);
+		VkRenderPass getRadiosityRenderPass() const { return radiosityBuffer.renderPass; }
+		VkDescriptorImageInfo getRadiosityImageInfo() const {
+			return { radiosityBuffer.sampler, radiosityBuffer.color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+		}
+		VkImage        getRadiosityImage()  const { return radiosityBuffer.color.image; }
+		VkDeviceMemory getRadiosityMemory() const { return radiosityBuffer.color.mem;   }
+
 		VkSampler getDRSampler() const { return deferredRenderFrameBuffer.sampler; }
-		VkImageView getDRPositionView() const { return deferredRenderFrameBuffer.position.view; }
+		VkImageView getDRDepthView()  const { return deferredRenderFrameBuffer.depth.view; }
 		VkImageView getDRNormalView() const { return deferredRenderFrameBuffer.normal.view; }
 		VkImageView getDRAlbedoView() const { return deferredRenderFrameBuffer.albedo.view; }
 		VkImageView getDREmissionView() const { return deferredRenderFrameBuffer.emission.view; }
@@ -153,6 +176,11 @@ namespace bagel {
 			bool v = gbufferRecreated;
 			gbufferRecreated = false;
 			return v;
+		}
+
+		void applyVsync(bool enabled) {
+			BGLSwapChain::vsyncEnabled = enabled;
+			recreateSwapChain();
 		}
 
 	private:
@@ -178,8 +206,10 @@ namespace bagel {
 		void createAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment* attachment, uint32_t width, uint32_t height);
 		void prepareDeferredRenderFrameBuffer();
 		void prepareBloomMips();
+		void prepareRadiosityBuffer();
 		void destroyDeferredFrameBuffer();
 		void destroyBloomMips();
+		void destroyRadiosityBuffer();
 		
 
 		BGLWindow& bglWindow;
@@ -191,6 +221,7 @@ namespace bagel {
 		VkCommandBuffer deferredCommandBuffer;
 		FrameBuffer deferredRenderFrameBuffer{};
 		std::array<BloomBuffer, BLOOM_MIPS> bloomMips{};
+		RadiosityBuffer radiosityBuffer{};
 	};
 
 }

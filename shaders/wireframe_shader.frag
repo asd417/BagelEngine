@@ -48,8 +48,9 @@ layout(push_constant) uniform Push {
 	vec4 scale;
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
+	vec4 color;
 } push;
 
 void main(){
-	outColor = ubo.lineColor;
+	outColor = (push.color.a > 0.0) ? push.color : ubo.lineColor;
 }

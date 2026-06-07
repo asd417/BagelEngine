@@ -1,5 +1,5 @@
 #pragma once
-#include "first_app.hpp"
+#include "bagel_application.hpp"
 #include <cstdlib>
 //#include "render_systems/ecs_model_render_system.hpp"
 namespace bagel {
@@ -41,6 +41,20 @@ char* ShowFPS(void* ptr)
 		if (app->showWireframe) return "Enabled wireframe renderer";
 		else return "Disabled wireframe renderer";
 	}
+	char* DrawBBox(void* ptr)
+	{
+		Application* app = static_cast<Application*>(ptr);
+		app->drawBBox = !app->drawBBox;
+		if (app->drawBBox) return "r_drawbbox: on";
+		else return "r_drawbbox: off";
+	}
+	char* ShowProfile(void* ptr)
+	{
+		Application* app = static_cast<Application*>(ptr);
+		app->showProfile = !app->showProfile;
+		if (app->showProfile) return "Profiling enabled — printing section timings every second";
+		else return "Profiling disabled";
+	}
 	char* SetBloom(void* ptr, const char* args)
 	{
 		static char response[64];
@@ -51,6 +65,42 @@ char* ShowFPS(void* ptr)
 		}
 		app->bloomEnabled = atoi(args) != 0;
 		snprintf(response, sizeof(response), "Bloom %s", app->bloomEnabled ? "enabled" : "disabled");
+		return response;
+	}
+	char* SetVSync(void* ptr, const char* args)
+	{
+		static char response[64];
+		Application* app = static_cast<Application*>(ptr);
+		if (!args || args[0] == '\0') {
+			snprintf(response, sizeof(response), "r_vsync: %d", (int)app->vsync);
+			return response;
+		}
+		bool enabled = atoi(args) != 0;
+		app->vsync = enabled;
+		app->vsyncDirty = true;
+		snprintf(response, sizeof(response), "VSync %s", enabled ? "enabled" : "disabled");
+		return response;
+	}
+	char* SetMaxFPS(void* ptr, const char* args)
+	{
+		static char response[64];
+		Application* app = static_cast<Application*>(ptr);
+		if (!args || args[0] == '\0') {
+			if (app->maxFps == 0) snprintf(response, sizeof(response), "r_maxfps: unlimited");
+			else                  snprintf(response, sizeof(response), "r_maxfps: %d", app->maxFps);
+			return response;
+		}
+		int v = atoi(args);
+		if (v == 0) {
+			app->maxFps = 0;
+			return "FPS limit removed";
+		}
+		if (v < 15) {
+			snprintf(response, sizeof(response), "[error] r_maxfps: minimum is 15 (got %d)", v);
+			return response;
+		}
+		app->maxFps = v;
+		snprintf(response, sizeof(response), "FPS limited to %d", v);
 		return response;
 	}
 	// r_drawmode <n>  — 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic 6=bloom 7=raw emission

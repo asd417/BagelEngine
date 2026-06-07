@@ -8,9 +8,9 @@
 #include "bagel_render_system.hpp"
 #include "../bagel_pipeline.hpp"
 #include "../bagel_frame_info.hpp"
-#include "../bgl_camera.hpp"
-#include "../bgl_gameobject.hpp"
-#include "../bgl_model.hpp"
+#include "../bagel_camera.hpp"
+#include "../bagel_gameobject.hpp"
+#include "../bagel_model.hpp"
 
 
 //#define MODELRENDER_ORIGINAL
@@ -23,7 +23,7 @@ namespace bagel {
 		uint32_t UsesBufferedTransform = 0;
 		uint32_t albedoMap = 0;
 		uint32_t normalMap = 0;
-		uint32_t roughMap = 0;
+		uint32_t metalRoughMap = 0;
 	};
 
 	class ModelRenderSystem : BGLRenderSystem{

@@ -17,16 +17,14 @@ namespace bagel {
 	Material BGLMaterialManager::loadMaterial(
 		const char* albedo,
 		const char* normal,
-		const char* roughness,
-		const char* metallic,
+		const char* metalRough,
 		const char* emission)
 	{
 		Material mat{};
-		if (albedo)    mat.albedoMap   = builder.loadTexture(albedo,    VK_FORMAT_R8G8B8A8_SRGB);
-		if (normal)    mat.normalMap   = builder.loadTexture(normal,    VK_FORMAT_R8G8B8A8_UNORM);
-		if (roughness) mat.roughMap    = builder.loadTexture(roughness, VK_FORMAT_R8G8B8A8_UNORM);
-		if (metallic)  mat.metallicMap = builder.loadTexture(metallic,  VK_FORMAT_R8G8B8A8_UNORM);
-		if (emission)  mat.emissionMap = builder.loadTexture(emission,  VK_FORMAT_R8G8B8A8_SRGB);
+		if (albedo)      mat.albedoMap     = builder.loadTexture(albedo,      VK_FORMAT_R8G8B8A8_SRGB);
+		if (normal)      mat.normalMap     = builder.loadTexture(normal,      VK_FORMAT_R8G8B8A8_UNORM);
+		if (metalRough)  mat.metalRoughMap = builder.loadTexture(metalRough,  VK_FORMAT_R8G8B8A8_UNORM);
+		if (emission)    mat.emissionMap   = builder.loadTexture(emission,    VK_FORMAT_R8G8B8A8_SRGB);
 		return mat;
 	}
 

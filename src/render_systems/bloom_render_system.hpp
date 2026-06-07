@@ -19,6 +19,7 @@ namespace bagel {
 	struct BloomUpPush {
 		float    filterRadius = 1.0f; // tent kernel radius in texels of the source mip
 		uint32_t inputHandle  = 0;    // bindless handle of the smaller mip to upsample
+		float    weight       = 1.0f; // contribution weight — decreases for coarser mips
 	};
 
 	class BloomRenderSystem : BGLRenderSystem {

@@ -3,7 +3,7 @@
 // vulkan headers
 #include <vulkan/vulkan.h>
 
-#include "bgl_model.hpp"
+#include "bagel_model.hpp"
 #include <fstream>
 #include <stdexcept>
 #include <iostream>
@@ -141,8 +141,8 @@ namespace bagel {
 		VkPipelineColorBlendAttachmentState att{};
 		att.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 		att.blendEnable = VK_FALSE;
-		// Four outputs: position, normal, albedo, emission
-		configInfo.colorBlendAttachments = { att, att, att, att };
+		// Three outputs: normal, albedo, emission (position removed — reconstructed from depth)
+		configInfo.colorBlendAttachments = { att, att, att };
 	}
 
 	void BGLPipeline::setupTransparentPipeline(PipelineConfigInfo& configInfo) {

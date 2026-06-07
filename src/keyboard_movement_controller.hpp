@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bgl_gameobject.hpp"
+#include "bagel_gameobject.hpp"
 #include "bagel_window.hpp"
 
 #define GLM_FORCE_RADIANS
@@ -26,7 +26,7 @@ namespace bagel {
 		bool moveInPlaneXZ(GLFWwindow* window, float dt, BGLGameObject& gameObject, uint32_t transformIndex);
 
 		KeyMappings keys{};
-		float moveSpeed{ 3.0f };
+		float moveSpeed{ 10.0f };
 		float lookSpeed{ 1.5f };
 		float mouseSensitivity{ 0.1f };
 

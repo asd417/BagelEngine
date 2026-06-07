@@ -46,8 +46,8 @@ namespace bagel {
             if (screenSpace.z < 0) {
                 continue;
             }
-            float screenX = (normalizedDeviceCoordinate.x + 1.0) * 0.5 * extentWidth;
-            float screenY = (normalizedDeviceCoordinate.y + 1.0) * 0.5 * extentHeight;
+            float screenX = (normalizedDeviceCoordinate.x + 1.0f) * 0.5f * extentWidth;
+            float screenY = (normalizedDeviceCoordinate.y + 1.0f) * 0.5f * extentHeight;
 
             ImGui::Begin((panelName + std::to_string(infoPanelID)).c_str(), nullptr, window_flags);
 
@@ -209,7 +209,7 @@ namespace bagel {
                 Strtrim(s);
                 if (s[0])
                     ExecCommand(s);
-                strcpy(s, "");
+                strcpy_s(s, sizeof(InputBuf), "");
                 reclaim_focus = true;
             }
 
@@ -280,7 +280,7 @@ namespace bagel {
 
             // Split into command name and optional argument
             char cmdBuf[256];
-            strncpy(cmdBuf, command_line, sizeof(cmdBuf) - 1);
+            strncpy_s(cmdBuf, sizeof(cmdBuf), command_line, sizeof(cmdBuf) - 1);
             cmdBuf[sizeof(cmdBuf) - 1] = '\0';
             char* spacePos = strchr(cmdBuf, ' ');
             const char* args = "";

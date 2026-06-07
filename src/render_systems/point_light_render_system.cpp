@@ -56,8 +56,8 @@ namespace bagel {
 			transformComp.setTranslation(rotateLight * (glm::vec4(transformComp.getTranslation(), 1.f)));
 			
 			PointLight light{};
-			light.color = pointLightComp.color;
-			light.position = { transformComp.getWorldTranslation(),0 };
+			light.color = glm::vec4(glm::vec3(pointLightComp.color), pointLightComp.lux);
+			light.position = { transformComp.getWorldTranslation(), pointLightComp.bloomHaloRadius };
 			ubo.pointLights[lightIndex] = light;
 			lightIndex++;
 		}

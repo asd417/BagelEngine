@@ -12,9 +12,11 @@
 namespace bagel {
 
 	struct CompositionPush {
-		float    time        = 0.0f;
-		uint32_t debugMode   = 0;   // 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic 6=bloom 7=raw emission
-		uint32_t bloomHandle = 0;   // bindless texture handle for the bloom result
+		float    time            = 0.0f;
+		uint32_t debugMode       = 0;     // 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic 6=bloom 7=raw emission
+		uint32_t bloomHandle     = 0;     // bindless texture handle for the bloom result
+		float    bloomIntensity  = 0.08f; // global bloom brightness scale
+		uint32_t radiosityHandle = 0;     // bindless texture handle for the HDR radiosity buffer
 	};
 
 	class CompositRenderSystem : BGLRenderSystem {

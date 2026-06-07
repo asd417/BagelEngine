@@ -1,17 +1,35 @@
 #include "my_application.hpp"
+#include "bagel_hierachy.hpp"
 #include <iostream>
+#include <cmath>
 
 namespace bagel {
 
 	void MyApplication::OnSceneLoad()
 	{
 		createLights();
-		placeCubes();
-		placePurpleCube();
+		//placeCubes();
+		//placePurpleCube();
+		//buildHierarchyStack();
+		loadSponza();
 	}
 
 	void MyApplication::OnUpdate(float dt)
 	{
+		if (hierarchyRoot == entt::null) return;
+		stackAngle += dt;
+
+		auto& tc = registry.get<TransformComponent>(hierarchyRoot);
+		tc.setTranslation({
+			8.0f * cosf(stackAngle * 0.4f),
+			1.0f + 0.5f * sinf(stackAngle * 0.7f),
+			8.0f * sinf(stackAngle * 0.4f)
+		});
+		tc.setRotation({
+			sinf(stackAngle * 0.5f) * 0.3f,
+			stackAngle * 0.8f,
+			cosf(stackAngle * 0.3f) * 0.2f
+		});
 	}
 
 	void MyApplication::placeCubes()
@@ -40,6 +58,7 @@ namespace bagel {
 			auto& tfc = registry.emplace<TransformComponent>(entity);
 			tfc.setTranslation(def.pos);
 			tfc.setScale(def.scale);
+			ModelLoadSettings settings{};
 			auto& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/cube.obj", ComponentBuildMode::FACES);
 			model.setMaterial(0, bricksMat);
 		}
@@ -53,17 +72,54 @@ namespace bagel {
 
 		Material purpleMat = materialManager->loadMaterial(
 			"/materials/purple_albedo.png",
-			nullptr, nullptr, nullptr,
+			nullptr, nullptr,
 			"/materials/purple_emission.png");
 
 		auto entity = registry.create();
 		auto& tfc = registry.emplace<TransformComponent>(entity);
 		tfc.setTranslation({ 0.0f, 0.0f, 0.0f });
 		tfc.setScale({ 0.3f, 0.3f, 0.3f });
-		auto& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/cube.obj", ComponentBuildMode::FACES);
+		ModelLoadSettings settings{};
+		auto &model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/cube.obj", settings);
 		model.setMaterial(0, purpleMat);
 
 		delete modelBuilder;
+	}
+
+	void MyApplication::buildHierarchyStack()
+	{
+		const int   COUNT        = 1000;
+		const float cubeScale    = 0.2f;
+		const float localYOffset = 1.5f;   // in parent-local units; world offset = cubeScale * 1.5 = 0.3
+		const float twistPerLevel = glm::radians(8.0f);
+
+		auto* builder = new ModelComponentBuilder(bglDevice, registry);
+		HierachySystem hs(registry);
+
+		ModelLoadSettings settings{};
+		settings.scaleVec = { 1.0f, 1.0f, 1.0f };
+
+		entt::entity prev = entt::null;
+		for (int i = 0; i < COUNT; i++) {
+			entt::entity e = registry.create();
+			auto& tc = registry.emplace<TransformComponent>(e);
+			tc.setScale({ cubeScale, cubeScale, cubeScale });
+			builder->buildComponent<ModelComponent>(e, "/models/cube.obj", settings);
+
+			if (i == 0) {
+				tc.setTranslation({ 8.0f, 0.0f, 0.0f });
+				hierarchyRoot = e;
+			} else {
+				hs.CreateHierachy(prev, e);
+				auto& hier = registry.get<TransformHierachyComponent>(e);
+				hier.localTranslation = { 0.0f, localYOffset, 0.0f };
+				hier.localRotation    = { 0.0f, twistPerLevel, 0.0f };
+				hier.localScale       = { 1.0f, 1.0f, 1.0f };
+			}
+			prev = e;
+		}
+
+		delete builder;
 	}
 
 	void MyApplication::createLights()
@@ -85,8 +141,25 @@ namespace bagel {
 			registry.emplace<TransformComponent>(entity, (rot * glm::vec4(glm::vec3{ 3.f,1.0f,0.0f }, 1.0f)));
 			registry.emplace<InfoComponent>(entity);
 			auto& light = registry.emplace<PointLightComponent>(entity);
-			light.color = glm::vec4(lightColors[i], 4.0f);
+			light.color = glm::vec4(lightColors[i], 1.0f);
+			light.lux = 50000.0f;
 		}
+	}
+
+	void MyApplication::loadSponza()
+	{
+		auto* builder = new ModelComponentBuilder(bglDevice, registry);
+		builder->setTextureLoader(&materialManager->getTextureLoader());
+
+		auto entity = registry.create();
+		auto& tc = registry.emplace<TransformComponent>(entity);
+		tc.setTranslation({ 0.0f, 0.0f, 0.0f });
+		tc.setScale({ 0.05f, 0.05f, 0.05f });
+
+		ModelLoadSettings settings{};
+		builder->buildComponent<ModelComponent>(entity, "/models/sponza/Sponza.gltf", settings);
+
+		delete builder;
 	}
 
 } // namespace bagel

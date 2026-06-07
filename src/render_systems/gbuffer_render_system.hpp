@@ -8,7 +8,7 @@
 #include "bagel_render_system.hpp"
 #include "../bagel_pipeline.hpp"
 #include "../bagel_frame_info.hpp"
-#include "../bgl_model.hpp"
+#include "../bagel_model.hpp"
 
 namespace bagel {
 
@@ -18,10 +18,12 @@ namespace bagel {
 		glm::vec4 scale{ 1.0f };
 		uint32_t BufferedTransformHandle = 0;
 		uint32_t UsesBufferedTransform   = 0;
-		uint32_t albedoMap   = 0;
-		uint32_t normalMap   = 0;
-		uint32_t roughMap    = 0;
-		uint32_t emissionMap = 0;
+		uint32_t albedoMap        = 0;
+		uint32_t normalMap        = 0;
+		uint32_t metalRoughMap    = 0;
+		uint32_t emissionMap      = 0;
+		float    emissionLux      = 800.0f;
+		uint32_t fallbackAlbedoMap = 0;
 	};
 
 	class GBufferRenderSystem : BGLRenderSystem {
