@@ -21,6 +21,7 @@
 #include "render_systems/smaa_weight_render_system.hpp"
 #include "render_systems/smaa_neighborhood_render_system.hpp"
 #include "render_systems/gizmo_render_system.hpp"
+#include "render_systems/froxel_rc_system.hpp"
 
 #ifdef PHYSTEST
 #include "physics/bagel_physics.h"

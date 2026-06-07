@@ -38,6 +38,9 @@ if errorlevel 1 (echo [FAIL] transparent.frag        & set /a ERRORS+=1) else ec
 "%GLSLC%" "%S%\radiosity.frag"           -o "%S%\radiosity.frag.spv"
 if errorlevel 1 (echo [FAIL] radiosity.frag           & set /a ERRORS+=1) else echo [OK] radiosity.frag
 
+"%GLSLC%" "%S%\froxel_rc_update.comp"   -o "%S%\froxel_rc_update.comp.spv"
+if errorlevel 1 (echo [FAIL] froxel_rc_update.comp   & set /a ERRORS+=1) else echo [OK] froxel_rc_update.comp
+
 "%GLSLC%" "%S%\bloom_downsample.frag"   -o "%S%\bloom_downsample.frag.spv"
 if errorlevel 1 (echo [FAIL] bloom_downsample.frag   & set /a ERRORS+=1) else echo [OK] bloom_downsample.frag
 

@@ -38,6 +38,7 @@ namespace bagel {
 		VkDescriptorSet globalDescriptorSets;
 		entt::registry& registry;
 		uint32_t fallbackAlbedoMap = 0;
+		VkDescriptorSet froxelDescriptorSet = VK_NULL_HANDLE;
 	};
 	// UBO struct for pre-composition stage of deferred rendering. Feed in color, position, etc
 	struct GlobalUBO {

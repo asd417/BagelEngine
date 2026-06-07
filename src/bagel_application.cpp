@@ -228,6 +228,8 @@ namespace bagel
 
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = {descriptorManager->getDescriptorSetLayout()};
 
+		FroxelRCSystem froxelRCSystem{ bglDevice, descriptorManager->getDescriptorSetLayout() };
+
 		GBufferRenderSystem gBufferRenderSystem{
 			bglRenderer.getDeferredRenderPass(),
 			pipelineDescriptorSetLayouts,
@@ -279,11 +281,15 @@ namespace bagel
 			pipelineDescriptorSetLayouts,
 			descriptorManager};
 
+		std::vector<VkDescriptorSetLayout> radiositySetLayouts = {
+			descriptorManager->getDescriptorSetLayout(),
+			froxelRCSystem.getSamplerSetLayout()
+		};
 		RadiosityRenderSystem radiosityRenderSystem{
 			bglRenderer.getRadiosityRenderPass(),
-			pipelineDescriptorSetLayouts,
-			descriptorManager};
-		
+			radiositySetLayouts,
+			descriptorManager };
+
 		SmaaEdgeRenderSystem smaaEdgeRenderSystem{
 			bglRenderer.getSmaaEdgeRenderPass(),
 			pipelineDescriptorSetLayouts,
@@ -523,7 +529,9 @@ namespace bagel
 					camera,
 					descriptorManager->getDescriptorSet(bglRenderer.getFrameIndex()),
 					registry,
-					fallbackAlbedoMap};
+					fallbackAlbedoMap,
+					froxelRCSystem.getSamplerDescriptorSet()
+				};
 
 				// Advance skeletal animation once per frame, BEFORE the shadow and g-buffer
 				// passes sample the pose — otherwise the shadow silhouette would lag the
@@ -589,6 +597,13 @@ namespace bagel
 				skinnedGBufferRenderSystem.renderEntities(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
+
+				// Froxel Radiance Cascade update (compute, outside render pass)
+				froxelRCSystem.update(
+					primaryCommandBuffer,
+					frameInfo.globalDescriptorSets,
+					radiosityHandle);
+
 				// radiosity
 				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "radiosity");
 				bglRenderer.beginRadiosityPass(primaryCommandBuffer);

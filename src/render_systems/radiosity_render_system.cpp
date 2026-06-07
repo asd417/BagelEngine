@@ -30,6 +30,15 @@ namespace bagel {
             0, 1,
             &frameInfo.globalDescriptorSets,
             0, nullptr);
+        if (frameInfo.froxelDescriptorSet != VK_NULL_HANDLE) {
+            vkCmdBindDescriptorSets(
+                frameInfo.commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                pipelineLayout,
+                1, 1,
+                &frameInfo.froxelDescriptorSet,
+                0, nullptr);
+        }
         vkCmdDraw(frameInfo.commandBuffer, 3, 1, 0, 0);
     }
 

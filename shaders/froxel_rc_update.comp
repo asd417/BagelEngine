@@ -1,0 +1,152 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout(local_size_x = 8, local_size_y = 4, local_size_z = 4) in;
+
+// ── Set 0: global resources (same layout as radiosity.frag) ──────────────────
+layout(set=0, binding=0) uniform sampler2D gDepth;
+layout(set=0, binding=6) uniform sampler2D samplerColor[];
+
+const int MAX_LIGHTS = 10;
+struct PointLight { vec4 position; vec4 color; };
+
+layout(set=0, binding=4) uniform GlobalUBO {
+    mat4 projectionMatrix;
+    mat4 viewMatrix;
+    mat4 inverseViewMatrix;
+    vec4 ambientLightColor;
+    PointLight pointLights[MAX_LIGHTS];
+    uint numLights;
+    vec4 lineColor;
+    mat4 invViewProjMatrix;
+    float exposure;
+} ubo;
+
+// ── Set 1: cascade storage images ────────────────────────────────────────────
+// binding 0 = the cascade being updated this dispatch (write + temporal read)
+// binding 1 = the next coarser cascade (read for merge at ray exit)
+layout(set=1, binding=0, rgba16f) uniform image3D cascadeWrite;
+layout(set=1, binding=1, rgba16f) uniform image3D cascadeCoarser;
+
+// ── Push constants ───────────────────────────────────────────────────────────
+layout(push_constant) uniform Push {
+    ivec3 gridSize;       // e.g. ivec3(32,16,16) for cascade 0
+    int   cascadeIndex;   // 0, 1, or 2
+    float rangeMax;       // world-space ray length for this cascade
+    float blendAlpha;     // temporal blend weight for new frame (0=full history, 1=no history)
+    uint  radiosityHandle;// bindless index of the rendered radiosity HDR buffer
+    int   isCoarsest;     // 1 if no coarser cascade exists (use ambient fallback)
+} push;
+
+// ── World-axis direction sets ────────────────────────────────────────────────
+// Cascade 0: 6 face normals
+const vec3 FACE_DIRS[6] = vec3[](
+    vec3( 1, 0, 0), vec3(-1, 0, 0),
+    vec3( 0, 1, 0), vec3( 0,-1, 0),
+    vec3( 0, 0, 1), vec3( 0, 0,-1)
+);
+// Cascade 1: above + 8 cube corner diagonals  (indices 6..13)
+const vec3 CORNER_DIRS[8] = vec3[](
+    vec3( 0.57735, 0.57735, 0.57735), vec3(-0.57735, 0.57735, 0.57735),
+    vec3( 0.57735,-0.57735, 0.57735), vec3(-0.57735,-0.57735, 0.57735),
+    vec3( 0.57735, 0.57735,-0.57735), vec3(-0.57735, 0.57735,-0.57735),
+    vec3( 0.57735,-0.57735,-0.57735), vec3(-0.57735,-0.57735,-0.57735)
+);
+// Cascade 2: above + 12 edge midpoints  (indices 14..25)
+const vec3 EDGE_DIRS[12] = vec3[](
+    vec3( 0.70711, 0.70711, 0), vec3(-0.70711, 0.70711, 0),
+    vec3( 0.70711,-0.70711, 0), vec3(-0.70711,-0.70711, 0),
+    vec3( 0.70711, 0, 0.70711), vec3(-0.70711, 0, 0.70711),
+    vec3( 0.70711, 0,-0.70711), vec3(-0.70711, 0,-0.70711),
+    vec3( 0, 0.70711, 0.70711), vec3( 0,-0.70711, 0.70711),
+    vec3( 0, 0.70711,-0.70711), vec3( 0,-0.70711,-0.70711)
+);
+
+vec3 getDir(int d) {
+    if (d < 6)  return FACE_DIRS[d];
+    if (d < 14) return CORNER_DIRS[d - 6];
+    return EDGE_DIRS[d - 14];
+}
+
+int numDirs() {
+    if (push.cascadeIndex == 0) return 6;
+    if (push.cascadeIndex == 1) return 14;
+    return 26;
+}
+
+// ── Ray resolution ───────────────────────────────────────────────────────────
+const int   RAY_STEPS  = 8;
+const float DEPTH_EPS  = 0.003;
+
+vec3 resolveRay(vec3 worldPos, vec3 dir) {
+    // Source 1: march along ray and check against GBuffer for visible surfaces
+    for (int s = 0; s < RAY_STEPS; s++) {
+        float t = push.rangeMax * (float(s) + 1.0) / float(RAY_STEPS);
+        vec3 samplePos = worldPos + dir * t;
+
+        vec4 clip = ubo.projectionMatrix * ubo.viewMatrix * vec4(samplePos, 1.0);
+        if (clip.w <= 0.001) continue;
+        vec3 ndc = clip.xyz / clip.w;
+        if (ndc.x < -1.0 || ndc.x > 1.0 || ndc.y < -1.0 || ndc.y > 1.0) continue;
+        if (ndc.z < 0.0 || ndc.z > 1.0) continue;
+
+        vec2 uv = ndc.xy * 0.5 + 0.5;
+        float gbufDepth = texture(gDepth, uv).r;
+        if (abs(ndc.z - gbufDepth) < DEPTH_EPS) {
+            return texture(samplerColor[push.radiosityHandle], uv).rgb;
+        }
+    }
+
+    // Source 2: analytic point lights — check if ray points toward any light
+    for (int i = 0; i < int(ubo.numLights); i++) {
+        vec3 toLight = ubo.pointLights[i].position.xyz - worldPos;
+        float distToLight = length(toLight);
+        if (distToLight > push.rangeMax * 2.0) continue;
+        float cosTheta = dot(dir, toLight / distToLight);
+        if (cosTheta < 0.5) continue;
+        float atten = ubo.exposure / max(dot(toLight, toLight), 0.01);
+        return ubo.pointLights[i].color.rgb * ubo.pointLights[i].color.w * atten * cosTheta;
+    }
+
+    // Source 3: cascade merge — read coarser cascade at ray exit point, or ambient
+    if (push.isCoarsest == 1) {
+        return ubo.ambientLightColor.rgb * ubo.ambientLightColor.w;
+    }
+
+    vec3 exitPos = worldPos + dir * push.rangeMax;
+    vec4 exitClip = ubo.projectionMatrix * ubo.viewMatrix * vec4(exitPos, 1.0);
+    if (exitClip.w <= 0.001) return ubo.ambientLightColor.rgb * ubo.ambientLightColor.w;
+
+    vec3 exitNDC = exitClip.xyz / exitClip.w;
+    ivec3 coarserSize = push.gridSize / 2;
+    // NDC XY in [-1,1] → [0,1]; NDC Z is already [0,1] in Vulkan
+    vec3 coarserUVW = vec3(exitNDC.xy * 0.5 + 0.5, exitNDC.z);
+    ivec3 coarserIdx = ivec3(coarserUVW * vec3(coarserSize));
+    coarserIdx = clamp(coarserIdx, ivec3(0), coarserSize - ivec3(1));
+    return imageLoad(cascadeCoarser, coarserIdx).rgb;
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+void main() {
+    ivec3 idx = ivec3(gl_GlobalInvocationID);
+    if (any(greaterThanEqual(idx, push.gridSize))) return;
+
+    // Froxel center in NDC: XY in [-1,1], Z in [0,1] (Vulkan NDC convention)
+    vec2 ndcXY = (vec2(idx.xy) + 0.5) / vec2(push.gridSize.xy) * 2.0 - 1.0;
+    float ndcZ = (float(idx.z) + 0.5) / float(push.gridSize.z);
+    vec4 worldH = ubo.invViewProjMatrix * vec4(ndcXY, ndcZ, 1.0);
+    vec3 worldPos = worldH.xyz / worldH.w;
+
+    // Accumulate irradiance from all world-axis directions
+    int n = numDirs();
+    vec3 total = vec3(0.0);
+    for (int d = 0; d < n; d++) {
+        total += resolveRay(worldPos, getDir(d));
+    }
+    vec3 newIrradiance = total / float(n);
+
+    // Temporal exponential moving average
+    vec3 existing = imageLoad(cascadeWrite, idx).rgb;
+    vec3 blended  = mix(existing, newIrradiance, push.blendAlpha);
+    imageStore(cascadeWrite, idx, vec4(blended, 1.0));
+}

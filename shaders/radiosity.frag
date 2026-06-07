@@ -11,6 +11,11 @@ layout(set=0, binding=1) uniform sampler2D gNormal;
 layout(set=0, binding=2) uniform sampler2D gAlbedo;
 layout(set=0, binding=3) uniform sampler2D gEmission;
 
+// Froxel Radiance Cascade 0 — indirect diffuse GI
+layout(set=1, binding=0) uniform sampler3D cascade0;
+
+// MAX_LIGHTS comes from ubo.glsl (via pbr.glsl). PI is not provided there, so define it here.
+const float PI = 3.14159265359;
 
 // One shadow map per cascade, each at its own resolution
 layout(set=0, binding=7) uniform sampler2DShadow shadowMaps[CASCADE_COUNT];
@@ -92,6 +97,18 @@ void main() {
         }
 
         Lo += shadowFactor * pbrDirectLight(normal, V, L, radiance, albedo, F0, roughness, metallic);
+    }
+
+    // Indirect diffuse from Froxel Radiance Cascade 0
+    {
+        vec4 clip    = ubo.projectionMatrix * ubo.viewMatrix * vec4(fragPosWorld, 1.0);
+        vec3 ndc     = clip.xyz / clip.w;
+        // NDC XY in [-1,1] → [0,1]; NDC Z is already [0,1] in Vulkan
+        vec3 uvw     = vec3(ndc.xy * 0.5 + 0.5, ndc.z);
+        vec3 cascadeIrr = texture(cascade0, clamp(uvw, 0.0, 1.0)).rgb;
+        vec3 F   = FresnelSchlick(max(dot(normal, V), 0.0), F0);
+        vec3 kD  = (1.0 - F) * (1.0 - metallic);
+        Lo += kD * albedo / PI * cascadeIrr;
     }
 
     vec3 ambient  = ubo.ambientLightColor.xyz * ubo.ambientLightColor.w * albedo;
