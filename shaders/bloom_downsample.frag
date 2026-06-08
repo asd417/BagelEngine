@@ -13,7 +13,8 @@ layout(push_constant) uniform Push {
 } push;
 
 vec3 sampleSrc(vec2 uv) {
-    return texture(samplerColor[push.inputHandle], uv).rgb;
+    vec3 v = texture(samplerColor[push.inputHandle], uv).rgb;
+    return (any(isnan(v)) || any(isinf(v))) ? vec3(0.0) : v;
 }
 
 vec3 applyThreshold(vec3 c) {
