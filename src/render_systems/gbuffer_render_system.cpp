@@ -37,15 +37,6 @@ namespace bagel {
 			0, sizeof(GBufferPushConstantData), &push);
 	}
 
-	static void FillMaterialPush(GBufferPushConstantData& push, const Material& mat)
-	{
-		push.albedoMap        = mat.albedoMap;
-		push.normalMap        = mat.normalMap;
-		push.metalRoughMap    = mat.metalRoughMap;
-		push.emissionMap      = mat.emissionMap;
-		push.emissionLux = mat.emissionLux;
-	}
-
 	void GBufferRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
 		Frustum frustum;
@@ -76,14 +67,12 @@ namespace bagel {
 			push.UsesBufferedTransform = 0;
 			push.modelMatrix = modelMatrix;
 			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
-			push.fallbackAlbedoMap = frameInfo.fallbackAlbedoMap;
-
+			SendGBufferPush(frameInfo.commandBuffer, pipelineLayout, push);
 			for (uint32_t i = 0; i < model.submeshCount; i++) {
 				const ModelComponent::Submesh& sm = model.submeshes[i];
 				if (model.frustumCull && !frustum.testAABB(sm.aabbMin, sm.aabbMax, modelMatrix))
 					continue;
-				FillMaterialPush(push, model.materials[i]);
-				SendGBufferPush(frameInfo.commandBuffer, pipelineLayout, push);
+				
 
 				if (model.indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
@@ -101,16 +90,13 @@ namespace bagel {
 			GBufferPushConstantData push{};
 			push.UsesBufferedTransform   = transform.useBuffer() ? 1 : 0;
 			push.BufferedTransformHandle = transform.bufferHandle;
-			push.fallbackAlbedoMap = frameInfo.fallbackAlbedoMap;
 			if (!transform.useBuffer()) {
 				push.modelMatrix = transform.mat4(0);
 				push.scale       = glm::vec4{ transform.getWorldScale(0), 1.0f };
 			}
-
+			SendGBufferPush(frameInfo.commandBuffer, pipelineLayout, push);
 			for (uint32_t i = 0; i < model.submeshCount; i++) {
 				const ModelComponent::Submesh& sm = model.submeshes[i];
-				FillMaterialPush(push, model.materials[i]);
-				SendGBufferPush(frameInfo.commandBuffer, pipelineLayout, push);
 
 				if (model.indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, transform.count(), sm.firstIndex, 0, 0);

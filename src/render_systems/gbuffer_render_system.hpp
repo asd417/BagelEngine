@@ -12,18 +12,11 @@
 
 namespace bagel {
 
-	// Same push constant layout as ModelRenderSystem / simple_shader
 	struct GBufferPushConstantData {
 		glm::mat4 modelMatrix{ 1.0f };
 		glm::vec4 scale{ 1.0f };
 		uint32_t BufferedTransformHandle = 0;
 		uint32_t UsesBufferedTransform   = 0;
-		uint32_t albedoMap        = 0;
-		uint32_t normalMap        = 0;
-		uint32_t metalRoughMap    = 0;
-		uint32_t emissionMap      = 0;
-		float    emissionLux      = 800.0f;
-		uint32_t fallbackAlbedoMap = 0;
 	};
 
 	class GBufferRenderSystem : BGLRenderSystem {

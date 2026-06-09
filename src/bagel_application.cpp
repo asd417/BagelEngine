@@ -150,12 +150,6 @@ namespace bagel {
 			registry,
 			bglDevice };
 
-		TransparentRenderSystem transparentRenderSystem{
-			bglRenderer.getSwapChainRenderPass(),
-			pipelineDescriptorSetLayouts,
-			descriptorManager,
-			registry };
-
 		BloomRenderSystem bloomRenderSystem{
 			bglRenderer.getBloomMipRenderPassClear(0),
 			pipelineDescriptorSetLayouts,
@@ -374,7 +368,6 @@ namespace bagel {
 				bglRenderer.blitGBufferDepthToSwapchain(primaryCommandBuffer);
 				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
 				compositRenderSystem.render(frameInfo);
-				transparentRenderSystem.render(frameInfo);
 				if (showWireframe) wireframeRenderSystem.renderEntities(frameInfo);
 			if (drawBBox) wireframeRenderSystem.renderBBoxes(frameInfo);
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), primaryCommandBuffer);

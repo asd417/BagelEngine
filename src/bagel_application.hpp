@@ -11,7 +11,6 @@
 #include "render_systems/wireframe_render_system.hpp"
 #include "render_systems/gbuffer_render_system.hpp"
 #include "render_systems/composit_render_system.hpp"
-#include "render_systems/transparent_render_system.hpp"
 #include "render_systems/bloom_render_system.hpp"
 #include "render_systems/radiosity_render_system.hpp"
 

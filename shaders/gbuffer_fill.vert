@@ -71,9 +71,6 @@ layout(push_constant) uniform Push {
 	vec4 scale;
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
-	uint albedoMap;
-	uint normalMap;
-	uint metalRoughMap;
 } push;
 
 void main() {
@@ -98,9 +95,9 @@ void main() {
 	fragUV          = uv;
 	fragNormalWorld = normalize(normalMatrix * normal);
 
-	vs_out.albedoMap     = (push.albedoMap     != 0) ? push.albedoMap     : in_albedoMap;
-	vs_out.normalMap     = (push.normalMap      != 0) ? push.normalMap     : in_normalMap;
-	vs_out.metalRoughMap = (push.metalRoughMap  != 0) ? push.metalRoughMap : in_metalRoughMap;
+	vs_out.albedoMap     = in_albedoMap;
+	vs_out.normalMap     = in_normalMap;
+	vs_out.metalRoughMap = in_metalRoughMap;
 	vs_out.specularMap   = in_specularMap;
 	vs_out.heightMap     = in_heightMap;
 	vs_out.opacityMap    = in_opacityMap;

@@ -1,7 +1,6 @@
 #pragma once
 #include "bagel_application.hpp"
 #include <cstdlib>
-//#include "render_systems/ecs_model_render_system.hpp"
 namespace bagel {
 namespace ConsoleCommand {
 	//Console Callbacks

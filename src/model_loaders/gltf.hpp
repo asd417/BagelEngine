@@ -9,8 +9,13 @@ namespace bagel
         GLTFModelLoader(BGLTextureLoader* pTL);
         ~GLTFModelLoader() = default;
         void load(ModelLoadSettings buildSettings) override;
+
+        // Returns true if the material requires alpha blending or has cut-out transparency.
+        static bool isTransparent(const tinygltf::Material& mat);
+
         private:
         void loadGLTFModel(const char *filename, uint32_t maxPrimitives);
-        void loadGLTFMesh(const tinygltf::Model& model, const tinygltf::Mesh& mesh, uint32_t maxPrimitives);
+        void appendPrimitive(const tinygltf::Model& model, const tinygltf::Primitive& prim);
+        uint16_t tryLoadGLTFTexture(const tinygltf::Model& model, const std::string& modelDir, int texIdx, VkFormat fmt = VK_FORMAT_R8G8B8A8_SRGB);
     };
 }

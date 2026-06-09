@@ -9,6 +9,7 @@ namespace bagel
         OBJModelLoader(BGLTextureLoader* pTL);
         ~OBJModelLoader() = default;
         void load(ModelLoadSettings parms) override;
+        static bool isTransparent(const tinyobj::material_t& mat);
     private:
         void loadOBJModel(tinyobj::ObjReader& reader, ModelLoadSettings parms);
     };
