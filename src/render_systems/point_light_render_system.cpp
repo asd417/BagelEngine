@@ -15,22 +15,6 @@
 #include <glm/glm.hpp>
 
 namespace bagel {
-	//Set up pipeline configuration here
-	void PointLightPipelineConfigModifier(PipelineConfigInfo& pipelineConfig) {
-		pipelineConfig.bindingDescriptions.clear();
-		pipelineConfig.attributeDescriptions.clear();
-		pipelineConfig.colorBlendAttachment.blendEnable = VK_TRUE;
-		pipelineConfig.colorBlendAttachment.colorWriteMask =
-			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		//src is the current value being output from the fragment
-		pipelineConfig.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		pipelineConfig.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		pipelineConfig.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-		pipelineConfig.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		pipelineConfig.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		pipelineConfig.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-	}
-
 	PointLightSystem::PointLightSystem(
 		VkRenderPass renderPass,
 		std::vector<VkDescriptorSetLayout> setLayouts,
@@ -41,8 +25,7 @@ namespace bagel {
 		descriptorManager{ _descriptorManager },
 		registry{ _registry }
 	{
-		std::cout << "Creating PointLight Render System\n";
-		createPipeline(renderPass, "/shaders/point_light.vert.spv", "/shaders/point_light.frag.spv", PointLightPipelineConfigModifier);
+		std::cout << "Creating PointLight Render System (lighting-data only; no draw pass)\n";
 	}
 	// Update Position
 	void PointLightSystem::update(GlobalUBO& ubo, float frameTime)
@@ -65,106 +48,5 @@ namespace bagel {
 		
 	}
 
-	void PointLightSystem::render(FrameInfo& frameInfo)
-	{
-		//alpha sorting
-		//transparent entities need to be drawn from back to front.
-		glm::vec3 camPos = frameInfo.camera.getPosition();
-		frameInfo.registry.sort<TransformComponent>([&](const TransformComponent& lhs, const TransformComponent& rhs) {
-			glm::vec3 lhsOffset = camPos - lhs.getTranslation();
-			float lhsDisSquared = glm::dot(lhsOffset, lhsOffset);
-			glm::vec3 rhsOffset = camPos - rhs.getTranslation();
-			float rhsDisSquared = glm::dot(rhsOffset, rhsOffset);
-
-			//Need to sort it so that close things are last
-			return lhsDisSquared > rhsDisSquared;
-			});
-
-		bglPipeline->bind(frameInfo.commandBuffer);
-
-		vkCmdBindDescriptorSets(
-			frameInfo.commandBuffer,
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			pipelineLayout,
-			0, //first set
-			1, //descriptorSet Count 
-			&frameInfo.globalDescriptorSets,
-			0, nullptr);
-
-		// Create pushconstant and send it to device and draw.
-		// Accessing in order of TransformComponent which was sorted above.
-		auto view = frameInfo.registry.view<TransformComponent, PointLightComponent>();
-		view.use<TransformComponent>();
-		for (auto [entity, transformComp, pointLightComp] : view.each()) {
-			PointLightPushConstant push{};
-			push.positions = glm::vec4(transformComp.getTranslation(), 1.f);
-			push.color = pointLightComp.color;
-			push.radius = pointLightComp.radius;
-		
-			vkCmdPushConstants(
-				frameInfo.commandBuffer,
-				pipelineLayout,
-				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-				0, //offset of pushcontants
-				sizeof(PointLightPushConstant),
-				&push
-			);
-			vkCmdDraw(frameInfo.commandBuffer, 6, 1, 0, 0);
-		}
-	}
-#ifdef POINTLIGHT_ORIGINAL
-
-	PointLightSystem::PointLightSystem(
-		VkRenderPass renderPass,
-		std::vector<VkDescriptorSetLayout> globalSetLayouts,
-		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-		entt::registry& _registry) : registry{ _registry }
-	{
-		createPipelineLayout(globalSetLayouts);
-		createPipeline(renderPass);
-	}
-	PointLightSystem::~PointLightSystem()
-	{
-		vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
-	}
-
-	void PointLightSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts)
-	{
-		VkPushConstantRange pushConstantRange{};
-		// This flag indicates that we want this pushconstantdata to be accessible in both vertex and fragment shaders
-		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-		// offset mainly for if you want to use separate ranges for vertex and fragment shader
-		pushConstantRange.offset = 0;
-		pushConstantRange.size = sizeof(PointLightPushConstant);
-
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
-		pipelineLayoutInfo.pSetLayouts = setLayouts.data();
-
-		pipelineLayoutInfo.pushConstantRangeCount = 1;
-		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-
-		if (vkCreatePipelineLayout(BGLDevice::device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create pipeline layout");
-		}
-	}
-	void PointLightSystem::createPipeline(VkRenderPass renderPass)
-	{
-		assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
-
-		PipelineConfigInfo pipelineConfig{};
-		BGLPipeline::defaultPipelineConfigInfo(pipelineConfig);
-		BGLPipeline::enableAlphaBlending(pipelineConfig);
-		pipelineConfig.renderPass = renderPass;
-		pipelineConfig.pipelineLayout = pipelineLayout;
-
-		bglPipeline = std::make_unique<BGLPipeline>(
-			"../shaders/point_light.vert.spv",
-			"../shaders/point_light.frag.spv",
-			pipelineConfig);
-	}
-#endif
 }
 

@@ -99,14 +99,6 @@ namespace bagel {
 			uboInfos[i] = uboBuffers->descriptorInfoForIndex(i);
 		descriptorManager->storeUBOPerFrame(uboInfos, 0);
 
-		bglRenderer.setUpOffScreenRenderPass(WIDTH / 2, HEIGHT / 2);
-
-		uint32_t offscreenRenderTargetHandle = descriptorManager->storeTexture(
-			bglRenderer.getOffscreenImageInfo(),
-			bglRenderer.getOffscreenMemory(),
-			bglRenderer.getOffscreenImage(),
-			"OffscreenRenderTarget", false, 0, false);
-
 		uint32_t bloomMipHandles[BGLRenderer::BLOOM_MIPS];
 		for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++) {
 			bloomMipHandles[i] = descriptorManager->storeTexture(

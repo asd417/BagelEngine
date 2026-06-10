@@ -21,33 +21,8 @@ namespace bagel {
 		float radius;
 	};
 
-#ifdef POINTLIGHT_ORIGINAL
-	class PointLightSystem {
-	public:
-		PointLightSystem(
-			VkRenderPass renderPass, 
-			std::vector<VkDescriptorSetLayout> setLayouts,
-			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-			entt::registry& registry);
-		~PointLightSystem();
-
-		PointLightSystem(const PointLightSystem&) = delete;
-		PointLightSystem& operator=(const PointLightSystem&) = delete;
-
-		void update(GlobalUBO& ubo, float frameTime);
-		void render(FrameInfo& frameInfo);
-
-	private:
-		void createPipelineLayout(std::vector<VkDescriptorSetLayout> setLayouts);
-		void createPipeline(VkRenderPass renderPass);
-
-		entt::registry& registry;
-
-		std::unique_ptr<BGLPipeline> bglPipeline;
-		VkPipelineLayout pipelineLayout;
-	};
-	
-#else
+	// Gathers point-light data into the GlobalUBO for the deferred lighting pass.
+	// Does not draw anything (the old billboard render pass was removed).
 	class PointLightSystem : BGLRenderSystem {
 	public:
 		PointLightSystem(
@@ -58,11 +33,9 @@ namespace bagel {
 			BGLDevice& bglDevice);
 
 		void update(GlobalUBO& ubo, float frameTime);
-		void render(FrameInfo& frameInfo);
 	private:
 		std::unique_ptr<BGLBuffer> uboBuffer;
 		entt::registry& registry;
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
 	};
-#endif
 }

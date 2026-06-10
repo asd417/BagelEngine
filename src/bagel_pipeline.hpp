@@ -74,7 +74,6 @@ namespace bagel {
 
 		//typedef pointer 
 		VkPipeline graphicsPipeline;
-		VkPipeline offscreenPipeline;
 
 		// VkShaderModule is a pointer to VkShaderModule_T
 		VkShaderModule vertShaderModule;
