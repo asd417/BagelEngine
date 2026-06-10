@@ -46,8 +46,8 @@ namespace bagel {
 
 		VkDeviceSize offsets[] = { 0 };
 
-		// Single-transform opaque entities
-		auto singleGroup = registry.view<TransformComponent, ModelComponent>(entt::exclude<TransparentComponent>);
+		// All entities cast shadows — including transparent submeshes (drawn opaque into the depth map)
+		auto singleGroup = registry.view<TransformComponent, ModelComponent>();
 		for (auto [entity, transform, model] : singleGroup.each()) {
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
 			if (model.indexCount > 0)
@@ -68,8 +68,8 @@ namespace bagel {
 			}
 		}
 
-		// Instanced opaque entities
-		auto instancedGroup = registry.view<TransformArrayComponent, ModelComponent>(entt::exclude<TransparentComponent>);
+		// Instanced entities
+		auto instancedGroup = registry.view<TransformArrayComponent, ModelComponent>();
 		for (auto [entity, transform, model] : instancedGroup.each()) {
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
 			if (model.indexCount > 0)

@@ -78,6 +78,7 @@ namespace bagel {
 					comp.origin = &comp;
 
 					newComp.submeshCount = comp.submeshCount;
+					newComp.solidSubmeshCount = comp.solidSubmeshCount;
 					for (uint32_t _i = 0; _i < comp.submeshCount; _i++) {
 						newComp.submeshes[_i] = comp.submeshes[_i];
 						newComp.materials[_i] = comp.materials[_i];
@@ -121,8 +122,17 @@ namespace bagel {
 				std::cout << "Model has Index Buffer. Allocating...\n";
 				createIndexBuffer(sizeof(uint32_t) * indices.size(), comp.indexBuffer, comp.indexMemory);
 			}
+			bool seenTransparent = false;
 			for (auto& smi : submeshes) {
 				assert(comp.submeshCount < ModelComponent::MAX_SUBMESHES && "Exceeded MAX_SUBMESHES");
+				// Loaders emit all solid submeshes before any transparent ones; track the
+				// split so ModelComponent can filter by transparency with a single index.
+				if (smi.transparentMaterial) {
+					seenTransparent = true;
+				} else {
+					assert(!seenTransparent && "Submeshes must be ordered solid-first, then transparent");
+					comp.solidSubmeshCount++;
+				}
 				ModelComponent::Submesh& sm = comp.submeshes[comp.submeshCount++];
 				sm.firstIndex    = smi.firstIndex;
 				sm.indexCount    = smi.indexCount;

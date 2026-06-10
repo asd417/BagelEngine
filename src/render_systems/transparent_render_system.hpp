@@ -12,22 +12,25 @@
 
 namespace bagel {
 
-	struct GBufferPushConstantData {
+	// Must match the push block in transparent.vert / transparent.frag
+	struct TransparentPushConstantData {
 		glm::mat4 modelMatrix{ 1.0f };
 		glm::vec4 scale{ 1.0f };
 		uint32_t BufferedTransformHandle = 0;
 		uint32_t UsesBufferedTransform   = 0;
 		float emissionLux = 1.0f;
-		uint32_t fallbackAlbedoMap = 0;
 	};
 
-	class GBufferRenderSystem : BGLRenderSystem {
+	// Forward, alpha-blended pass for transparent submeshes. Runs in the swapchain render pass
+	// after the composite (so it draws on top of the resolved opaque image) and before ImGui.
+	// Depth-tests against the opaque depth blitted into the swapchain buffer; does not write depth.
+	class TransparentRenderSystem : BGLRenderSystem {
 	public:
-		GBufferRenderSystem(
+		TransparentRenderSystem(
 			VkRenderPass renderPass,
 			std::vector<VkDescriptorSetLayout> setLayouts,
-			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
-			entt::registry& _registry);
+			std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager,
+			entt::registry& registry);
 
 		void renderEntities(FrameInfo& frameInfo);
 

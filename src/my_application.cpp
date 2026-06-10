@@ -167,6 +167,10 @@ namespace bagel {
 		tc.setScale({ 0.01f, 0.01f, 0.01f });
 
 		ModelLoadSettings settings{};
+		// Sponza is large: keep each source mesh's solid geometry as its own submesh
+		// (instead of merging into one) so per-submesh frustum culling can skip
+		// off-screen chunks. Set to true to merge back into a single opaque submesh.
+		settings.mergeSolidSubmeshes = false;
 		builder->buildComponent<ModelComponent>(entity, "/models/sponza/Sponza.gltf", settings);
 
 		delete builder;

@@ -166,6 +166,12 @@ namespace bagel {
 			descriptorManager,
 			registry };
 
+		TransparentRenderSystem transparentRenderSystem{
+			bglRenderer.getTransparentRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager,
+			registry };
+
 		{
 			VkImageView shadowViews[BGLBindlessDescriptorManager::SHADOW_MAP_CASCADE_COUNT];
 			for (uint32_t i = 0; i < BGLBindlessDescriptorManager::SHADOW_MAP_CASCADE_COUNT; i++)
@@ -458,16 +464,24 @@ namespace bagel {
 						bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 					}
 				}
-
+				// gbuffer_fill
 				bglRenderer.beginDeferredRenderPass(primaryCommandBuffer);
 				gBufferRenderSystem.renderEntities(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
-
+				// radiosity
 				bglRenderer.beginRadiosityPass(primaryCommandBuffer);
 				radiosityRenderSystem.render(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				recordSection(S_GBUFFER, tMs(t0, Clock::now()));
 
+				// Forward transparent: blend HDR transparent lighting into the radiosity buffer
+				// (no tonemap — composite does that), depth-tested read-only against the opaque
+				// G-buffer depth. Bloom and composite then consume the combined radiosity buffer.
+				bglRenderer.beginTransparentPass(primaryCommandBuffer);
+				transparentRenderSystem.renderEntities(frameInfo);
+				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+
+				// bloom (downsamples the radiosity buffer, now including transparent)
 				t0 = Clock::now();
 				if (bloomEnabled) {
 					for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++) {
@@ -492,12 +506,13 @@ namespace bagel {
 				}
 				recordSection(S_BLOOM, tMs(t0, Clock::now()));
 
+				// composite (radiosity + bloom -> tonemap -> swapchain) + debug overlays + ImGui
 				t0 = Clock::now();
 				bglRenderer.blitGBufferDepthToSwapchain(primaryCommandBuffer);
 				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
 				compositRenderSystem.render(frameInfo);
 				if (showWireframe) wireframeRenderSystem.renderEntities(frameInfo);
-			if (drawBBox) wireframeRenderSystem.renderBBoxes(frameInfo);
+				if (drawBBox) wireframeRenderSystem.renderBBoxes(frameInfo);
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), primaryCommandBuffer);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				recordSection(S_COMPOSITE, tMs(t0, Clock::now()));

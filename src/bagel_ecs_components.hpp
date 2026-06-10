@@ -173,9 +173,6 @@ namespace bagel {
 		float shadowBiasSlope = 0.005f;                    // slope-scaled bias, max at grazing N.L
 	};
 
-	// Marks an entity for alpha-blended forward rendering instead of the G-buffer pass
-	struct TransparentComponent {};
-
 	// PBR material — bindless texture handles for each map slot.
 	// Used per-submesh inside ModelComponent. Single-mesh entities use materials[0].
 	struct Material {
@@ -199,10 +196,24 @@ namespace bagel {
 			glm::vec3 aabbMax{ 0.0f };
 		};
 
+		// Lightweight contiguous view over a [begin,end) run of submeshes (C++17, no <span>).
+		struct SubmeshRange {
+			const Submesh* b;
+			const Submesh* e;
+			const Submesh* begin() const { return b; }
+			const Submesh* end()   const { return e; }
+			uint32_t size()  const { return static_cast<uint32_t>(e - b); }
+			bool     empty() const { return b == e; }
+		};
+
 		std::string modelName  = "";
 		Submesh  submeshes[MAX_SUBMESHES]{};
 		bagel::Material materials[MAX_SUBMESHES]{};
 		uint32_t submeshCount = 0;
+		// Submeshes are stored solid-first: [0, solidSubmeshCount) are solid/opaque and
+		// [solidSubmeshCount, submeshCount) are transparent. The loaders emit them in this
+		// order, so a single split index is enough to filter by transparency at draw time.
+		uint32_t solidSubmeshCount = 0;
 
 		glm::vec3 aabbMin{ 0.0f };
 		glm::vec3 aabbMax{ 0.0f };
@@ -230,6 +241,16 @@ namespace bagel {
 			assert(submesh < MAX_SUBMESHES);
 			materials[submesh] = mat;
 		}
+
+		// Solid/opaque submeshes — drawn in the G-buffer (deferred) pass.
+		SubmeshRange solidSubmeshes() const {
+			return { submeshes, submeshes + solidSubmeshCount };
+		}
+		// Transparent submeshes — drawn in the forward alpha-blended pass.
+		SubmeshRange transparentSubmeshes() const {
+			return { submeshes + solidSubmeshCount, submeshes + submeshCount };
+		}
+		bool hasTransparent() const { return solidSubmeshCount < submeshCount; }
 	};
 
 	struct WireframeComponent : ModelComponent {

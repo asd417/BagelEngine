@@ -14,6 +14,8 @@
 #include "render_systems/bloom_render_system.hpp"
 #include "render_systems/radiosity_render_system.hpp"
 #include "render_systems/shadow_render_system.hpp"
+#include "render_systems/transparent_render_system.hpp"
+#include "render_systems/bloom_add_render_system.hpp"
 
 #ifdef PHYSTEST
 #include "physics/bagel_physics.h"

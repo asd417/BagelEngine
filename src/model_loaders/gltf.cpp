@@ -213,27 +213,26 @@ namespace bagel
 		}
 		else
 		{
-			// Keep each source mesh's opaque geometry as its own submesh.
+			// Keep each opaque primitive as its own submesh. glTF files often pack the
+			// whole model into a single mesh with many primitives (e.g. Sponza is one
+			// mesh of 103 primitives), so splitting per primitive — not per mesh — is
+			// what actually yields multiple submeshes for per-submesh frustum culling.
 			for (const tinygltf::Mesh& mesh : model.meshes)
-			{
-				bool hasOpaque = false;
 				for (const tinygltf::Primitive& prim : mesh.primitives)
-					if (!primIsTransparent(prim)) { hasOpaque = true; break; }
-				if (!hasOpaque) continue;
+				{
+					if (primIsTransparent(prim)) continue;
 
-				SubmeshInfo osm{};
-				osm.firstIndex  = static_cast<uint32_t>(indices.size());
-				osm.firstVertex = static_cast<uint32_t>(vertices.size());
-				osm.transparentMaterial = false;
+					SubmeshInfo osm{};
+					osm.firstIndex  = static_cast<uint32_t>(indices.size());
+					osm.firstVertex = static_cast<uint32_t>(vertices.size());
+					osm.transparentMaterial = false;
 
-				for (const tinygltf::Primitive& prim : mesh.primitives)
-					if (!primIsTransparent(prim))
-						appendPrimitive(model, prim);
+					appendPrimitive(model, prim);
 
-				osm.indexCount  = static_cast<uint32_t>(indices.size()) - osm.firstIndex;
-				osm.vertexCount = static_cast<uint32_t>(vertices.size()) - osm.firstVertex;
-				submeshes.push_back(osm);
-			}
+					osm.indexCount  = static_cast<uint32_t>(indices.size()) - osm.firstIndex;
+					osm.vertexCount = static_cast<uint32_t>(vertices.size()) - osm.firstVertex;
+					submeshes.push_back(osm);
+				}
 		}
 
 		// Pass 2: one submesh per mesh for its transparent primitives

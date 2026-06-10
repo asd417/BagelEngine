@@ -266,7 +266,7 @@ namespace bagel {
 		// Setup buffer copy regions for each mip level
 		for (uint32_t i = 0; i < mip_levels; i++)
 		{
-			std::cout << "Mipmap index: " << i << "\n";
+			//std::cout << "Mipmap index: " << i << "\n";
 			VkBufferImageCopy buffer_copy_region = {};
 			buffer_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			buffer_copy_region.imageSubresource.mipLevel = i;
@@ -445,11 +445,11 @@ namespace bagel {
 	{
 		int width_int; int height_int; int channels;
 		stbi_info(filePath, &width_int, &height_int, &channels);
-		std::cout << filePath << " is " << width_int << "x" << height_int << " and has " << channels << " channels\n";
+		//std::cout << filePath << " is " << width_int << "x" << height_int << " and has " << channels << " channels\n";
 		unsigned char* pixels = stbi_load(filePath, &width_int, &height_int, &channels, 0);
 		if (!pixels) {
 			std::cout
-				<< "unable to load image: "
+				<< "Unable to load image: "
 				<< stbi_failure_reason()
 				<< "\n";
 			return;

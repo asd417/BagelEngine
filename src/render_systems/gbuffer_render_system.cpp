@@ -53,7 +53,7 @@ namespace bagel {
 
 		VkDeviceSize offsets[] = { 0 };
 
-		auto singleGroup = registry.view<TransformComponent, ModelComponent>(entt::exclude<TransparentComponent>);
+		auto singleGroup = registry.view<TransformComponent, ModelComponent>();
 		for (auto [entity, transform, model] : singleGroup.each()) {
 			glm::mat4 modelMatrix = transform.mat4();
 			if (model.frustumCull && !frustum.testAABB(model.aabbMin, model.aabbMax, modelMatrix))
@@ -67,12 +67,12 @@ namespace bagel {
 			push.UsesBufferedTransform = 0;
 			push.modelMatrix = modelMatrix;
 			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
+			push.fallbackAlbedoMap = frameInfo.fallbackAlbedoMap;
 			SendGBufferPush(frameInfo.commandBuffer, pipelineLayout, push);
-			for (uint32_t i = 0; i < model.submeshCount; i++) {
-				const ModelComponent::Submesh& sm = model.submeshes[i];
+			// Solid submeshes only — transparent ones are drawn later in the forward pass.
+			for (const ModelComponent::Submesh& sm : model.solidSubmeshes()) {
 				if (model.frustumCull && !frustum.testAABB(sm.aabbMin, sm.aabbMax, modelMatrix))
 					continue;
-				
 
 				if (model.indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
@@ -81,7 +81,7 @@ namespace bagel {
 			}
 		}
 
-		auto instancedGroup = registry.view<TransformArrayComponent, ModelComponent>(entt::exclude<TransparentComponent>);
+		auto instancedGroup = registry.view<TransformArrayComponent, ModelComponent>();
 		for (auto [entity, transform, model] : instancedGroup.each()) {
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
 			if (model.indexCount > 0)
@@ -95,9 +95,8 @@ namespace bagel {
 				push.scale       = glm::vec4{ transform.getWorldScale(0), 1.0f };
 			}
 			SendGBufferPush(frameInfo.commandBuffer, pipelineLayout, push);
-			for (uint32_t i = 0; i < model.submeshCount; i++) {
-				const ModelComponent::Submesh& sm = model.submeshes[i];
-
+			// Solid submeshes only — transparent ones are drawn later in the forward pass.
+			for (const ModelComponent::Submesh& sm : model.solidSubmeshes()) {
 				if (model.indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, transform.count(), sm.firstIndex, 0, 0);
 				else

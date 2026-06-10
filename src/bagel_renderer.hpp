@@ -146,6 +146,11 @@ namespace bagel
 		void beginSwapChainRenderPass(VkCommandBuffer commandBuffer);
 		void endCurrentRenderPass(VkCommandBuffer commandBuffer);
 
+		// Forward transparent pass: blends HDR transparent lighting into the radiosity buffer,
+		// depth-testing read-only against the opaque G-buffer depth. Runs after radiosity, before bloom.
+		void beginTransparentPass(VkCommandBuffer commandBuffer);
+		VkRenderPass getTransparentRenderPass() const { return transparentRenderPass; }
+
 		bool isFrameInProgress() const { return isFrameStarted; }
 		VkCommandBuffer getCurrentCommandBuffer() const
 		{
@@ -258,6 +263,9 @@ namespace bagel
 		void prepareBloomMips();
 		void prepareRadiosityBuffer();
 		void prepareShadowMapBuffer();
+		void prepareTransparentPass();          // create the MRT + swapchain LOAD render passes (once)
+		void buildTransparentFramebuffers();    // (re)build per-swapchain-image MRT framebuffers
+		void destroyTransparentFramebuffers();
 		void destroyDeferredFrameBuffer();
 		void destroyBloomMips();
 		void destroyRadiosityBuffer();
@@ -273,6 +281,10 @@ namespace bagel
 		std::array<BloomBuffer, BLOOM_MIPS> bloomMips{};
 		RadiosityBuffer radiosityBuffer{};
 		ShadowMapBuffer shadowMapBuffer{};
+
+		// Forward transparent pass target: radiosity color + opaque G-buffer depth (single full-screen FB)
+		VkRenderPass transparentRenderPass = VK_NULL_HANDLE;
+		VkFramebuffer transparentFramebuffer = VK_NULL_HANDLE;
 	};
 
 }

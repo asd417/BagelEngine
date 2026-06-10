@@ -147,6 +147,8 @@ namespace bagel {
 
 	void BGLPipeline::setupTransparentPipeline(PipelineConfigInfo& configInfo) {
 		enableAlphaBlending(configInfo);
+		// writes to radiosity
+		configInfo.colorBlendAttachments = { configInfo.colorBlendAttachment };
 		configInfo.depthStencilInfo.depthWriteEnable = VK_FALSE;
 	}
 
