@@ -13,7 +13,7 @@ namespace bagel
 
 	void GLTFModelLoader::load(ModelLoadSettings parms)
 	{
-		loadGLTFModel(parms.source.c_str(), parms.maxPrimitives);
+		loadGLTFModel(parms.source.c_str(), parms.mergeSolidSubmeshes);
 	}
 
 	uint16_t GLTFModelLoader::tryLoadGLTFTexture(const tinygltf::Model& model, const std::string& modelDir, int texIdx, VkFormat fmt)
@@ -144,7 +144,7 @@ namespace bagel
 		}
 	}
 
-	void GLTFModelLoader::loadGLTFModel(const char* filename, uint32_t /*maxPrimitives*/)
+	void GLTFModelLoader::loadGLTFModel(const char* filename, bool mergeSolidSubmeshes)
 	{
 		std::cout << "Loading glTF model " << filename << "\n";
 		tinygltf::Model model;
@@ -193,20 +193,48 @@ namespace bagel
 			    && isTransparent(model.materials[prim.material]);
 		};
 
-		// Pass 1: merge all opaque primitives across all meshes into submesh 0
-		submeshes.push_back({});
-		SubmeshInfo& opaqueSM = submeshes[0];
-		opaqueSM.firstIndex  = 0;
-		opaqueSM.firstVertex = 0;
-		opaqueSM.transparentMaterial = false;
+		// Pass 1: solid/opaque primitives.
+		if (mergeSolidSubmeshes)
+		{
+			// Merge all opaque primitives across all meshes into submesh 0.
+			SubmeshInfo opaqueSM{};
+			opaqueSM.firstIndex  = 0;
+			opaqueSM.firstVertex = 0;
+			opaqueSM.transparentMaterial = false;
 
-		for (const tinygltf::Mesh& mesh : model.meshes)
-			for (const tinygltf::Primitive& prim : mesh.primitives)
-				if (!primIsTransparent(prim))
-					appendPrimitive(model, prim);
+			for (const tinygltf::Mesh& mesh : model.meshes)
+				for (const tinygltf::Primitive& prim : mesh.primitives)
+					if (!primIsTransparent(prim))
+						appendPrimitive(model, prim);
 
-		opaqueSM.indexCount  = static_cast<uint32_t>(indices.size());
-		opaqueSM.vertexCount = static_cast<uint32_t>(vertices.size());
+			opaqueSM.indexCount  = static_cast<uint32_t>(indices.size());
+			opaqueSM.vertexCount = static_cast<uint32_t>(vertices.size());
+			submeshes.push_back(opaqueSM);
+		}
+		else
+		{
+			// Keep each source mesh's opaque geometry as its own submesh.
+			for (const tinygltf::Mesh& mesh : model.meshes)
+			{
+				bool hasOpaque = false;
+				for (const tinygltf::Primitive& prim : mesh.primitives)
+					if (!primIsTransparent(prim)) { hasOpaque = true; break; }
+				if (!hasOpaque) continue;
+
+				SubmeshInfo osm{};
+				osm.firstIndex  = static_cast<uint32_t>(indices.size());
+				osm.firstVertex = static_cast<uint32_t>(vertices.size());
+				osm.transparentMaterial = false;
+
+				for (const tinygltf::Primitive& prim : mesh.primitives)
+					if (!primIsTransparent(prim))
+						appendPrimitive(model, prim);
+
+				osm.indexCount  = static_cast<uint32_t>(indices.size()) - osm.firstIndex;
+				osm.vertexCount = static_cast<uint32_t>(vertices.size()) - osm.firstVertex;
+				submeshes.push_back(osm);
+			}
+		}
 
 		// Pass 2: one submesh per mesh for its transparent primitives
 		for (const tinygltf::Mesh& mesh : model.meshes)

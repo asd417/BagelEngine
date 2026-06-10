@@ -172,6 +172,21 @@ namespace bagel {
 		configInfo.colorBlendAttachment.alphaBlendOp         = VK_BLEND_OP_ADD;
 	}
 
+	void BGLPipeline::setupShadowMapPipeline(PipelineConfigInfo& configInfo) {
+		// Depth-only: no color attachments
+		configInfo.colorBlendInfo.attachmentCount = 0;
+		configInfo.colorBlendInfo.pAttachments    = nullptr;
+		// The camera projection flips Y (xSpaceTransformMatrix) but the light ortho does not,
+		// so screen-space winding is mirrored here vs the main pass. Cull nothing so
+		// single-sided geometry (ground planes) still casts shadows.
+		configInfo.rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
+		// Depth bias to prevent shadow acne
+		configInfo.rasterizationInfo.depthBiasEnable         = VK_TRUE;
+		configInfo.rasterizationInfo.depthBiasConstantFactor = 2.0f;
+		configInfo.rasterizationInfo.depthBiasSlopeFactor    = 4.0f;
+		configInfo.rasterizationInfo.depthBiasClamp          = 0.0f;
+	}
+
 	void BGLPipeline::bind(VkCommandBuffer commandBuffer)
 	{
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);

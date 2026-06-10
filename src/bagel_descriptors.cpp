@@ -247,10 +247,13 @@ namespace bagel {
         VkDescriptorSetLayoutBinding storageBinding = createDescriptorSetLayoutBinding(BINDINGS::BUFFER,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         descriptorCount, VK_SHADER_STAGE_ALL);
         VkDescriptorSetLayoutBinding imageBinding   = createDescriptorSetLayoutBinding(BINDINGS::TEXTURE, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptorCount, VK_SHADER_STAGE_ALL);
 
+        VkDescriptorSetLayoutBinding shadowMapBinding = createDescriptorSetLayoutBinding(
+            BINDINGS::SHADOW_MAP, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SHADOW_MAP_CASCADE_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT);
+
         VkDescriptorBindingFlags bindFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
 
-        constexpr int bindingCount = 7;
-        std::array<VkDescriptorBindingFlags, bindingCount> flagsArray = { bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags };
+        constexpr int bindingCount = 8;
+        std::array<VkDescriptorBindingFlags, bindingCount> flagsArray = { bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags };
 
         VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlags{};
         bindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
@@ -265,7 +268,8 @@ namespace bagel {
             deferredPosition,
             deferredNormal,
             deferredAlbedo,
-            deferredEmission };
+            deferredEmission,
+            shadowMapBinding };
 
         VkDescriptorSetLayoutCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -451,5 +455,17 @@ namespace bagel {
     {
         if (textures.size() <= index) return false;
         return textures[index].isMissing;
+    }
+
+    void BGLBindlessDescriptorManager::writeShadowMapToDescriptor(VkSampler sampler, const VkImageView (&depthViews)[SHADOW_MAP_CASCADE_COUNT])
+    {
+        VkDescriptorImageInfo infos[SHADOW_MAP_CASCADE_COUNT];
+        for (uint32_t c = 0; c < SHADOW_MAP_CASCADE_COUNT; c++)
+            infos[c] = descriptorImageInfo(sampler, depthViews[c], VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+        for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+            VkWriteDescriptorSet write = writeDescriptorSet(
+                bindlessDescriptorSet[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BINDINGS::SHADOW_MAP, infos, SHADOW_MAP_CASCADE_COUNT);
+            vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        }
     }
 }

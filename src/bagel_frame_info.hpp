@@ -4,15 +4,26 @@
 #include "bagel_gameobject.hpp"
 
 #include <vulkan/vulkan.h>
+#include <cstddef>
 #include "entt.hpp"
 #define MAX_LIGHTS 10
-#define MAX_MODELS 
+#define MAX_MODELS
 
 namespace bagel {
 	struct PointLight {
 		//vec4 for memory alignment
 		glm::vec4 position{}; // w = bloom halo radius in pixels
 		glm::vec4 color{}; // w intensity
+	};
+
+	constexpr uint32_t SHADOW_CASCADE_COUNT = 4;
+
+	// std140-compatible directional light data block (offset 640 inside GlobalUBO)
+	struct DirectionalLightData {
+		glm::vec4 direction{};           // xyz = world-space forward direction of the light
+		glm::vec4 color{};               // xyz = color, w = intensity
+		glm::mat4 lightSpaceMatrix[SHADOW_CASCADE_COUNT]{ glm::mat4{1.f}, glm::mat4{1.f}, glm::mat4{1.f}, glm::mat4{1.f} }; // per-cascade light view-projection
+		glm::vec4 cascadeSplits{};       // view-space distance where each cascade ends
 	};
 
 	struct FrameInfo {
@@ -40,6 +51,12 @@ namespace bagel {
 
 		glm::mat4 invViewProjMatrix{ 1.f };
 		float exposure = 0.0025f;
+		uint32_t _pad1[3]{}; // std140: DirectionalLightData (struct) aligns to 16 -> offset 640. glm types have alignof 4, so padding must be explicit
+		DirectionalLightData directionalLight{};  // offset 640, size 304
+		uint32_t hasDirLight   = 0;               // offset 944
+		uint32_t shadowMapHandle = 0;             // offset 948
+		float shadowBiasMin   = 0.002f;           // offset 952
+		float shadowBiasSlope = 0.005f;           // offset 956; struct ends exactly at the 960-byte std140 block size
 
 		void updateCameraInfo(glm::mat4 projMat, glm::mat4 viewMat, glm::mat4 inverseViewMat, glm::mat4 invViewProjMat) {
 			projectionMatrix   = projMat;
@@ -48,6 +65,12 @@ namespace bagel {
 			invViewProjMatrix  = invViewProjMat;
 		}
 	};
+	// GlobalUBO is uploaded as a raw memcpy; these guard the std140 offsets the shaders declare
+	static_assert(offsetof(GlobalUBO, numLights)        == 528, "GlobalUBO does not match std140 layout");
+	static_assert(offsetof(GlobalUBO, lineColor)        == 544, "GlobalUBO does not match std140 layout");
+	static_assert(offsetof(GlobalUBO, directionalLight) == 640, "GlobalUBO does not match std140 layout");
+	static_assert(offsetof(GlobalUBO, hasDirLight)      == 944, "GlobalUBO does not match std140 layout");
+	static_assert(sizeof(GlobalUBO)                     == 960, "GlobalUBO does not match std140 block size");
 	// UBO struct for composition stage of deferred rendering. Feed in light info
 	struct CompositionUBO {
 		glm::vec4 ambientLightColor{ 1.f,1.f,1.f,0.01f };

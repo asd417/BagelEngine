@@ -11,8 +11,11 @@ set SHADERS=C:\Users\locti\OneDrive\Documents\BagelEngine\shaders
 %GLSLC% %SHADERS%\gbuffer_fill.frag         -o %SHADERS%\gbuffer_fill.frag.spv
 %GLSLC% %SHADERS%\deferred_lighting.vert    -o %SHADERS%\deferred_lighting.vert.spv
 %GLSLC% %SHADERS%\deferred_lighting.frag    -o %SHADERS%\deferred_lighting.frag.spv
+%GLSLC% %SHADERS%\radiosity.frag            -o %SHADERS%\radiosity.frag.spv
 %GLSLC% %SHADERS%\transparent.frag          -o %SHADERS%\transparent.frag.spv
 %GLSLC% %SHADERS%\bloom.frag               -o %SHADERS%\bloom.frag.spv
 %GLSLC% %SHADERS%\bloom_downsample.frag    -o %SHADERS%\bloom_downsample.frag.spv
 %GLSLC% %SHADERS%\bloom_upsample.frag      -o %SHADERS%\bloom_upsample.frag.spv
+%GLSLC% %SHADERS%\shadow.vert              -o %SHADERS%\shadow.vert.spv
+%GLSLC% %SHADERS%\shadow.frag              -o %SHADERS%\shadow.frag.spv
 pause

@@ -129,7 +129,12 @@ namespace bagel {
             UNIFORM     = 4,
             BUFFER      = 5,
             TEXTURE     = 6,
+            SHADOW_MAP  = 7,
         };
+    public:
+        // one sampler2DShadow per cascade at BINDINGS::SHADOW_MAP; must match SHADOW_CASCADE_COUNT in bagel_frame_info.hpp
+        static constexpr uint32_t SHADOW_MAP_CASCADE_COUNT = 4;
+    private:
         struct TexturePackage {
             VkDescriptorImageInfo imageInfo;
             VkDeviceMemory memory;
@@ -162,6 +167,7 @@ namespace bagel {
             bool owned = true);
 
         void writeDeferredRenderTargetToDescriptor(VkSampler colorSampler, VkImageView depthView, VkImageView normalView, VkImageView albedoView, VkImageView emissionView);
+        void writeShadowMapToDescriptor(VkSampler sampler, const VkImageView (&depthViews)[SHADOW_MAP_CASCADE_COUNT]);
 
         uint32_t searchBufferName(std::string bufferName);
         uint32_t searchTextureName(std::string textureName);

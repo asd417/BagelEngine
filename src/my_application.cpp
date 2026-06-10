@@ -142,7 +142,17 @@ namespace bagel {
 			registry.emplace<InfoComponent>(entity);
 			auto& light = registry.emplace<PointLightComponent>(entity);
 			light.color = glm::vec4(lightColors[i], 1.0f);
-			light.lux = 50000.0f;
+			light.lux = 800.0f;
+		}
+		{
+			const auto entity = registry.create();
+			glm::vec4 color = {0.6f, 0.6f, 0.2f, 1.0f};
+			glm::vec3 rotation = {-64.0f, 30.0f, 0.0f};
+			auto& sun = registry.emplace<DirectionalLightComponent>(entity);
+			sun.color = color;
+			sun.rotation = rotation;
+			sun.shadowBiasMin = 0.0f;
+			sun.shadowBiasSlope = 0.0f;
 		}
 	}
 
@@ -154,7 +164,7 @@ namespace bagel {
 		auto entity = registry.create();
 		auto& tc = registry.emplace<TransformComponent>(entity);
 		tc.setTranslation({ 0.0f, 0.0f, 0.0f });
-		tc.setScale({ 0.05f, 0.05f, 0.05f });
+		tc.setScale({ 0.01f, 0.01f, 0.01f });
 
 		ModelLoadSettings settings{};
 		builder->buildComponent<ModelComponent>(entity, "/models/sponza/Sponza.gltf", settings);

@@ -163,7 +163,17 @@ namespace bagel {
 		float lux = 800.0f; // luminous intensity in lux; multiplied by exposure in radiosity shader
 	};
 
-// Marks an entity for alpha-blended forward rendering instead of the G-buffer pass
+	struct DirectionalLightComponent {
+		glm::vec4 color    = { 1.0f, 1.0f, 1.0f, 1.0f }; // rgb = color, w unused (driven by lux)
+		glm::vec3 rotation = { 45.0f, 0.0f, 0.0f };       // pitch/yaw/roll in degrees; positive pitch aims the light downward (+Y)
+		float lux          = 3000.0f;                      // luminous intensity (like PointLightComponent::lux)
+		glm::vec4 cascadeEnds = { 3.0f, 6.0f, 9.0f, 15.0f }; // view-space distance where each shadow cascade ends (must be increasing)
+		float casterRange  = 400.0f;                       // how far behind a cascade slice geometry can still cast into it
+		float shadowBiasMin   = 0.002f;                    // minimum depth bias applied in the shadow compare
+		float shadowBiasSlope = 0.005f;                    // slope-scaled bias, max at grazing N.L
+	};
+
+	// Marks an entity for alpha-blended forward rendering instead of the G-buffer pass
 	struct TransparentComponent {};
 
 	// PBR material — bindless texture handles for each map slot.

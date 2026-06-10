@@ -13,6 +13,7 @@
 #include "render_systems/composit_render_system.hpp"
 #include "render_systems/bloom_render_system.hpp"
 #include "render_systems/radiosity_render_system.hpp"
+#include "render_systems/shadow_render_system.hpp"
 
 #ifdef PHYSTEST
 #include "physics/bagel_physics.h"
@@ -55,9 +56,9 @@ namespace bagel
 		bool showWireframe = false;
 		bool drawBBox = false;
 		bool  bloomEnabled   = true;
-		float bloomIntensity = 1.0f;
-		float bloomThreshold = 0.05f;
-		float bloomMipDecay  = 1.0f;
+		float bloomIntensity = 0.054f;
+		float bloomThreshold = 0.16f;
+		float bloomMipDecay  = 0.5f;
 		int gbufferDebugMode = 0; // 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic 6=bloom 7=raw emission
 		bool showProfile = false;
 		bool stutterDetect = true;
@@ -65,7 +66,7 @@ namespace bagel
 		int maxFps = 0; // 0 = unlimited; minimum enforced value is 15
 		bool vsync = false;
 		bool vsyncDirty = false;
-		float exposure = 0.0025f;
+		float exposure = 0.0075f;
 	
 		// Override in derived classes
 		virtual void OnSceneLoad() {}
@@ -75,14 +76,15 @@ namespace bagel
 		uint32_t fallbackAlbedoMap = 0;
 
 		// Engine subsystems — accessible to derived application classes
-		entt::registry registry;
+		// IMPORTANT: bglDevice must outlive registry (ModelComponent destructors call vkDestroyBuffer).
+		// Members are destroyed in reverse declaration order, so registry is declared last.
 		BGLWindow bglWindow{WIDTH, HEIGHT, "Bagel Engine"};
 		BGLDevice bglDevice{bglWindow};
 		BGLRenderer bglRenderer{bglWindow, bglDevice};
 		std::unique_ptr<BGLDescriptorPool> globalPool;
 		std::unique_ptr<BGLBindlessDescriptorManager> descriptorManager;
-
 		std::unique_ptr<BGLMaterialManager> materialManager;
+		entt::registry registry;
 
 	private:
 		std::unique_ptr<BGLDescriptorSetLayout> modelSetLayout;

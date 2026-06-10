@@ -160,6 +160,19 @@ namespace bagel {
 			pipelineDescriptorSetLayouts,
 			descriptorManager };
 
+		ShadowRenderSystem shadowRenderSystem{
+			bglRenderer.getShadowMapRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager,
+			registry };
+
+		{
+			VkImageView shadowViews[BGLBindlessDescriptorManager::SHADOW_MAP_CASCADE_COUNT];
+			for (uint32_t i = 0; i < BGLBindlessDescriptorManager::SHADOW_MAP_CASCADE_COUNT; i++)
+				shadowViews[i] = bglRenderer.getShadowMapDepthView(i);
+			descriptorManager->writeShadowMapToDescriptor(bglRenderer.getShadowMapSampler(), shadowViews);
+		}
+
 		BGLCamera camera{};
 
 		auto viewerObject = BGLGameObject::createGameObject();
@@ -257,6 +270,88 @@ namespace bagel {
 				glm::inverse(camera.getProjection() * camera.getView()));
 			pointLightSystem.update(ubo, 0);
 			ubo.exposure = exposure;
+
+			// Directional light: build one light-space view-projection per shadow cascade.
+			// The light looks along +w (lightProj maps light-space z in [0,zRange] to depth [0,1]).
+			// The camera, due to xSpaceTransformMatrix, images along -w of its setViewYXZ basis,
+			// so the basis below is setViewYXZ's rotated 180 degrees about u: positive pitch
+			// aims the light downward (+Y is down) to match the camera's rotation convention.
+			// Each cascade fits the bounding sphere of its camera-frustum slice (sphere -> ortho
+			// size is rotation-invariant) and snaps its centre to the shadow texel grid so
+			// shadow edges don't swim as the camera moves.
+			{
+				auto dirView = registry.view<DirectionalLightComponent>();
+				if (!dirView.empty()) {
+					// only works with 1 directional light.
+					auto& dlc = dirView.get<DirectionalLightComponent>(*dirView.begin());
+
+					float pitch = glm::radians(dlc.rotation.x);
+					float yaw   = glm::radians(dlc.rotation.y);
+					float c2 = cosf(pitch), s2 = sinf(pitch);
+					float c1 = cosf(yaw),   s1 = sinf(yaw);
+					glm::vec3 u{  c1,     0.f,  -s1    };
+					glm::vec3 v{ -s1*s2, -c2,  -c1*s2 };
+					glm::vec3 w{ -c2*s1,  s2,  -c1*c2 };
+
+					glm::vec3 camPos = viewerObject.transform.getTranslation();
+					glm::vec3 camFwd = -glm::vec3(camera.getInverseView()[2]); // camera images along -w of its basis
+					float tanY = tanf(glm::radians(100.0f) * 0.5f); // must match setPerspectiveProjection above
+					float tanX = tanY * aspect;
+					float k    = tanX * tanX + tanY * tanY;
+
+					float sliceNear = 0.1f; // camera near plane
+					for (uint32_t ci = 0; ci < SHADOW_CASCADE_COUNT; ci++) {
+						float n = sliceNear;
+						float f = dlc.cascadeEnds[ci];
+
+						// Bounding sphere of the frustum slice: centre on the view axis at depth cz,
+						// radius from whichever corner ring (near or far) is farther from it
+						float cz = 0.5f * (n + f) * (1.f + k);
+						if (cz > f) cz = f;
+						float rNear = sqrtf(n*n*k + (n - cz)*(n - cz));
+						float rFar  = sqrtf(f*f*k + (f - cz)*(f - cz));
+						float r     = fmaxf(rNear, rFar);
+						glm::vec3 center = camPos + camFwd * cz;
+
+						// Snap the centre to the texel grid in the light's uv plane
+						float texel = (2.f * r) / float(ShadowMapBuffer::RESOLUTIONS[ci]);
+						float cu = floorf(glm::dot(u, center) / texel) * texel;
+						float cv = floorf(glm::dot(v, center) / texel) * texel;
+						center = u * cu + v * cv + w * glm::dot(w, center);
+
+						// Pull the light back so casters up to casterRange behind the slice still render
+						glm::vec3 lightPos = center - w * (r + dlc.casterRange);
+						float zRange = 2.f * r + dlc.casterRange;
+
+						glm::mat4 lightView{ 1.f };
+						lightView[0][0] = u.x; lightView[1][0] = u.y; lightView[2][0] = u.z;
+						lightView[0][1] = v.x; lightView[1][1] = v.y; lightView[2][1] = v.z;
+						lightView[0][2] = w.x; lightView[1][2] = w.y; lightView[2][2] = w.z;
+						lightView[3][0] = -glm::dot(u, lightPos);
+						lightView[3][1] = -glm::dot(v, lightPos);
+						lightView[3][2] = -glm::dot(w, lightPos);
+
+						glm::mat4 lightProj{ 0.f };
+						lightProj[0][0] = 1.f / r;
+						lightProj[1][1] = 1.f / r;
+						lightProj[2][2] = 1.f / zRange;
+						lightProj[3][3] = 1.f;
+						// No coordinate flip: shadow depth maps linearly [light->0, far->1]
+
+						ubo.directionalLight.lightSpaceMatrix[ci] = lightProj * lightView;
+						sliceNear = f;
+					}
+
+					ubo.directionalLight.cascadeSplits = dlc.cascadeEnds;
+					ubo.directionalLight.direction = glm::vec4(w, 0.0f);
+					ubo.directionalLight.color     = glm::vec4(dlc.color.x, dlc.color.y, dlc.color.z, dlc.lux);
+					ubo.shadowBiasMin   = dlc.shadowBiasMin;
+					ubo.shadowBiasSlope = dlc.shadowBiasSlope;
+					ubo.hasDirLight = 1;
+				} else {
+					ubo.hasDirLight = 0;
+				}
+			}
 			recordSection(S_UBO, tMs(t0, Clock::now()));
 
 			t0 = Clock::now();
@@ -269,11 +364,36 @@ namespace bagel {
 			ImGui::Begin("Settings");
 			ImGui::SliderFloat("Mouse Sensitivity", &cameraController.mouseSensitivity, 0.05f, 0.3f);
 			ImGui::Separator();
+			{
+				auto dirView = registry.view<DirectionalLightComponent>();
+				if (!dirView.empty()) {
+					auto& dlc = dirView.get<DirectionalLightComponent>(*dirView.begin());
+					ImGui::Text("Directional Light");
+					ImGui::ColorEdit3("Light Color", &dlc.color.x);
+					ImGui::SliderFloat("Lux",        &dlc.lux,        0.0f, 50000.0f);
+					ImGui::SliderFloat("Pitch",      &dlc.rotation.x, -89.0f, 89.0f);
+					ImGui::SliderFloat("Yaw",        &dlc.rotation.y, -180.0f, 180.0f);
+					ImGui::Text("Shadow Cascades");
+					ImGui::SliderFloat("Cascade 0 End", &dlc.cascadeEnds.x, 0.001f,  10.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+					ImGui::SliderFloat("Cascade 1 End", &dlc.cascadeEnds.y, 0.001f,  20.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+					ImGui::SliderFloat("Cascade 2 End", &dlc.cascadeEnds.z, 0.001f, 30.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+					ImGui::SliderFloat("Cascade 3 End", &dlc.cascadeEnds.w, 0.001f, 40.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+					// keep the splits strictly increasing
+					dlc.cascadeEnds.y = fmaxf(dlc.cascadeEnds.y, dlc.cascadeEnds.x + 1.0f);
+					dlc.cascadeEnds.z = fmaxf(dlc.cascadeEnds.z, dlc.cascadeEnds.y + 1.0f);
+					dlc.cascadeEnds.w = fmaxf(dlc.cascadeEnds.w, dlc.cascadeEnds.z + 1.0f);
+					ImGui::SliderFloat("Caster Range", &dlc.casterRange, 10.0f, 2000.0f);
+					ImGui::SliderFloat("Shadow Bias",       &dlc.shadowBiasMin,   0.0f, 0.02f, "%.4f");
+					ImGui::SliderFloat("Shadow Bias Slope", &dlc.shadowBiasSlope, 0.0f, 0.05f, "%.4f");
+					ImGui::Separator();
+				}
+			}
 			ImGui::Checkbox("Bloom", &bloomEnabled);
 			if (bloomEnabled) {
 				ImGui::SliderFloat("Bloom Intensity", &bloomIntensity, 0.0f, 2.0f);
 				ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.001f, 2.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
 				ImGui::SliderFloat("Bloom Mip Decay", &bloomMipDecay, 0.5f, 1.0f);
+				ImGui::SliderFloat("Exposure", &exposure, 0.001f, 2.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
 			}
 			ImGui::End();
 			ImGui::Render();
@@ -331,6 +451,14 @@ namespace bagel {
 				compositRenderSystem.pushParams.radiosityHandle = radiosityHandle;
 
 				t0 = Clock::now();
+				if (ubo.hasDirLight) {
+					for (uint32_t ci = 0; ci < SHADOW_CASCADE_COUNT; ci++) {
+						bglRenderer.beginShadowMapPass(primaryCommandBuffer, ci);
+						shadowRenderSystem.renderShadowCasters(frameInfo, ci);
+						bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+					}
+				}
+
 				bglRenderer.beginDeferredRenderPass(primaryCommandBuffer);
 				gBufferRenderSystem.renderEntities(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);

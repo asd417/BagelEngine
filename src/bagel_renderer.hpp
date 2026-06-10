@@ -12,68 +12,80 @@
 #include <memory>
 #include <vector>
 
-namespace bagel {
-	struct FrameBufferAttachment {
+namespace bagel
+{
+	struct FrameBufferAttachment
+	{
 		VkImage image = VK_NULL_HANDLE;
 		VkDeviceMemory mem = VK_NULL_HANDLE;
 		VkImageView view = VK_NULL_HANDLE;
 		VkFormat format;
-		const FrameBufferAttachment operator=(const FrameBufferAttachment&) = delete;
-		~FrameBufferAttachment() {
-			if (view == VK_NULL_HANDLE) return; // already explicitly destroyed
+		const FrameBufferAttachment operator=(const FrameBufferAttachment &) = delete;
+		~FrameBufferAttachment()
+		{
+			if (view == VK_NULL_HANDLE)
+				return; // already explicitly destroyed
 			vkDestroyImageView(BGLDevice::device(), view, nullptr);
 			vkDestroyImage(BGLDevice::device(), image, nullptr);
 			vkFreeMemory(BGLDevice::device(), mem, nullptr);
 		}
 	};
 
-	struct FrameBuffer {
+	struct FrameBuffer
+	{
 		int32_t width = 0, height = 0;
 		VkFramebuffer frameBuffer = VK_NULL_HANDLE;
 		FrameBufferAttachment normal, albedo, emission;
 		FrameBufferAttachment depth;
 		VkRenderPass renderPass = VK_NULL_HANDLE;
 		VkSampler sampler = VK_NULL_HANDLE;
-		const FrameBuffer operator=(const FrameBuffer&) = delete;
-		~FrameBuffer() {
-			if (frameBuffer == VK_NULL_HANDLE) return; // already explicitly destroyed
+		const FrameBuffer operator=(const FrameBuffer &) = delete;
+		~FrameBuffer()
+		{
+			if (frameBuffer == VK_NULL_HANDLE)
+				return; // already explicitly destroyed
 			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer, nullptr);
 			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
 			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
 		}
 	};
 
-	struct RadiosityBuffer {
-		uint32_t width  = 0;
+	struct RadiosityBuffer
+	{
+		uint32_t width = 0;
 		uint32_t height = 0;
 		FrameBufferAttachment color{};
-		VkRenderPass  renderPass  = VK_NULL_HANDLE;
+		VkRenderPass renderPass = VK_NULL_HANDLE;
 		VkFramebuffer frameBuffer = VK_NULL_HANDLE;
-		VkSampler     sampler     = VK_NULL_HANDLE;
-		~RadiosityBuffer() {
-			vkDestroySampler    (BGLDevice::device(), sampler,      nullptr);
-			vkDestroyRenderPass (BGLDevice::device(), renderPass,   nullptr);
-			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer,  nullptr);
-		}
-	};
-
-	struct BloomBuffer {
-		uint32_t width  = 0;
-		uint32_t height = 0;
-		FrameBufferAttachment color{};
-		VkRenderPass  renderPassClear = VK_NULL_HANDLE; // LOAD_OP_CLEAR  — for downsample passes
-		VkRenderPass  renderPassLoad  = VK_NULL_HANDLE; // LOAD_OP_LOAD   — for upsample accumulation
-		VkFramebuffer frameBuffer     = VK_NULL_HANDLE;
-		VkSampler     sampler         = VK_NULL_HANDLE;
-		~BloomBuffer() {
+		VkSampler sampler = VK_NULL_HANDLE;
+		~RadiosityBuffer()
+		{
 			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
-			vkDestroyRenderPass(BGLDevice::device(), renderPassClear, nullptr);
-			vkDestroyRenderPass(BGLDevice::device(), renderPassLoad,  nullptr);
+			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
 			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer, nullptr);
 		}
 	};
 
-	struct OffscreenPass {
+	struct BloomBuffer
+	{
+		uint32_t width = 0;
+		uint32_t height = 0;
+		FrameBufferAttachment color{};
+		VkRenderPass renderPassClear = VK_NULL_HANDLE; // LOAD_OP_CLEAR  — for downsample passes
+		VkRenderPass renderPassLoad = VK_NULL_HANDLE;  // LOAD_OP_LOAD   — for upsample accumulation
+		VkFramebuffer frameBuffer = VK_NULL_HANDLE;
+		VkSampler sampler = VK_NULL_HANDLE;
+		~BloomBuffer()
+		{
+			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
+			vkDestroyRenderPass(BGLDevice::device(), renderPassClear, nullptr);
+			vkDestroyRenderPass(BGLDevice::device(), renderPassLoad, nullptr);
+			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer, nullptr);
+		}
+	};
+
+	struct OffscreenPass
+	{
 		uint32_t width, height;
 		VkFramebuffer frameBuffer;
 		FrameBufferAttachment color{};
@@ -82,7 +94,8 @@ namespace bagel {
 		VkSampler sampler;
 		uint32_t renderTargetHandle;
 		VkDescriptorImageInfo colorImageInfo;
-		~OffscreenPass() {
+		~OffscreenPass()
+		{
 			std::cout << "Destroying OffscreenPass\n";
 			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
 			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
@@ -91,16 +104,42 @@ namespace bagel {
 		}
 	};
 
-	class BGLRenderer {
+	struct ShadowMapBuffer
+	{
+		static constexpr uint32_t RESOLUTIONS[] = {2048, 2048, 1024, 1024}; // must match SHADOW_CASCADE_COUNT in bagel_frame_info.hpp
+		static constexpr uint32_t CASCADE_COUNT = 4;	 // must match SHADOW_CASCADE_COUNT in bagel_frame_info.hpp
+
+		FrameBufferAttachment depth[CASCADE_COUNT] = {}; // one depth image per cascade, RESOLUTIONS[i] square
+		VkFramebuffer frameBuffers[CASCADE_COUNT] = {};
+		VkRenderPass renderPass = VK_NULL_HANDLE;
+		VkSampler sampler = VK_NULL_HANDLE;
+		~ShadowMapBuffer()
+		{
+			if (renderPass == VK_NULL_HANDLE)
+				return;
+			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
+			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
+			for (uint32_t i = 0; i < CASCADE_COUNT; i++)
+			{
+				vkDestroyFramebuffer(BGLDevice::device(), frameBuffers[i], nullptr);
+				vkDestroyImageView(BGLDevice::device(), depth[i].view, nullptr);
+				vkDestroyImage(BGLDevice::device(), depth[i].image, nullptr);
+				vkFreeMemory(BGLDevice::device(), depth[i].mem, nullptr);
+			}
+		}
+	};
+
+	class BGLRenderer
+	{
 	public:
 		static constexpr uint32_t BLOOM_MIPS = 3;
 
-		BGLRenderer(BGLWindow& w, BGLDevice& d);
+		BGLRenderer(BGLWindow &w, BGLDevice &d);
 		~BGLRenderer();
 
-		BGLRenderer(const BGLRenderer&) = delete;
-		BGLRenderer& operator=(const BGLRenderer&) = delete;
-		
+		BGLRenderer(const BGLRenderer &) = delete;
+		BGLRenderer &operator=(const BGLRenderer &) = delete;
+
 		VkCommandBuffer beginPrimaryCMD();
 		void endPrimaryCMD();
 
@@ -108,7 +147,8 @@ namespace bagel {
 		void endCurrentRenderPass(VkCommandBuffer commandBuffer);
 
 		bool isFrameInProgress() const { return isFrameStarted; }
-		VkCommandBuffer getCurrentCommandBuffer() const {
+		VkCommandBuffer getCurrentCommandBuffer() const
+		{
 			assert(isFrameStarted && "Cannot get command buffer when frame not in progress");
 			return commandBuffers[currentFrameIndex];
 		}
@@ -118,12 +158,13 @@ namespace bagel {
 		float getAspectRatio() const { return bglSwapChain->extentAspectRatio(); }
 		VkExtent2D getExtent() const { return bglSwapChain->getSwapChainExtent(); }
 
-		int getFrameIndex() const {
+		int getFrameIndex() const
+		{
 			assert(isFrameStarted && "Cannot get frame index when frame not in progress");
 			return currentFrameIndex;
 		}
 
-		//Offscreen Render tasks
+		// Offscreen Render tasks
 		void setUpOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight);
 		void createOffScreenRenderPass(uint32_t textureWidth, uint32_t textureHeight);
 		void beginOffScreenRenderPass(VkCommandBuffer commandBuffer);
@@ -138,15 +179,16 @@ namespace bagel {
 		void beginBloomDownsamplePass(VkCommandBuffer commandBuffer, int mip);
 		void beginBloomUpsamplePass(VkCommandBuffer commandBuffer, int mip);
 		VkRenderPass getBloomMipRenderPassClear(int mip) const { return bloomMips[mip].renderPassClear; }
-		VkDescriptorImageInfo getBloomMipImageInfo(int mip) const {
-			return { bloomMips[mip].sampler, bloomMips[mip].color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+		VkDescriptorImageInfo getBloomMipImageInfo(int mip) const
+		{
+			return {bloomMips[mip].sampler, bloomMips[mip].color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 		}
-		VkImage        getBloomMipImage(int mip)  const { return bloomMips[mip].color.image; }
+		VkImage getBloomMipImage(int mip) const { return bloomMips[mip].color.image; }
 		VkDeviceMemory getBloomMipMemory(int mip) const { return bloomMips[mip].color.mem; }
 		// Store this VkDescriptorImageInfo in descriptor manager to include in the descriptor set
-		VkSampler getOffscreenSampler() const{ return offscreenPass.sampler; }
+		VkSampler getOffscreenSampler() const { return offscreenPass.sampler; }
 		VkImageView getOffscreenImageView() const { return offscreenPass.color.view; }
-		VkDescriptorImageInfo getOffscreenImageInfo() const { return { offscreenPass.sampler, offscreenPass.color.view,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }; }
+		VkDescriptorImageInfo getOffscreenImageInfo() const { return {offscreenPass.sampler, offscreenPass.color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}; }
 		// Store this image as well
 		VkImage getOffscreenImage() const { return offscreenPass.color.image; }
 		// ... and this memory
@@ -158,62 +200,70 @@ namespace bagel {
 		// Radiosity buffer — HDR PBR lighting result, read by bloom and composite passes
 		void beginRadiosityPass(VkCommandBuffer commandBuffer);
 		VkRenderPass getRadiosityRenderPass() const { return radiosityBuffer.renderPass; }
-		VkDescriptorImageInfo getRadiosityImageInfo() const {
-			return { radiosityBuffer.sampler, radiosityBuffer.color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+		VkDescriptorImageInfo getRadiosityImageInfo() const
+		{
+			return {radiosityBuffer.sampler, radiosityBuffer.color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 		}
-		VkImage        getRadiosityImage()  const { return radiosityBuffer.color.image; }
-		VkDeviceMemory getRadiosityMemory() const { return radiosityBuffer.color.mem;   }
+		VkImage getRadiosityImage() const { return radiosityBuffer.color.image; }
+		VkDeviceMemory getRadiosityMemory() const { return radiosityBuffer.color.mem; }
 
 		VkSampler getDRSampler() const { return deferredRenderFrameBuffer.sampler; }
-		VkImageView getDRDepthView()  const { return deferredRenderFrameBuffer.depth.view; }
+		VkImageView getDRDepthView() const { return deferredRenderFrameBuffer.depth.view; }
 		VkImageView getDRNormalView() const { return deferredRenderFrameBuffer.normal.view; }
 		VkImageView getDRAlbedoView() const { return deferredRenderFrameBuffer.albedo.view; }
 		VkImageView getDREmissionView() const { return deferredRenderFrameBuffer.emission.view; }
 
+		// Shadow map — depth-only pass rendered from the directional light's perspective, one pass per cascade
+		void beginShadowMapPass(VkCommandBuffer commandBuffer, uint32_t cascade);
+		VkRenderPass getShadowMapRenderPass() const { return shadowMapBuffer.renderPass; }
+		VkSampler getShadowMapSampler() const { return shadowMapBuffer.sampler; }
+		VkImageView getShadowMapDepthView(uint32_t cascade) const { return shadowMapBuffer.depth[cascade].view; }
+
 		// Returns true (and resets the flag) if the G-buffer and bloom mips were recreated
 		// this frame (e.g. window resize). The caller must re-register descriptor entries.
-		bool consumeGBufferRecreated() {
+		bool consumeGBufferRecreated()
+		{
 			bool v = gbufferRecreated;
 			gbufferRecreated = false;
 			return v;
 		}
 
-		void applyVsync(bool enabled) {
+		void applyVsync(bool enabled)
+		{
 			BGLSwapChain::vsyncEnabled = enabled;
 			recreateSwapChain();
 		}
 
 	private:
-
 		uint32_t currentImageIndex = 0;
 		int currentFrameIndex = 0;
 		bool isFrameStarted = false;
-		VkExtent2D gbufferExtent{};     // size the G-buffer was last built at
-		bool gbufferRecreated = false;  // set when G-buffer is rebuilt due to resize
+		VkExtent2D gbufferExtent{};	   // size the G-buffer was last built at
+		bool gbufferRecreated = false; // set when G-buffer is rebuilt due to resize
 
-		//Renderer tasks
+		// Renderer tasks
 		void createCommandBuffers();
 		void freeCommandBuffers();
 		void recreateSwapChain();
 
-		//Offscreen Render tasks
+		// Offscreen Render tasks
 		void createOffscreenColorAttachment();
-		void createOffscreenDepthsAttachment(VkFormat& depthsFormat);
-		void createOffscreenAttachmentDescriptors(std::array<VkAttachmentDescription,2>& descriptors, VkFormat& depthsFormat);
-		void createOffscreenSubpassDependencies(std::array<VkSubpassDependency, 2>& dependencies);
+		void createOffscreenDepthsAttachment(VkFormat &depthsFormat);
+		void createOffscreenAttachmentDescriptors(std::array<VkAttachmentDescription, 2> &descriptors, VkFormat &depthsFormat);
+		void createOffscreenSubpassDependencies(std::array<VkSubpassDependency, 2> &dependencies);
 		void createOffscreenFrameBuffer();
 
-		void createAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment* attachment, uint32_t width, uint32_t height);
+		void createAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment *attachment, uint32_t width, uint32_t height);
 		void prepareDeferredRenderFrameBuffer();
 		void prepareBloomMips();
 		void prepareRadiosityBuffer();
+		void prepareShadowMapBuffer();
 		void destroyDeferredFrameBuffer();
 		void destroyBloomMips();
 		void destroyRadiosityBuffer();
-		
 
-		BGLWindow& bglWindow;
-		BGLDevice& bglDevice;
+		BGLWindow &bglWindow;
+		BGLDevice &bglDevice;
 		std::unique_ptr<BGLSwapChain> bglSwapChain;
 		std::vector<VkCommandBuffer> commandBuffers;
 
@@ -222,6 +272,7 @@ namespace bagel {
 		FrameBuffer deferredRenderFrameBuffer{};
 		std::array<BloomBuffer, BLOOM_MIPS> bloomMips{};
 		RadiosityBuffer radiosityBuffer{};
+		ShadowMapBuffer shadowMapBuffer{};
 	};
 
 }

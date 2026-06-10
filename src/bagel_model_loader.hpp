@@ -35,6 +35,11 @@ namespace bagel {
 		glm::vec3 scaleVec = {1.0f, 1.0f, 1.0f};
 		ComponentBuildMode buildMode = ComponentBuildMode::FACES;
 		uint32_t maxPrimitives = UINT32_MAX;
+		// When true (default) all solid/opaque geometry is merged into a single submesh.
+		// When false, each source mesh's solid geometry is kept as its own submesh — useful
+		// for large models where one merged submesh would be too big. Transparent geometry is
+		// always split per source mesh regardless of this setting.
+		bool mergeSolidSubmeshes = true;
 		ModelLoadSettings() = default;
 		ModelLoadSettings(ComponentBuildMode mode) : buildMode(mode) {}
 	};

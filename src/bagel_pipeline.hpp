@@ -51,6 +51,8 @@ namespace bagel {
 		static void setupTransparentPipeline(PipelineConfigInfo& configInfo);
 		// Full-screen pipeline with additive blending (src=ONE, dst=ONE) for bloom upsample accumulation
 		static void setupFullScreenAdditivePipeline(PipelineConfigInfo& configInfo);
+		// Depth-only pipeline for shadow map rendering: no color output, depth bias enabled
+		static void setupShadowMapPipeline(PipelineConfigInfo& configInfo);
 
 		VkSubpassDescription createSubpassDescription(int colorAttachmentCount, const VkAttachmentReference* colorAttachmentReferences, const VkAttachmentReference* depthAttachmentReferences) {
 			VkSubpassDescription sd;
