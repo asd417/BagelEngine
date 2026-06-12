@@ -363,3 +363,6 @@ MigrationBackup/
 FodyWeavers.xsd
 
 build/
+
+# Vendored dependency fetched by lib-setup.bat; not tracked in this repo
+Dependencies/xatlas/
