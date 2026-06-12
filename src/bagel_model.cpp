@@ -54,15 +54,7 @@ namespace bagel
 		attributeDescriptions.push_back({2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)});
 		attributeDescriptions.push_back({3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, tangent)});
 		attributeDescriptions.push_back({4, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)});
-		attributeDescriptions.push_back({5, 0, VK_FORMAT_R16_UINT, offsetof(Vertex, albedoMap)});
-		attributeDescriptions.push_back({6, 0, VK_FORMAT_R16_UINT, offsetof(Vertex, normalMap)});
-		attributeDescriptions.push_back({7,  0, VK_FORMAT_R16_UINT, offsetof(Vertex, metalRoughMap)});
-		attributeDescriptions.push_back({8,  0, VK_FORMAT_R16_UINT, offsetof(Vertex, specularMap)});
-		attributeDescriptions.push_back({9,  0, VK_FORMAT_R16_UINT, offsetof(Vertex, heightMap)});
-		attributeDescriptions.push_back({10, 0, VK_FORMAT_R16_UINT, offsetof(Vertex, opacityMap)});
-		attributeDescriptions.push_back({11, 0, VK_FORMAT_R16_UINT, offsetof(Vertex, aoMap)});
-		attributeDescriptions.push_back({12, 0, VK_FORMAT_R16_UINT, offsetof(Vertex, refractionMap)});
-		attributeDescriptions.push_back({13, 0, VK_FORMAT_R16_UINT, offsetof(Vertex, emissionMap)});
+		attributeDescriptions.push_back({5, 0, VK_FORMAT_R16_UINT, offsetof(Vertex, materialIndex)});
 		// offsetof macro calculates the byte offset of color member in the Vertex struct
 
 		return attributeDescriptions;
@@ -116,6 +108,7 @@ namespace bagel
 				return;
 			}
 		}
+		activeLoader->setMaterialManager(pMaterialManager);
 		activeLoader->load(buildSettings);
 	}
 

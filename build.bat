@@ -13,23 +13,11 @@ if not exist "%GLSLC%" (
     exit /b 1
 )
 
-"%GLSLC%" "%S%\simple_shader.vert"      -o "%S%\simple_shader.vert.spv"
-if errorlevel 1 (echo [FAIL] simple_shader.vert      & set /a ERRORS+=1) else echo [OK] simple_shader.vert
-
-"%GLSLC%" "%S%\simple_shader.frag"      -o "%S%\simple_shader.frag.spv"
-if errorlevel 1 (echo [FAIL] simple_shader.frag      & set /a ERRORS+=1) else echo [OK] simple_shader.frag
-
 "%GLSLC%" "%S%\wireframe_shader.vert"   -o "%S%\wireframe_shader.vert.spv"
 if errorlevel 1 (echo [FAIL] wireframe_shader.vert   & set /a ERRORS+=1) else echo [OK] wireframe_shader.vert
 
 "%GLSLC%" "%S%\wireframe_shader.frag"   -o "%S%\wireframe_shader.frag.spv"
 if errorlevel 1 (echo [FAIL] wireframe_shader.frag   & set /a ERRORS+=1) else echo [OK] wireframe_shader.frag
-
-"%GLSLC%" "%S%\point_light.vert"        -o "%S%\point_light.vert.spv"
-if errorlevel 1 (echo [FAIL] point_light.vert        & set /a ERRORS+=1) else echo [OK] point_light.vert
-
-"%GLSLC%" "%S%\point_light.frag"        -o "%S%\point_light.frag.spv"
-if errorlevel 1 (echo [FAIL] point_light.frag        & set /a ERRORS+=1) else echo [OK] point_light.frag
 
 "%GLSLC%" "%S%\gbuffer_fill.vert"       -o "%S%\gbuffer_fill.vert.spv"
 if errorlevel 1 (echo [FAIL] gbuffer_fill.vert       & set /a ERRORS+=1) else echo [OK] gbuffer_fill.vert
@@ -60,6 +48,22 @@ if %ERRORS% gtr 0 (
     echo %ERRORS% shader^(s^) failed. Aborting.
     exit /b 1
 )
+
+echo.
+echo === Configuring CMake project ===
+where cmake >nul 2>nul
+if errorlevel 1 (
+    echo ERROR: cmake not found on PATH.
+    exit /b 1
+)
+REM CMakeLists.txt globs sources, so reconfigure to pick up added/moved/removed
+REM files (e.g. src/model_loaders, src/map) before building.
+cmake -S "%~dp0." -B "%~dp0build"
+if errorlevel 1 (
+    echo [FAILED] CMake configure
+    exit /b 1
+)
+echo [OK] CMake configure
 
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" (

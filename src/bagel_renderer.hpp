@@ -86,7 +86,7 @@ namespace bagel
 
 	struct ShadowMapBuffer
 	{
-		static constexpr uint32_t RESOLUTIONS[] = {2048, 2048, 1024, 1024}; // must match SHADOW_CASCADE_COUNT in bagel_frame_info.hpp
+		static constexpr uint32_t RESOLUTIONS[] = {2048, 2048, 2048, 2048}; // must match SHADOW_CASCADE_COUNT in bagel_frame_info.hpp
 		static constexpr uint32_t CASCADE_COUNT = 4;	 // must match SHADOW_CASCADE_COUNT in bagel_frame_info.hpp
 
 		FrameBufferAttachment depth[CASCADE_COUNT] = {}; // one depth image per cascade, RESOLUTIONS[i] square

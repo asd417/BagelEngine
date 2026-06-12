@@ -1,5 +1,5 @@
 #pragma once
-#include "../bagel_model_loader.hpp"
+#include "bagel_model_loader.hpp"
 #include "tiny_gltf.h"
 namespace bagel 
 {

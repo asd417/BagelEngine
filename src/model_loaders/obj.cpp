@@ -64,6 +64,9 @@ namespace bagel {
                 materials[i].metalRoughMap = tryLoadTexture(pTextureLoader, materialPath, roughName);
             }
         }
+        // Register the file's materials into the global table first, then build vertices
+        // (each vertex stores its global material index — see appendFace below).
+        registerMaterialsToTable();
         loadOBJModel(reader, parms);
     }
 
@@ -108,19 +111,7 @@ namespace bagel {
 						attrib.colors[3 * size_t(idx.vertex_index) + 1],
 						attrib.colors[3 * size_t(idx.vertex_index) + 2]
 					};
-					if (materialID < static_cast<uint32_t>(materials.size()))
-					{
-						const BGLModel::Material& mat = materials[materialID];
-						vertex.albedoMap     = mat.albedoMap;
-						vertex.aoMap         = mat.aoMap;
-						vertex.emissionMap   = mat.emissionMap;
-						vertex.heightMap     = mat.heightMap;
-						vertex.normalMap     = mat.normalMap;
-						vertex.metalRoughMap = mat.metalRoughMap;
-						vertex.specularMap   = mat.specularMap;
-						vertex.opacityMap    = mat.opacityMap;
-						vertex.refractionMap = mat.refractionMap;
-					}
+					vertex.materialIndex = globalMaterialIndex(static_cast<int>(materialID));
 
 					if (auto it = vmap.find(vertex); it != vmap.end())
 						indices.push_back(it->second);

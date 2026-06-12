@@ -60,7 +60,67 @@ namespace bagel {
             infoPanelID++;
         }
     }
-   
+
+    // Live registry inspector: lists every entity and the components it carries, with
+    // a few editable fields. Read-mostly debug view of the ECS world.
+    inline void DrawRegistryPanel(entt::registry& registry) {
+        ImGui::Begin("Registry");
+
+        int total = 0;
+        for (auto e : registry.storage<entt::entity>()) { (void)e; ++total; }
+        ImGui::Text("Entities: %d", total);
+        ImGui::Separator();
+
+        auto drawModel = [](const char* label, ModelComponent& m) {
+            ImGui::Text("%s: \"%s\"", label, m.loadSettings.source.c_str());
+            ImGui::Text("  submeshes=%u  indexCount=%u  vertexCount=%u", m.submeshCount, m.indexCount, m.vertexCount);
+            ImGui::Text("  ownsBuffers=%s  frustumCull=%s  matSources=%d",
+                m.ownsBuffers ? "yes" : "no", m.frustumCull ? "yes" : "no", (int)m.materialCount);
+        };
+
+        for (auto entity : registry.storage<entt::entity>()) {
+            const uint32_t id = static_cast<uint32_t>(entt::to_integral(entity));
+            ImGui::PushID(static_cast<int>(id));
+            if (ImGui::TreeNode("ent", "Entity %u", id)) {
+                if (registry.all_of<Transient>(entity))
+                    ImGui::TextColored(ImVec4(1.f, 0.7f, 0.2f, 1.f), "[Transient] (excluded from maps)");
+
+                if (auto* t = registry.try_get<TransformComponent>(entity)) {
+                    glm::vec3 p = t->getTranslation();
+                    if (ImGui::DragFloat3("Translation", &p.x, 0.05f)) t->setTranslation(p);
+                    glm::vec3 s = t->getScale();
+                    if (ImGui::DragFloat3("Scale", &s.x, 0.01f)) t->setScale(s);
+                }
+                if (auto* ta = registry.try_get<TransformArrayComponent>(entity))
+                    ImGui::Text("TransformArray: %u instances, buffered=%s", ta->count(), ta->useBuffer() ? "yes" : "no");
+                if (auto* h = registry.try_get<TransformHierachyComponent>(entity))
+                    ImGui::Text("Hierarchy: parent=%u depth=%u",
+                        h->hasParent ? (uint32_t)entt::to_integral(h->parent) : 0u, h->depth);
+                if (auto* pl = registry.try_get<PointLightComponent>(entity)) {
+                    ImGui::ColorEdit3("PointLight color", &pl->color.x);
+                    ImGui::DragFloat("PointLight lux", &pl->lux, 5.0f, 0.0f, 50000.0f);
+                }
+                if (auto* dl = registry.try_get<DirectionalLightComponent>(entity)) {
+                    ImGui::ColorEdit3("Sun color", &dl->color.x);
+                    ImGui::DragFloat3("Sun rotation", &dl->rotation.x, 0.5f);
+                    ImGui::DragFloat("Sun lux", &dl->lux, 10.0f, 0.0f, 100000.0f);
+                }
+                if (auto* m = registry.try_get<ModelComponent>(entity))          drawModel("Model", *m);
+                if (auto* w = registry.try_get<WireframeComponent>(entity))      drawModel("Wireframe", *w);
+                if (auto* c = registry.try_get<CollisionModelComponent>(entity)) drawModel("CollisionModel", *c);
+                if (auto* db = registry.try_get<DataBufferComponent>(entity))
+                    ImGui::Text("DataBuffer: handle=%u", db->getBufferHandle());
+                if (registry.all_of<JoltPhysicsComponent>(entity))   ImGui::TextUnformatted("JoltPhysics");
+                if (registry.all_of<JoltKinematicComponent>(entity)) ImGui::TextUnformatted("JoltKinematic");
+                if (registry.all_of<InfoComponent>(entity))          ImGui::TextUnformatted("Info");
+
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+        ImGui::End();
+    }
+
     class ConsoleApp
     {
     public:

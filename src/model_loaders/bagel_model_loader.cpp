@@ -1,4 +1,5 @@
 #include "bagel_model_loader.hpp"
+#include "bagel_material.hpp"
 // GLM functions will expect radian angles for all its functions
 #define GLM_FORCE_RADIANS
 // Expect depths buffer to range from 0 to 1. (opengl depth buffer ranges from -1 to 1)
@@ -6,7 +7,59 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
-namespace bagel{
+#include <time.h>
+#include <cstdio>
+#include <cstdarg>
+
+
+namespace bagel
+{
+	class Stopwatch
+	{
+	public:
+		Stopwatch() { reset(); }
+		void reset() { m_start = clock(); }
+		double elapsed() const { return (clock() - m_start) * 1000.0 / CLOCKS_PER_SEC; }
+
+	private:
+		clock_t m_start;
+	};
+
+	static int xatlasPrint(const char *format, ...)
+	{
+		va_list args;
+		va_start(args, format);
+		char buf[1024];
+		vsnprintf(buf, sizeof(buf), format, args); // safe, bounded
+		va_end(args);
+		// forward `buf` to your logging system here
+		return (int)strlen(buf);
+	}
+
+	void ModelLoaderBase::registerMaterialsToTable()
+	{
+		materialIndexMap.resize(materials.size());
+		for (size_t i = 0; i < materials.size(); ++i) {
+			const BGLModel::Material& m = materials[i];
+			materialIndexMap[i] = pMaterialManager
+				? static_cast<uint16_t>(pMaterialManager->registerMaterial(
+					m.albedoMap, m.normalMap, m.metalRoughMap, m.emissionMap))
+				: 0;
+		}
+	}
+
+	xatlas::Atlas* ModelLoaderBase::createLightMapAtlas()
+	{
+		xatlas::SetPrint(xatlasPrint, false);
+		return xatlas::Create();
+	}
+
+	// Base no-op so the vtable resolves (declared virtual in the header but previously
+	// undefined -> link error). Derived loaders override to actually pack the atlas.
+	void ModelLoaderBase::generateLightMapAtlas()
+	{
+	}
+
 	void ModelLoaderBase::calculateTangent()
 	{
 		// Temp bitangent accumulator — not stored in the vertex buffer, only used to

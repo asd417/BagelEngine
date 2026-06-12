@@ -113,15 +113,52 @@ namespace bagel {
 		}
 	}
 
+	void BGLJolt::RehydratePhysicsBodies()
+	{
+		// The recipe (settings) was restored from disk but the BodyID is meaningless until
+		// the live engine re-issues it. Spawn each body at its persisted world transform
+		// (TransformComponent is the source of truth for pose; settings holds shape/mass/etc).
+		auto spawn = [&](entt::entity ent, JPH::BodyID& bodyID, JPH::BodyCreationSettings& settings) {
+			if (settings.GetShape() == nullptr) return; // never populated -> nothing to build
+			if (auto* tc = registry.try_get<TransformComponent>(ent)) {
+				glm::vec3 p = tc->getWorldTranslation();
+				glm::vec3 r = tc->getWorldRotation();
+				settings.mPosition = JPH::RVec3(p.x, p.y, p.z);
+				settings.mRotation = JPH::Quat::sEulerAngles({ r.x, r.y, r.z });
+			}
+			bodyID = bodyInterface->CreateAndAddBody(settings, JPH::EActivation::Activate);
+		};
+
+		for (auto [ent, comp] : registry.view<JoltPhysicsComponent>().each())
+			spawn(ent, comp.bodyID, comp.settings);
+		for (auto [ent, comp] : registry.view<JoltKinematicComponent>().each())
+			spawn(ent, comp.bodyID, comp.settings);
+	}
+
+	void BGLJolt::RemoveAllBodies()
+	{
+		auto destroy = [&](JPH::BodyID id) {
+			if (id.IsInvalid()) return;
+			bodyInterface->RemoveBody(id);
+			bodyInterface->DestroyBody(id);
+		};
+		for (auto [ent, comp] : registry.view<JoltPhysicsComponent>().each())
+			destroy(comp.bodyID);
+		for (auto [ent, comp] : registry.view<JoltKinematicComponent>().each())
+			destroy(comp.bodyID);
+	}
+
 	void BGLJolt::AddSphere(entt::entity ent, float radius, PhysicsBodyCreationInfo& info) {
 		JPH::EActivation activity = info.activate ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
 		JPH::BodyCreationSettings sphereSettings(new JPH::SphereShape(radius), JPH::RVec3(info.pos.x, info.pos.y, info.pos.z), JPH::Quat::sEulerAngles({ info.rot.x,info.rot.y,info.rot.z }), (JPH::EMotionType)info.physicsType, info.layer);
 		if (info.physicsType == PhysicsType::KINEMATIC) {
 			auto& jpc = registry.emplace<JoltKinematicComponent>(ent);
+			jpc.settings = sphereSettings; // persisted recipe; bodyID below is transient
 			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
 		}
 		else {
 			auto& jpc = registry.emplace<JoltPhysicsComponent>(ent);
+			jpc.settings = sphereSettings; // persisted recipe; bodyID below is transient
 			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
 		}
 		
@@ -134,15 +171,19 @@ namespace bagel {
 
 	void BGLJolt::AddBox(entt::entity ent, glm::vec3 halfExtent, PhysicsBodyCreationInfo& info) {
 		JPH::EActivation activity = info.activate ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
-		JPH::BodyCreationSettings sphereSettings(new JPH::BoxShapeSettings({halfExtent.x,halfExtent.y,halfExtent.z}), JPH::RVec3(info.pos.x, info.pos.y, info.pos.z), JPH::Quat::sEulerAngles({ info.rot.x,info.rot.y,info.rot.z }), (JPH::EMotionType)info.physicsType, info.layer);
-		
+		// Use a baked BoxShape (not BoxShapeSettings) so the shape can be serialized via
+		// BodyCreationSettings::SaveWithChildren when the entity is written to a map.
+		JPH::BodyCreationSettings boxSettings(new JPH::BoxShape({halfExtent.x,halfExtent.y,halfExtent.z}), JPH::RVec3(info.pos.x, info.pos.y, info.pos.z), JPH::Quat::sEulerAngles({ info.rot.x,info.rot.y,info.rot.z }), (JPH::EMotionType)info.physicsType, info.layer);
+
 		if (info.physicsType == PhysicsType::KINEMATIC) {
 			auto& jpc = registry.emplace<bagel::JoltKinematicComponent>(ent);
-			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
+			jpc.settings = boxSettings; // persisted recipe; bodyID below is transient
+			jpc.bodyID = bodyInterface->CreateAndAddBody(boxSettings, activity);
 		}
 		else {
 			auto& jpc = registry.emplace<bagel::JoltPhysicsComponent>(ent);
-			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
+			jpc.settings = boxSettings; // persisted recipe; bodyID below is transient
+			jpc.bodyID = bodyInterface->CreateAndAddBody(boxSettings, activity);
 		}
 
 		//Create collision model

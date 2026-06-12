@@ -7,6 +7,10 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include "bagel_textures.hpp"
+#include "model_load_settings.hpp"
+
+#include <xatlas.h>
+
 
 namespace bagel {
     // Magic hash function from boost, modified to return same value for same vertex
@@ -23,38 +27,15 @@ namespace bagel {
 			uint32_t materialIndex = 0;
 			bool transparentMaterial = false;
 		};
-    //Model-related Component Build Mode
-	//Determines the vertex buffer layout
-	enum ComponentBuildMode {
-		FACES,
-		LINES
-	};
-	struct ModelLoadSettings {
-        std::string source;
-        float scale = 1.0f;
-		glm::vec3 scaleVec = {1.0f, 1.0f, 1.0f};
-		ComponentBuildMode buildMode = ComponentBuildMode::FACES;
-		uint32_t maxPrimitives = UINT32_MAX;
-		// When true (default) all solid/opaque geometry is merged into a single submesh.
-		// When false, each source mesh's solid geometry is kept as its own submesh — useful
-		// for large models where one merged submesh would be too big. Transparent geometry is
-		// always split per source mesh regardless of this setting.
-		bool mergeSolidSubmeshes = true;
-		ModelLoadSettings() = default;
-		ModelLoadSettings(ComponentBuildMode mode) : buildMode(mode) {}
-	};
-	namespace BGLModel 
+    // ComponentBuildMode and ModelLoadSettings now live in model_load_settings.hpp
+	// (included above) so ModelComponent can store/serialize the load recipe.
+	namespace BGLModel
 	{
         struct Material {
-            // texture indices — max 65535 slots; 0 means unused
+            // bindless texture indices — 0 means unused. Only the 4 maps the shaders sample.
 			uint16_t albedoMap     = 0;
 			uint16_t normalMap     = 0;
 			uint16_t metalRoughMap = 0; // G=roughness, B=metallic (glTF ORM convention)
-			uint16_t specularMap   = 0;
-			uint16_t heightMap     = 0;
-			uint16_t opacityMap    = 0;
-			uint16_t aoMap         = 0;
-			uint16_t refractionMap = 0;
 			uint16_t emissionMap   = 0;
         };
         struct Vertex {
@@ -64,17 +45,10 @@ namespace bagel {
 			glm::vec4 tangent{ 0.0f,0.0f,0.0f,1.0f }; // xyz = tangent, w = bitangent handedness sign (+1 or -1)
 			glm::vec2 uv;
 
-			// texture indices — max 65535 slots; 0 means unused
-			uint16_t albedoMap     = 0;
-			uint16_t normalMap     = 0;
-			uint16_t metalRoughMap = 0; // G=roughness, B=metallic (glTF ORM convention)
-			uint16_t specularMap   = 0;
-			uint16_t heightMap     = 0;
-			uint16_t opacityMap    = 0;
-			uint16_t aoMap         = 0;
-			uint16_t refractionMap = 0;
-			uint16_t emissionMap   = 0;
-			
+			// Index into the global material table (BGLMaterialManager). The vertex shader
+			// resolves it to the actual bindless texture handles. 0 = the all-unused material.
+			uint16_t materialIndex = 0;
+
 			static std::vector<VkVertexInputBindingDescription> getBindingDescriptions();
 			static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
 
@@ -132,25 +106,48 @@ namespace bagel {
 			}
 		};
 	};
+
+    class BGLMaterialManager; // defined in bagel_material.hpp; used here only by pointer
+
     class ModelLoaderBase
     {
-    public:
+	public:
         ModelLoaderBase(BGLTextureLoader* pTL = nullptr) : pTextureLoader(pTL){};
         virtual ~ModelLoaderBase() = default;
+        void setMaterialManager(BGLMaterialManager* mm) { pMaterialManager = mm; }
         //first use textureloader to place image textures into the descriptors and populate materials vector with descriptor handles
         //populate submeshes, vertices, indices
         virtual void load(ModelLoadSettings parms) = 0;
         std::vector<SubmeshInfo> &getSubmeshes() { return submeshes; };
         std::vector<BGLModel::Vertex> &getVertices() { return vertices; };
         std::vector<uint32_t> &getIndices(){return indices; };
-        void calculateTangent();
+		// xatlas is a uv packing library.
+		// the goal is to have a separate program that can be run independently to generate lightmaps and save to disk
+		// the level compiler/editor will likely share the code with the main engine therefore this function exists here
+		xatlas::Atlas* createLightMapAtlas();
+		// see: https://github.com/jpcy/xatlas/blob/master/source/examples/example.cpp
+		virtual void generateLightMapAtlas();
+
         bool hasTangents() const { return tangentsLoaded; }
+		void calculateTangent();
     protected:
+        // Register every entry of `materials` into the global material table and fill
+        // materialIndexMap (local material id -> global table index). Call after `materials`
+        // is populated and BEFORE building vertices, so each vertex can store its global
+        // index. Local id 0..n map through materialIndexMap; "no material" -> global 0.
+        void registerMaterialsToTable();
+        uint16_t globalMaterialIndex(int localMaterialId) const {
+            return (localMaterialId >= 0 && localMaterialId < static_cast<int>(materialIndexMap.size()))
+                ? materialIndexMap[localMaterialId] : 0;
+        }
+
         BGLTextureLoader* pTextureLoader;
+        BGLMaterialManager* pMaterialManager = nullptr;
         std::vector<SubmeshInfo> submeshes;
 		std::vector<uint32_t> indices{};
         std::vector<BGLModel::Vertex> vertices{};
         std::vector<BGLModel::Material> materials{};
+        std::vector<uint16_t> materialIndexMap{}; // local material id -> global table index
         bool tangentsLoaded = false;
     };
 }

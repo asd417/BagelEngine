@@ -4,7 +4,7 @@
 #include "bagel_textures.hpp"
 #include "bagel_descriptors.hpp"
 #include "bagel_ecs_components.hpp"
-#include "bagel_model_loader.hpp"
+#include "model_loaders/bagel_model_loader.hpp"
 
 // GLM functions will expect radian angles for all its functions
 #define GLM_FORCE_RADIANS
@@ -67,34 +67,49 @@ namespace bagel {
 		T& buildComponent(entt::entity targetEnt, const char* modelFileName, ModelLoadSettings buildSettings)
 		{
 			//Check through registry if the model was already loaded by another entity
-			auto regView = registry.view<T>();
-			for (auto [entity, comp] : regView.each()) {
-				//Already loaded. Copy over vk handles and mark as duplicate
-				if (comp.modelName == std::string(modelFileName))
-				{
-					T& newComp = registry.emplace<T>(targetEnt);
-					newComp.modelName = std::string(modelFileName);
-					newComp.origin = &comp;
-					comp.origin = &comp;
+			entt::entity srcEnt = entt::null;
+			for (auto [entity, existing] : registry.view<T>().each()) {
+				if (existing.loadSettings.source == std::string(modelFileName)) { srcEnt = entity; break; }
+			}
+			if (srcEnt != entt::null) {
+				//Already loaded — share the original's GPU buffers and submesh layout.
+				T& newComp = registry.emplace<T>(targetEnt);
+				// Re-fetch the source AFTER emplace: adding newComp can relocate the pool,
+				// which would invalidate a reference taken during the scan above (and a
+				// stale read of a moved-from ModelComponent would see nulled handles).
+				T& comp = registry.get<T>(srcEnt);
 
-					newComp.submeshCount = comp.submeshCount;
-					newComp.solidSubmeshCount = comp.solidSubmeshCount;
-					for (uint32_t _i = 0; _i < comp.submeshCount; _i++) {
-						newComp.submeshes[_i] = comp.submeshes[_i];
-						newComp.materials[_i] = comp.materials[_i];
-					}
-					newComp.vertexBuffer = comp.vertexBuffer;
-					newComp.indexBuffer = comp.indexBuffer;
-					newComp.vertexMemory = comp.vertexMemory;
-					newComp.indexMemory = comp.indexMemory;
-					newComp.aabbMin = comp.aabbMin;
-					newComp.aabbMax = comp.aabbMax;
-					newComp.frustumCull = comp.frustumCull;
+				newComp.loadSettings = comp.loadSettings;
+				// Borrow the original's shared Vk buffers; only the original frees them.
+				newComp.ownsBuffers = false;
 
-					return newComp;
-				}
+				newComp.submeshCount = comp.submeshCount;
+				newComp.solidSubmeshCount = comp.solidSubmeshCount;
+				for (uint32_t _i = 0; _i < comp.submeshCount; _i++)
+					newComp.submeshes[_i] = comp.submeshes[_i];
+				newComp.materialCount = comp.materialCount;
+				for (uint32_t _i = 0; _i < comp.materialCount; _i++)
+					newComp.materialSources[_i] = comp.materialSources[_i];
+				newComp.vertexBuffer = comp.vertexBuffer;
+				newComp.indexBuffer  = comp.indexBuffer;
+				newComp.vertexMemory = comp.vertexMemory;
+				newComp.indexMemory  = comp.indexMemory;
+				// indexCount/vertexCount drive the indexed-vs-nonindexed draw path —
+				// must be copied or duplicates render the vertex buffer in raw order.
+				newComp.indexCount   = comp.indexCount;
+				newComp.vertexCount  = comp.vertexCount;
+				newComp.aabbMin = comp.aabbMin;
+				newComp.aabbMax = comp.aabbMax;
+				newComp.frustumCull = comp.frustumCull;
+
+				return newComp;
 			}
 			T& comp = registry.emplace<T>(targetEnt);
+			// Record the authored recipe so the model can be rebuilt on map load.
+			// loadModel resolves source internally on its own copy, so set the
+			// caller-provided identifier here explicitly.
+			comp.loadSettings = buildSettings;
+			comp.loadSettings.source = modelFileName;
 			loadModel(modelFileName, buildSettings);
 
 			//Not supported in lines mode. There is no concept of face in lines mode and vertex array can be smaller than 3
@@ -163,6 +178,9 @@ namespace bagel {
 
 		// Optional: set before buildComponent() to enable texture loading for OBJ/GLTF models
 		void setTextureLoader(BGLTextureLoader* tl) { pTextureLoader = tl; }
+		// Optional: set before buildComponent() so loaders register their materials into the
+		// global material table (and vertices store global material indices).
+		void setMaterialManager(BGLMaterialManager* mm) { pMaterialManager = mm; }
 	protected:
 		void loadModel(const char* filename, ModelLoadSettings buildSettings);
 
@@ -178,6 +196,7 @@ namespace bagel {
 		std::vector<BGLModel::Vertex> normalDataVertices{};
 		std::vector<GLTFMaterial>* p_materialSet = nullptr;
 		BGLTextureLoader* pTextureLoader = nullptr;
+		BGLMaterialManager* pMaterialManager = nullptr;
 
 		BGLDevice& bglDevice;
 		entt::registry& registry;

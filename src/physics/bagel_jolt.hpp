@@ -237,6 +237,14 @@ namespace bagel {
 		void SetComponentActivity(entt::entity ent, bool activity);
 		void ApplyTransformToKinematic(float dt);
 		void ApplyPhysicsTransform();
+		// Recreate live Jolt bodies for every entity carrying a Jolt component from its
+		// serialized BodyCreationSettings, assigning fresh (transient) BodyIDs. Call after
+		// a map load — the loaded bodyIDs are meaningless until the engine re-issues them.
+		void RehydratePhysicsBodies();
+		// Remove + destroy every live Jolt body referenced by a Jolt component. Call BEFORE
+		// clearing/reloading the registry so the bodies don't leak inside the physics system
+		// (the components have no destructor that touches Jolt).
+		void RemoveAllBodies();
 		void AddSphere(entt::entity ent, float radius, PhysicsBodyCreationInfo &info);
 		void AddBox(entt::entity ent, glm::vec3 halfExtent, PhysicsBodyCreationInfo& info);
 		void SetSimulationTimescale(float _s) { simTimeScale = _s; }

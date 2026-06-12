@@ -46,7 +46,7 @@ namespace bagel {
 		globalPool = BGLDescriptorPool::Builder(bglDevice)
 			.setMaxSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
 			.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,          BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT + BGLSwapChain::MAX_FRAMES_IN_FLIGHT)
 			.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT + 10)
 			.build();
 
@@ -226,12 +226,21 @@ namespace bagel {
 		if (!hFpsTimer) hFpsTimer = CreateWaitableTimerW(nullptr, FALSE, nullptr); // fallback for older Windows 10
 #endif
 
+		bool gravePrev = false; // edge-detect the ` key for the ImGui toggle
 		while (!bglWindow.shouldClose())
 		{
 			auto t0 = Clock::now();
 			glfwPollEvents();
 			auto t1 = Clock::now();
 			recordSection(S_POLL, tMs(t0, t1));
+
+			// ` (grave) toggles all ImGui panels. Edge-detected so one tap flips it, and
+			// ignored while an ImGui text field is focused so it doesn't eat the keystroke.
+			{
+				bool graveDown = glfwGetKey(bglWindow.getGLFWWindow(), GLFW_KEY_GRAVE_ACCENT) == GLFW_PRESS;
+				if (graveDown && !gravePrev && !ImGui::GetIO().WantTextInput) showImgui = !showImgui;
+				gravePrev = graveDown;
+			}
 
 			auto newTime = t1;
 			float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
@@ -356,6 +365,12 @@ namespace bagel {
 			ImGui_ImplVulkan_NewFrame();
 			ImGui_ImplGlfw_NewFrame();
 			ImGui::NewFrame();
+			// Panels are built only when visible (toggled by `). NewFrame/Render still run
+			// every frame so the ImGui backend stays balanced — it just emits empty draw data.
+			if (showImgui) {
+			// Let the derived app draw its own panels and mutate the scene/registry
+			// before anything reads it this frame (e.g. map build/load buttons).
+			OnDrawGui();
 			VkExtent2D ext = bglRenderer.getExtent();
 			if(showInfo) DrawInfoPanels(registry, ext.width, ext.height, camera.getProjection(), camera.getView());
 			ConsoleApp::Instance()->Draw("Console", nullptr);
@@ -366,20 +381,15 @@ namespace bagel {
 				auto dirView = registry.view<DirectionalLightComponent>();
 				if (!dirView.empty()) {
 					auto& dlc = dirView.get<DirectionalLightComponent>(*dirView.begin());
-					ImGui::Text("Directional Light");
-					ImGui::ColorEdit3("Light Color", &dlc.color.x);
-					ImGui::SliderFloat("Lux",        &dlc.lux,        0.0f, 50000.0f);
-					ImGui::SliderFloat("Pitch",      &dlc.rotation.x, -89.0f, 89.0f);
-					ImGui::SliderFloat("Yaw",        &dlc.rotation.y, -180.0f, 180.0f);
 					ImGui::Text("Shadow Cascades");
-					ImGui::SliderFloat("Cascade 0 End", &dlc.cascadeEnds.x, 0.001f,  10.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
-					ImGui::SliderFloat("Cascade 1 End", &dlc.cascadeEnds.y, 0.001f,  20.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
-					ImGui::SliderFloat("Cascade 2 End", &dlc.cascadeEnds.z, 0.001f, 30.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
-					ImGui::SliderFloat("Cascade 3 End", &dlc.cascadeEnds.w, 0.001f, 40.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+					ImGui::SliderFloat("Cascade 0 End", &dlc.cascadeEnds.x, 0.001f,  20.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+					ImGui::SliderFloat("Cascade 1 End", &dlc.cascadeEnds.y, 0.001f,  30.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+					ImGui::SliderFloat("Cascade 2 End", &dlc.cascadeEnds.z, 0.001f, 70.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+					ImGui::SliderFloat("Cascade 3 End", &dlc.cascadeEnds.w, 0.001f, 100.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
 					// keep the splits strictly increasing
-					dlc.cascadeEnds.y = fmaxf(dlc.cascadeEnds.y, dlc.cascadeEnds.x + 1.0f);
-					dlc.cascadeEnds.z = fmaxf(dlc.cascadeEnds.z, dlc.cascadeEnds.y + 1.0f);
-					dlc.cascadeEnds.w = fmaxf(dlc.cascadeEnds.w, dlc.cascadeEnds.z + 1.0f);
+					//dlc.cascadeEnds.y = fmaxf(dlc.cascadeEnds.y, dlc.cascadeEnds.x + 0.1f);
+					//dlc.cascadeEnds.z = fmaxf(dlc.cascadeEnds.z, dlc.cascadeEnds.y + 0.1f);
+					//dlc.cascadeEnds.w = fmaxf(dlc.cascadeEnds.w, dlc.cascadeEnds.z + 0.1f);
 					ImGui::SliderFloat("Caster Range", &dlc.casterRange, 10.0f, 2000.0f);
 					ImGui::SliderFloat("Shadow Bias",       &dlc.shadowBiasMin,   0.0f, 0.02f, "%.4f");
 					ImGui::SliderFloat("Shadow Bias Slope", &dlc.shadowBiasSlope, 0.0f, 0.05f, "%.4f");
@@ -394,6 +404,7 @@ namespace bagel {
 				ImGui::SliderFloat("Exposure", &exposure, 0.001f, 2.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
 			}
 			ImGui::End();
+			} // showImgui
 			ImGui::Render();
 			recordSection(S_IMGUI, tMs(t0, Clock::now()));
 

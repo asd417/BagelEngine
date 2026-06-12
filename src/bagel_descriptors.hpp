@@ -130,6 +130,7 @@ namespace bagel {
             BUFFER      = 5,
             TEXTURE     = 6,
             SHADOW_MAP  = 7,
+            MATERIAL    = 8, // single storage buffer: the global material table
         };
     public:
         // one sampler2DShadow per cascade at BINDINGS::SHADOW_MAP; must match SHADOW_CASCADE_COUNT in bagel_frame_info.hpp
@@ -154,6 +155,9 @@ namespace bagel {
         void storeUBO(VkDescriptorBufferInfo bufferInfo, uint32_t targetIndex);
         void storeUBOPerFrame(std::array<VkDescriptorBufferInfo, BGLSwapChain::MAX_FRAMES_IN_FLIGHT> frameBufferInfos, uint32_t targetIndex);
         uint32_t storeBuffer(VkDescriptorBufferInfo bufferInfo, const char* name);
+        // Bind the single global material-table SSBO at BINDINGS::MATERIAL (not the bindless
+        // array). Shaders read it directly as `materialTable.materials[idx]`.
+        void storeMaterialTable(VkDescriptorBufferInfo bufferInfo);
 
         //If useDesignatedHandle == true, write to the specified descriptor array element, overriding existing texture. 
         //Existing texture sampler, view, etc are all destroyed.

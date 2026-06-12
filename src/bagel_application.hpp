@@ -54,6 +54,7 @@ namespace bagel
 		bool runPhys = false;
 		bool showFPS = false;
 		bool showInfo = false;
+		bool showImgui = true;   // ` (grave) key toggles all ImGui panels
 		bool showWireframe = false;
 		bool drawBBox = false;
 		bool  bloomEnabled   = true;
@@ -72,6 +73,10 @@ namespace bagel
 		// Override in derived classes
 		virtual void OnSceneLoad() {}
 		virtual void OnUpdate(float dt) {}
+		// Called once per frame inside the ImGui frame (after NewFrame, before any
+		// registry-reading UI), so a derived class may draw its own panels and safely
+		// mutate the scene/registry in response to widgets.
+		virtual void OnDrawGui() {}
 
 	protected:
 		uint32_t fallbackAlbedoMap = 0;

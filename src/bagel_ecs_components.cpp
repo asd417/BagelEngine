@@ -24,11 +24,6 @@ namespace bagel {
         bufferHandle = descriptorManager.storeBuffer(objDataBuffer->descriptorInfo(), bufferName);
     }
 
-    DataBufferComponent::~DataBufferComponent()
-    {
-        objDataBuffer->unmap();
-    }
-
     void DataBufferComponent::writeToBuffer(void* data, size_t size, size_t offset)
     {
         objDataBuffer->writeToBuffer(data, size, offset);

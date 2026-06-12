@@ -8,26 +8,13 @@ layout(location=1) in vec3 color;
 layout(location=2) in vec3 normal;
 layout(location=3) in vec4 tangent;
 layout(location=4) in vec2 uv;
-layout(location=5) in uint in_albedoMap;
-layout(location=6) in uint in_normalMap;
-layout(location=7) in uint in_metalRoughMap;
-layout(location=8) in uint in_specularMap;
-layout(location=9) in uint in_heightMap;
-layout(location=10) in uint in_opacityMap;
-layout(location=11) in uint in_aoMap;
-layout(location=12) in uint in_refractionMap;
-layout(location=13) in uint in_emissionMap;
+layout(location=5) in uint in_materialIndex;
 
 struct VS_OUT {
 	int isInstancedTransform;
 	uint albedoMap;
 	uint normalMap;
 	uint metalRoughMap;
-	uint specularMap;
-	uint heightMap;
-	uint opacityMap;
-	uint aoMap;
-	uint refractionMap;
 	uint emissionMap;
 };
 
@@ -64,6 +51,12 @@ layout(set = 0, binding = 5) readonly buffer objTransform {
 	ObjectData objects[];
 } objTransformArray[];
 
+// The global material table: one entry per material, each a uvec4 of bindless texture
+// handles (x=albedo, y=normal, z=metalRough, w=emission). Indexed by the vertex's material index.
+layout(set = 0, binding = 8) readonly buffer MaterialTable {
+	uvec4 materials[];
+} materialTable;
+
 layout(set = 0, binding = 6) uniform sampler2D samplerColor[];
 
 layout(push_constant) uniform Push {
@@ -95,15 +88,11 @@ void main() {
 	fragUV          = uv;
 	fragNormalWorld = normalize(normalMatrix * normal);
 
-	vs_out.albedoMap     = in_albedoMap;
-	vs_out.normalMap     = in_normalMap;
-	vs_out.metalRoughMap = in_metalRoughMap;
-	vs_out.specularMap   = in_specularMap;
-	vs_out.heightMap     = in_heightMap;
-	vs_out.opacityMap    = in_opacityMap;
-	vs_out.aoMap         = in_aoMap;
-	vs_out.refractionMap = in_refractionMap;
-	vs_out.emissionMap   = in_emissionMap;
+	uvec4 mat = materialTable.materials[in_materialIndex];
+	vs_out.albedoMap     = mat.x;
+	vs_out.normalMap     = mat.y;
+	vs_out.metalRoughMap = mat.z;
+	vs_out.emissionMap   = mat.w;
 
 	// When no albedo texture is bound, repurpose fragTangent to carry vertex color.
 	if (vs_out.albedoMap == 0) {

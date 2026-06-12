@@ -19,6 +19,7 @@
                 "${workspaceFolder}/Dependencies/imgui",
                 "${workspaceFolder}/Dependencies/imgui/backends",
                 "${workspaceFolder}/Dependencies/JoltPhysics",
+                "${workspaceFolder}/Dependencies/xatlas/source/xatlas",
                 "${env:VULKAN_SDK}/Include"
             ],
             "defines": [

@@ -12,6 +12,7 @@ set(ENTT                ${DEPS}/entt/single_include/entt)
 set(VULKAN_SDK_PATH     $ENV{VULKAN_SDK})
 set(IMGUI               ${DEPS}/imgui)
 set(JOLT                ${DEPS}/JoltPhysics)
+set(XATLAS              ${DEPS}/xatlas/source/xatlas)
 
 
 # Set MINGW_PATH if using mingwBuild.bat and not VisualStudio20XX

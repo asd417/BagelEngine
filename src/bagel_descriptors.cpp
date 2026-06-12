@@ -1,6 +1,8 @@
 #include "bagel_descriptors.hpp"
 #include <limits>
 
+// ---- file-local constants / config ----
+#define GLOBAL_DESCRIPTOR_COUNT 1000
 
 #define VK_CHECK(x)                                                     \
 	do                                                                  \
@@ -21,9 +23,6 @@
 
 // vulkan headers
 #include <vulkan/vulkan.h>
-
-#define GLOBAL_DESCRIPTOR_COUNT 1000
-#define BINDLESS
 
 namespace bagel {
 
@@ -179,14 +178,12 @@ namespace bagel {
         allocInfo.pSetLayouts = &descriptorSetLayout;
         allocInfo.descriptorSetCount = descriptorCount;
 
-#ifdef BINDLESS
         VkDescriptorSetVariableDescriptorCountAllocateInfoEXT countInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT };
         uint32_t max_binding = GLOBAL_DESCRIPTOR_COUNT;
         countInfo.descriptorSetCount = 1;
         // This number is the max allocatable count
         countInfo.pDescriptorCounts = &max_binding;
         allocInfo.pNext = &countInfo;
-#endif
 
         // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
         // a new pool whenever an old pool fills up. But this is beyond our current scope
@@ -250,10 +247,14 @@ namespace bagel {
         VkDescriptorSetLayoutBinding shadowMapBinding = createDescriptorSetLayoutBinding(
             BINDINGS::SHADOW_MAP, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SHADOW_MAP_CASCADE_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT);
 
+        // Single (non-array) storage buffer for the global material table.
+        VkDescriptorSetLayoutBinding materialBinding = createDescriptorSetLayoutBinding(
+            BINDINGS::MATERIAL, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL);
+
         VkDescriptorBindingFlags bindFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
 
-        constexpr int bindingCount = 8;
-        std::array<VkDescriptorBindingFlags, bindingCount> flagsArray = { bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags };
+        constexpr int bindingCount = 9;
+        std::array<VkDescriptorBindingFlags, bindingCount> flagsArray = { bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags };
 
         VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlags{};
         bindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
@@ -269,7 +270,8 @@ namespace bagel {
             deferredNormal,
             deferredAlbedo,
             deferredEmission,
-            shadowMapBinding };
+            shadowMapBinding,
+            materialBinding };
 
         VkDescriptorSetLayoutCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -353,6 +355,21 @@ namespace bagel {
             bufferIndexMap.emplace(std::string(name), newHandle);
         }
         return newHandle;
+    }
+
+    void BGLBindlessDescriptorManager::storeMaterialTable(VkDescriptorBufferInfo bufferInfo)
+    {
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write.dstBinding = BINDINGS::MATERIAL;
+        write.descriptorCount = 1;
+        write.pBufferInfo = &bufferInfo;
+        write.dstArrayElement = 0;
+        for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+            write.dstSet = bindlessDescriptorSet[i];
+            vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        }
     }
 
     uint32_t BGLBindlessDescriptorManager::storeTexture(

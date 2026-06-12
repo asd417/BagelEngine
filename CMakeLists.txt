@@ -74,6 +74,8 @@ file(GLOB IMGUI_BCKEND_glfw ${IMGUI}/backends/imgui_impl_glfw.*)
 
 file(GLOB TINYGLTF "${TINYGLTF_PATH}/tiny_gltf.h")
 
+file(GLOB XATLAS_SRC "${XATLAS}/xatlas.cpp" "${XATLAS}/xatlas.h")
+
 add_executable(${PROJECT_NAME}
 	${SOURCES}
 	${RENDERSYSTEM}
@@ -83,13 +85,15 @@ add_executable(${PROJECT_NAME}
 	${IMGUI_SRC}
 	${IMGUI_BCKEND_vk}
 	${IMGUI_BCKEND_glfw}
-	${TINYGLTF})
+	${TINYGLTF}
+	${XATLAS_SRC})
 
 source_group("Render Systems"	FILES ${RENDERSYSTEM})
 source_group("Physics"		FILES ${PHYSICS})
 source_group("Math"		FILES ${MATH})
 source_group("Model Loaders"	FILES ${MODEL_LOADERS})
 source_group("Imgui"            FILES ${IMGUI_SRC} ${IMGUI_BCKEND_vk} ${IMGUI_BCKEND_glfw})
+source_group("xatlas"           FILES ${XATLAS_SRC})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
  
@@ -123,6 +127,7 @@ if (WIN32)
     ${ENTT}
     ${IMGUI}
     ${JOLT}
+    ${XATLAS}
     )
 
   target_include_directories(${PROJECT_NAME} PUBLIC ${JoltPhysics_SOURCE_DIR}/..)
@@ -161,6 +166,7 @@ elseif (UNIX)
     ${ENTT}
     ${IMGUI}
     ${JOLT}
+    ${XATLAS}
     )
 
   target_link_directories(${PROJECT_NAME} PUBLIC

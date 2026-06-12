@@ -10,11 +10,6 @@ struct VS_OUT{
 	uint albedoMap;
 	uint normalMap;
 	uint metalRoughMap;
-	uint specularMap;
-	uint heightMap;
-	uint opacityMap;
-	uint aoMap;
-	uint refractionMap;
 	uint emissionMap;
 };
 

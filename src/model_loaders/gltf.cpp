@@ -81,10 +81,7 @@ namespace bagel
 			tangentsLoaded = true;
 		}
 
-		BGLModel::Material primMat{};
-		int material_idx = prim.material;
-		if (material_idx >= 0 && material_idx < static_cast<int>(materials.size()))
-			primMat = materials[material_idx];
+		const uint16_t primMaterialIndex = globalMaterialIndex(prim.material);
 
 		for (size_t v = 0; v < vertexCount; v++)
 		{
@@ -98,15 +95,7 @@ namespace bagel
 			if (tangentBuffer)
 				vert.tangent = glm::vec4(tangentBuffer[v * 4], tangentBuffer[v * 4 + 1], tangentBuffer[v * 4 + 2], tangentBuffer[v * 4 + 3]);
 
-			vert.albedoMap     = primMat.albedoMap;
-			vert.normalMap     = primMat.normalMap;
-			vert.metalRoughMap = primMat.metalRoughMap;
-			vert.emissionMap   = primMat.emissionMap;
-			vert.aoMap         = primMat.aoMap;
-			vert.specularMap   = primMat.specularMap;
-			vert.heightMap     = primMat.heightMap;
-			vert.opacityMap    = primMat.opacityMap;
-			vert.refractionMap = primMat.refractionMap;
+			vert.materialIndex = primMaterialIndex;
 
 			vertices.push_back(vert);
 		}
@@ -184,8 +173,10 @@ namespace bagel
 			materials[i].normalMap     = tryLoadGLTFTexture(model, modelDir, mat.normalTexture.index,             VK_FORMAT_R8G8B8A8_UNORM);
 			materials[i].metalRoughMap = tryLoadGLTFTexture(model, modelDir, pbr.metallicRoughnessTexture.index, VK_FORMAT_R8G8B8A8_UNORM);
 			materials[i].emissionMap   = tryLoadGLTFTexture(model, modelDir, mat.emissiveTexture.index,           VK_FORMAT_R8G8B8A8_SRGB);
-			materials[i].aoMap         = tryLoadGLTFTexture(model, modelDir, mat.occlusionTexture.index,          VK_FORMAT_R8G8B8A8_UNORM);
 		}
+		// Register the file's materials into the global table before building vertices, so
+		// each vertex can store its global material index (see buildPrimitiveVertices).
+		registerMaterialsToTable();
 
 		auto primIsTransparent = [&](const tinygltf::Primitive& prim) -> bool {
 			return prim.material >= 0

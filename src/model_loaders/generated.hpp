@@ -1,5 +1,5 @@
 #pragma once
-#include "../bagel_model_loader.hpp"
+#include "bagel_model_loader.hpp"
 namespace bagel {
     class GeneratedModelLoader : public ModelLoaderBase 
     {

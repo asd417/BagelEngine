@@ -16,12 +16,11 @@
 #include <limits>
 #include <vector>
 
-
+// ---- file-local constants ----
+#define GLOBAL_DESCRIPTOR_COUNT 1000
 
 #include "bagel_imgui.hpp"
 #define CONSOLE ConsoleApp::Instance()
-
-#define GLOBAL_DESCRIPTOR_COUNT 1000
 
 #define VK_CHECK(x)                                                     \
 	do                                                                  \

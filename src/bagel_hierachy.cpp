@@ -6,6 +6,12 @@ namespace bagel {
 
 	void HierachySystem::CreateHierachy(entt::entity parent, entt::entity child) {
 		TransformHierachyComponent* p = registry.try_get<TransformHierachyComponent>(parent);
+		if (registry.all_of<JoltPhysicsComponent>(child))
+		{
+			// Dynamic bodies are owned by Jolt in world space; parenting would fight the solver.
+			//CONSOLE->Log("Hierachy", "Refused: dynamic physics body cannot be a hierarchy child");
+			return;
+		}
 		if (p == nullptr) {
 			p = &registry.emplace<bagel::TransformHierachyComponent>(parent);
 		}
