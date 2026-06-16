@@ -9,9 +9,12 @@
 
 namespace bagel {
 
-	// Assembles MaterialComponents from texture paths.
-	// Deduplication is handled by BGLBindlessDescriptorManager — the same file is only
-	// uploaded to the GPU once regardless of how many times loadMaterial references it.
+	// Owns the GPU "skin table": one big SSBO of uvec4 entries (4 bindless texture handles
+	// each: x=albedo, y=normal, z=metalRough, w=emission). Each model reserves a contiguous
+	// block of numSkins*numSlots entries laid out skin-major, so the material for a draw is
+	//   skinTable[ skinBase + skinIndex*numSlots + vertexLocalSlot ].
+	// Switching skin is just changing skinIndex (no GPU writes). Textures are still
+	// deduplicated by BGLTextureLoader; only the small handle-quads here can repeat.
 	class BGLMaterialManager {
 	public:
 		BGLMaterialManager(
@@ -30,29 +33,33 @@ namespace bagel {
 			const char* emission    = nullptr);
 
 		// Build a Material from a serializable MaterialSource. Empty strings leave that
-		// slot unused. Used to re-create generated-model materials on map rehydrate.
+		// slot unused.
 		Material loadMaterial(const MaterialSource& src);
 
-		// Register a material's 4 bindless texture handles into the global GPU material
-		// table and return its index. Identical handle sets are deduplicated. Vertices
-		// store this index; the vertex shader reads the table (getMaterialTableHandle())
-		// to resolve it back into the handles. Index 0 is always the all-unused material.
-		uint32_t registerMaterial(uint32_t albedo, uint32_t normal, uint32_t metalRough, uint32_t emission);
-		// Load a MaterialSource's textures, then register the resulting handles.
-		uint32_t registerMaterialSource(const MaterialSource& src);
+		// Reserve a contiguous run of `entryCount` skin-table entries; returns the base index.
+		// Entries are zero-initialized (the all-unused material). Caller fills them with
+		// writeSkinEntry. entryCount is numSkins*numSlots for a model.
+		uint32_t allocateSkinBlock(uint32_t entryCount);
+		// Write one skin-table entry (4 bindless handles) at absolute index `entry`.
+		void writeSkinEntry(uint32_t entry, uint32_t albedo, uint32_t normal, uint32_t metalRough, uint32_t emission);
+
+		// Reset the skin-table allocator so the next scene's blocks start fresh. Call on
+		// scene unload (GPU must be idle — the old blocks are about to be overwritten).
+		// Entry 0 stays the all-unused material. Textures in the bindless array are NOT freed.
+		void clearSkinTable() { cursor = 1; }
 
 		BGLTextureLoader& getTextureLoader() { return builder; }
 
 	private:
-		// One entry per material; 4 bindless texture handles. 16 bytes == std430 uvec4,
-		// so the shader reads it as a single uvec4 (x=albedo, y=normal, z=metalRough, w=emission).
+		// One entry: 4 bindless texture handles. 16 bytes == std430 uvec4.
 		struct MaterialGPU { uint32_t albedo = 0, normal = 0, metalRough = 0, emission = 0; };
-		static constexpr uint32_t MAX_GLOBAL_MATERIALS = 4096;
+		// Must fit uint16: ModelComponent::skinBase indexes this table.
+		static constexpr uint32_t MAX_SKIN_ENTRIES = 16384;
+		static_assert(MAX_SKIN_ENTRIES <= 0x10000, "skinBase is uint16");
 
 		BGLTextureLoader builder;
-		std::unique_ptr<BGLBuffer> materialBuffer;        // SSBO mirror of `materials` (binding MATERIAL)
-		std::vector<MaterialGPU> materials;               // CPU mirror; index == GPU index
-		std::unordered_map<uint64_t, uint32_t> dedup;     // packed 4x16-bit handles -> index
+		std::unique_ptr<BGLBuffer> skinTableBuffer; // SSBO at binding MATERIAL
+		uint32_t cursor = 1;                        // next free entry; 0 reserved as all-unused
 	};
 
 } // namespace bagel

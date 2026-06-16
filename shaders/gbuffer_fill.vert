@@ -2,6 +2,8 @@
 
 #extension GL_KHR_vulkan_glsl : enable
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : require
+#include "pbr.glsl"
 
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
@@ -27,21 +29,7 @@ layout(location=3) out vec3 fragBitangent;
 layout(location=4) out vec3 fragNormalWorld;
 layout(location=5) flat out VS_OUT vs_out;
 
-struct PointLight {
-	vec4 position;
-	vec4 color;
-};
-
-const int MAX_LIGHTS = 10;
-layout(set = 0, binding = 4) uniform GlobalUBO {
-	mat4 projectionMatrix;
-	mat4 viewMatrix;
-	mat4 inverseViewMatrix;
-	vec4 ambientLightColor;
-	PointLight pointLights[MAX_LIGHTS];
-	uint numLights;
-	vec4 lineColor;
-} ubo;
+// GlobalUBO (binding 4) comes from ubo.glsl via pbr.glsl.
 
 struct ObjectData {
 	mat4 modelMatrix;
@@ -51,11 +39,12 @@ layout(set = 0, binding = 5) readonly buffer objTransform {
 	ObjectData objects[];
 } objTransformArray[];
 
-// The global material table: one entry per material, each a uvec4 of bindless texture
-// handles (x=albedo, y=normal, z=metalRough, w=emission). Indexed by the vertex's material index.
-layout(set = 0, binding = 8) readonly buffer MaterialTable {
-	uvec4 materials[];
-} materialTable;
+// Global skin table: per-model blocks of uvec4 entries (bindless handles: x=albedo,
+// y=normal, z=metalRough, w=emission). The material for this draw is
+//   skinTable.entries[ push.materialRowBase + in_materialIndex(=local slot) ].
+layout(set = 0, binding = 8) readonly buffer SkinTable {
+	uvec4 entries[];
+} skinTable;
 
 layout(set = 0, binding = 6) uniform sampler2D samplerColor[];
 
@@ -64,6 +53,7 @@ layout(push_constant) uniform Push {
 	vec4 scale;
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
+	uint materialRowBase;
 } push;
 
 void main() {
@@ -88,7 +78,7 @@ void main() {
 	fragUV          = uv;
 	fragNormalWorld = normalize(normalMatrix * normal);
 
-	uvec4 mat = materialTable.materials[in_materialIndex];
+	uvec4 mat = skinTable.entries[push.materialRowBase + in_materialIndex];
 	vs_out.albedoMap     = mat.x;
 	vs_out.normalMap     = mat.y;
 	vs_out.metalRoughMap = mat.z;

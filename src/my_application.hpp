@@ -17,6 +17,8 @@ namespace bagel {
 		void createLights();   // point lights — common to every scene
 		void buildHierarchyStack();
 		void loadSponza();
+		void loadDragon();
+		void loadMonkeyBone();   // skinned/bone-animated test model
 
 		// Map pipeline
 		void buildScene(int index);     // clear + build one of the 3 scenes live

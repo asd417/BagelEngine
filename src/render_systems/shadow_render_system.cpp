@@ -49,6 +49,7 @@ namespace bagel {
 		// All entities cast shadows — including transparent submeshes (drawn opaque into the depth map)
 		auto singleGroup = registry.view<TransformComponent, ModelComponent>();
 		for (auto [entity, transform, model] : singleGroup.each()) {
+			if (model.isSkinned) continue; // skinned casters use SkinnedShadowRenderSystem (animated pose)
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
 			if (model.indexCount > 0)
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -71,6 +72,7 @@ namespace bagel {
 		// Instanced entities
 		auto instancedGroup = registry.view<TransformArrayComponent, ModelComponent>();
 		for (auto [entity, transform, model] : instancedGroup.each()) {
+			if (model.isSkinned) continue; // skinned models are not instanced/buffered
 			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
 			if (model.indexCount > 0)
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);

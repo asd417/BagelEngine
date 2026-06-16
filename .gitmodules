@@ -16,3 +16,6 @@
 [submodule "Dependencies/tinygltf"]
 	path = Dependencies/tinygltf
 	url = https://github.com/syoyo/tinygltf.git
+[submodule "Dependencies/yaml-cpp"]
+	path = Dependencies/yaml-cpp
+	url = https://github.com/jbeder/yaml-cpp.git

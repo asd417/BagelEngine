@@ -99,7 +99,7 @@ namespace bagel
 		} else {
 			buildSettings.source = filename;
 			const char *ext = strrchr(filename, '.');
-			if (ext && strcmp(ext, ".gltf") == 0) {
+			if (ext && (strcmp(ext, ".gltf") == 0 || strcmp(ext, ".glb") == 0)) {
 				activeLoader = std::make_unique<GLTFModelLoader>(pTextureLoader);
 			} else if (ext && strcmp(ext, ".obj") == 0) {
 				activeLoader = std::make_unique<OBJModelLoader>(pTextureLoader);

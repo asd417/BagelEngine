@@ -66,6 +66,26 @@ namespace bagel
 		}
 	};
 
+	// SMAA 1x edge-detection target — RG8 (R=west edge, G=north edge). Screen-sized; cleared to
+	// 0 each frame (the edge shader discards non-edge pixels). Same single-color-target shape as
+	// RadiosityBuffer; read by later SMAA passes and by the r_drawmode debug view.
+	struct SmaaEdgeBuffer
+	{
+		uint32_t width = 0;
+		uint32_t height = 0;
+		FrameBufferAttachment color{};
+		VkRenderPass renderPass = VK_NULL_HANDLE;
+		VkFramebuffer frameBuffer = VK_NULL_HANDLE;
+		VkSampler sampler = VK_NULL_HANDLE;
+		~SmaaEdgeBuffer()
+		{
+			if (renderPass == VK_NULL_HANDLE) return;
+			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
+			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
+			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer, nullptr);
+		}
+	};
+
 	struct BloomBuffer
 	{
 		uint32_t width = 0;
@@ -178,6 +198,16 @@ namespace bagel
 		VkImage getRadiosityImage() const { return radiosityBuffer.color.image; }
 		VkDeviceMemory getRadiosityMemory() const { return radiosityBuffer.color.mem; }
 
+		// SMAA edge-detection target — written by SmaaEdgeRenderSystem, read by composite/debug.
+		void beginSmaaEdgePass(VkCommandBuffer commandBuffer);
+		VkRenderPass getSmaaEdgeRenderPass() const { return smaaEdgeBuffer.renderPass; }
+		VkDescriptorImageInfo getSmaaEdgeImageInfo() const
+		{
+			return {smaaEdgeBuffer.sampler, smaaEdgeBuffer.color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+		}
+		VkImage getSmaaEdgeImage() const { return smaaEdgeBuffer.color.image; }
+		VkDeviceMemory getSmaaEdgeMemory() const { return smaaEdgeBuffer.color.mem; }
+
 		VkSampler getDRSampler() const { return deferredRenderFrameBuffer.sampler; }
 		VkImageView getDRDepthView() const { return deferredRenderFrameBuffer.depth.view; }
 		VkImageView getDRNormalView() const { return deferredRenderFrameBuffer.normal.view; }
@@ -221,6 +251,8 @@ namespace bagel
 		void prepareDeferredRenderFrameBuffer();
 		void prepareBloomMips();
 		void prepareRadiosityBuffer();
+		void prepareSmaaEdgeBuffer();
+		void destroySmaaEdgeBuffer();
 		void prepareShadowMapBuffer();
 		void prepareTransparentPass();          // create the radiosity+depth render pass (once)
 		void buildTransparentFramebuffers();    // (re)build the transparent framebuffer
@@ -238,6 +270,7 @@ namespace bagel
 		FrameBuffer deferredRenderFrameBuffer{};
 		std::array<BloomBuffer, BLOOM_MIPS> bloomMips{};
 		RadiosityBuffer radiosityBuffer{};
+		SmaaEdgeBuffer smaaEdgeBuffer{};
 		ShadowMapBuffer shadowMapBuffer{};
 
 		// Forward transparent pass target: radiosity color + opaque G-buffer depth (single full-screen FB)

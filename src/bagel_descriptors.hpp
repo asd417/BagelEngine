@@ -130,7 +130,9 @@ namespace bagel {
             BUFFER      = 5,
             TEXTURE     = 6,
             SHADOW_MAP  = 7,
-            MATERIAL    = 8, // single storage buffer: the global material table
+            MATERIAL    = 8,  // single storage buffer: the global material table
+            SKIN        = 9,  // single storage buffer: per-vertex skin influences (joints+weights)
+            PALETTE     = 10, // single storage buffer: baked joint-matrix palette
         };
     public:
         // one sampler2DShadow per cascade at BINDINGS::SHADOW_MAP; must match SHADOW_CASCADE_COUNT in bagel_frame_info.hpp
@@ -155,9 +157,18 @@ namespace bagel {
         void storeUBO(VkDescriptorBufferInfo bufferInfo, uint32_t targetIndex);
         void storeUBOPerFrame(std::array<VkDescriptorBufferInfo, BGLSwapChain::MAX_FRAMES_IN_FLIGHT> frameBufferInfos, uint32_t targetIndex);
         uint32_t storeBuffer(VkDescriptorBufferInfo bufferInfo, const char* name);
-        // Bind the single global material-table SSBO at BINDINGS::MATERIAL (not the bindless
-        // array). Shaders read it directly as `materialTable.materials[idx]`.
+        // Bind the single global skin-table SSBO at BINDINGS::MATERIAL (not the bindless
+        // array). Shaders read it directly as `skinTable.entries[rowBase + slot]`.
         void storeMaterialTable(VkDescriptorBufferInfo bufferInfo);
+        // Bind the global skeletal-skinning SSBOs: per-vertex influences at BINDINGS::SKIN
+        // (read as skinBuf.v[skinVertexBase + gl_VertexIndex]) and the baked joint-matrix
+        // palette at BINDINGS::PALETTE (read as palette.m[animBaseOffset + jointIndex]).
+        void storeSkinBuffer(VkDescriptorBufferInfo bufferInfo);
+        void storePaletteBuffer(VkDescriptorBufferInfo bufferInfo);
+
+        // Re-point one already-stored texture at a different sampler (keeps its image/view).
+        // Used when the shared texture sampler is retuned live (e.g. mip LOD bias change).
+        void rebindTextureSampler(uint32_t handle, VkSampler newSampler);
 
         //If useDesignatedHandle == true, write to the specified descriptor array element, overriding existing texture. 
         //Existing texture sampler, view, etc are all destroyed.

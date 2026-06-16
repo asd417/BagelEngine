@@ -32,11 +32,7 @@ namespace bagel {
 
     class BGLDevice {
     public:
-    #ifdef NDEBUG
-        const bool enableValidationLayers = false;
-    #else
         const bool enableValidationLayers = true;
-    #endif
 
         BGLDevice(BGLWindow &window);
         ~BGLDevice();
@@ -93,6 +89,9 @@ namespace bagel {
 
         VkBool32 getSupportedDepthsFormat(VkFormat* depthFormat);
 
+        void BeginDebugUtilsLabel(VkCommandBuffer commandBuffer, std::string name);
+        void EndDebugUtilsLabel(VkCommandBuffer commandBuffer);
+
         static VkDevice& device() { return _device; }
 
     private:
@@ -125,6 +124,9 @@ namespace bagel {
         VkQueue presentQueue_;
 
         ImmediateUploadContext _uploadContext;
+
+        PFN_vkCmdBeginDebugUtilsLabelEXT ObjCmdBeginDebugUtilsLabel = nullptr;
+        PFN_vkCmdEndDebugUtilsLabelEXT   ObjCmdEndDebugUtilsLabel   = nullptr;
 
         const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
         const std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};

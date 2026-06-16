@@ -4,16 +4,8 @@
 // The including shader must declare a #version before this file is included.
 #ifndef PBR_GLSL
 #define PBR_GLSL
-const int   MAX_LIGHTS    = 10;
-const int   CASCADE_COUNT = 4;
-struct PointLight { vec4 position; vec4 color; };
-
-struct DirectionalLight {
-    vec4 direction;       // xyz = world-space forward direction of the light
-    vec4 color;           // xyz = color, w = intensity
-    mat4 lightSpaceMatrix[CASCADE_COUNT];
-    vec4 cascadeSplits;   // view-space distance where each cascade ends
-};
+// Light structs, constants, and the GlobalUBO block live in ubo.glsl now.
+#include "ubo.glsl"
 
 const float PBR_PI = 3.14159265359;
 

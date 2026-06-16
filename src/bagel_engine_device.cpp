@@ -12,52 +12,61 @@
 
 #define PRINT_AVAILABLE_DEVICE_EXTENTION
 #define PRINT_REQUIRED_DEVICE_EXTENSION
-#define PRINT_PHYSICAL_DEVICE 
+#define PRINT_PHYSICAL_DEVICE
 
-namespace bagel {
+namespace bagel
+{
     VkDevice BGLDevice::_device = nullptr;
     // local callback functions
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-            VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-            VkDebugUtilsMessageTypeFlagsEXT messageType,
-            const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-            void *pUserData) {
+        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT messageType,
+        const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+        void *pUserData)
+    {
         std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
 
         return VK_FALSE;
     }
 
     VkResult CreateDebugUtilsMessengerEXT(
-            VkInstance instance,
-            const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-            const VkAllocationCallbacks *pAllocator,
-            VkDebugUtilsMessengerEXT *pDebugMessenger) {
+        VkInstance instance,
+        const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
+        const VkAllocationCallbacks *pAllocator,
+        VkDebugUtilsMessengerEXT *pDebugMessenger)
+    {
         auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
             instance,
             "vkCreateDebugUtilsMessengerEXT");
-        if (func != nullptr) {
-        return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-        } else {
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
+        if (func != nullptr)
+        {
+            return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+        }
+        else
+        {
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
     }
 
     void DestroyDebugUtilsMessengerEXT(
-            VkInstance instance,
-            VkDebugUtilsMessengerEXT debugMessenger,
-            const VkAllocationCallbacks *pAllocator) {
+        VkInstance instance,
+        VkDebugUtilsMessengerEXT debugMessenger,
+        const VkAllocationCallbacks *pAllocator)
+    {
         auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
             instance,
             "vkDestroyDebugUtilsMessengerEXT");
-        if (func != nullptr) {
-        func(instance, debugMessenger, pAllocator);
+        if (func != nullptr)
+        {
+            func(instance, debugMessenger, pAllocator);
         }
     }
 
     // class member functions
-    BGLDevice::BGLDevice(BGLWindow& window) : window{window} {
+    BGLDevice::BGLDevice(BGLWindow &window) : window{window}
+    {
         createInstance();
-        //Vulkan does little error checking. Validation layer is needed for debugging. 
+        // Vulkan does little error checking. Validation layer is needed for debugging.
         setupDebugMessenger();
         createSurface();
         pickPhysicalDevice();
@@ -65,12 +74,14 @@ namespace bagel {
         createCommandPool();
     }
 
-    BGLDevice::~BGLDevice() {
+    BGLDevice::~BGLDevice()
+    {
         vkDestroyCommandPool(_device, commandPool, nullptr);
         vkDestroyDevice(_device, nullptr);
 
-        if (enableValidationLayers) {
-        DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+        if (enableValidationLayers)
+        {
+            DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
         }
 
         vkDestroySurfaceKHR(instance, surface_, nullptr);
@@ -80,7 +91,8 @@ namespace bagel {
     /// <summary>
     /// Creates connection between our application and vulkan api
     /// </summary>
-    void BGLDevice::createInstance() {
+    void BGLDevice::createInstance()
+    {
         if (enableValidationLayers && !checkValidationLayerSupport())
         {
             throw std::runtime_error("validation layers requested, but not available!");
@@ -123,9 +135,15 @@ namespace bagel {
         }
 
         hasGflwRequiredInstanceExtensions();
+        if (enableValidationLayers)
+        {
+            ObjCmdBeginDebugUtilsLabel = (PFN_vkCmdBeginDebugUtilsLabelEXT)vkGetInstanceProcAddr(instance, "vkCmdBeginDebugUtilsLabelEXT");
+            ObjCmdEndDebugUtilsLabel = (PFN_vkCmdEndDebugUtilsLabelEXT)vkGetInstanceProcAddr(instance, "vkCmdEndDebugUtilsLabelEXT");
+        }
     }
 
-    void BGLDevice::pickPhysicalDevice() {
+    void BGLDevice::pickPhysicalDevice()
+    {
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
         if (deviceCount == 0)
@@ -155,7 +173,8 @@ namespace bagel {
         std::cout << "Maximum Allowed UBO: " << properties.limits.maxDescriptorSetUniformBuffersDynamic << "\n";
     }
 
-    void BGLDevice::createLogicalDevice() {
+    void BGLDevice::createLogicalDevice()
+    {
         QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
@@ -201,7 +220,7 @@ namespace bagel {
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
-        //createInfo.pEnabledFeatures = &deviceFeatures;
+        // createInfo.pEnabledFeatures = &deviceFeatures;
         createInfo.pNext = &deviceFeatures2;
         createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
         createInfo.ppEnabledExtensionNames = deviceExtensions.data();
@@ -212,7 +231,8 @@ namespace bagel {
         {
             createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
             createInfo.ppEnabledLayerNames = validationLayers.data();
-        } else
+        }
+        else
         {
             createInfo.enabledLayerCount = 0;
         }
@@ -226,7 +246,8 @@ namespace bagel {
         vkGetDeviceQueue(_device, indices.presentFamily, 0, &presentQueue_);
     }
 
-    void BGLDevice::createCommandPool() {
+    void BGLDevice::createCommandPool()
+    {
         QueueFamilyIndices queueFamilyIndices = findPhysicalQueueFamilies();
 
         VkCommandPoolCreateInfo poolInfo = {};
@@ -243,7 +264,8 @@ namespace bagel {
 
     void BGLDevice::createSurface() { window.createWindowSurface(instance, &surface_); }
 
-    bool BGLDevice::isDeviceSuitable(VkPhysicalDevice device) {
+    bool BGLDevice::isDeviceSuitable(VkPhysicalDevice device)
+    {
         QueueFamilyIndices indices = findQueueFamilies(device);
 
         bool extensionsSupported = checkDeviceExtensionSupport(device);
@@ -258,7 +280,7 @@ namespace bagel {
         vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
         return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-                supportedFeatures.samplerAnisotropy;
+               supportedFeatures.samplerAnisotropy;
     }
 
     void BGLDevice::populateDebugMessengerCreateInfo(
@@ -267,16 +289,18 @@ namespace bagel {
         createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
         createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                                    VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+                                     VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
         createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                                VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                                VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+                                 VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                                 VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         createInfo.pfnUserCallback = debugCallback;
-        createInfo.pUserData = nullptr;  // Optional
+        createInfo.pUserData = nullptr; // Optional
     }
 
-    void BGLDevice::setupDebugMessenger() {
-        if (!enableValidationLayers) return;
+    void BGLDevice::setupDebugMessenger()
+    {
+        if (!enableValidationLayers)
+            return;
         VkDebugUtilsMessengerCreateInfoEXT createInfo;
         populateDebugMessengerCreateInfo(createInfo);
         if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
@@ -285,14 +309,16 @@ namespace bagel {
         }
     }
 
-    bool BGLDevice::checkValidationLayerSupport() {
+    bool BGLDevice::checkValidationLayerSupport()
+    {
         uint32_t layerCount;
         vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
 
         std::vector<VkLayerProperties> availableLayers(layerCount);
         vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-        for (const char *layerName : validationLayers) {
+        for (const char *layerName : validationLayers)
+        {
             bool layerFound = false;
 
             for (const auto &layerProperties : availableLayers)
@@ -304,13 +330,15 @@ namespace bagel {
                 }
             }
 
-            if (!layerFound) return false;
+            if (!layerFound)
+                return false;
         }
 
         return true;
     }
 
-    std::vector<const char *> BGLDevice::getRequiredExtensions() {
+    std::vector<const char *> BGLDevice::getRequiredExtensions()
+    {
         uint32_t glfwExtensionCount = 0;
         const char **glfwExtensions;
         glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
@@ -321,11 +349,12 @@ namespace bagel {
         {
             extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
-        //extensions.push_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
+        // extensions.push_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         return extensions;
     }
 
-    void BGLDevice::hasGflwRequiredInstanceExtensions() {
+    void BGLDevice::hasGflwRequiredInstanceExtensions()
+    {
         uint32_t extensionCount = 0;
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
         std::vector<VkExtensionProperties> extensions(extensionCount);
@@ -354,7 +383,8 @@ namespace bagel {
 #endif
     }
 
-    bool BGLDevice::checkDeviceExtensionSupport(VkPhysicalDevice device) {
+    bool BGLDevice::checkDeviceExtensionSupport(VkPhysicalDevice device)
+    {
         uint32_t extensionCount;
         vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
 
@@ -375,7 +405,8 @@ namespace bagel {
         return requiredExtensions.empty();
     }
 
-    QueueFamilyIndices BGLDevice::findQueueFamilies(VkPhysicalDevice device) {
+    QueueFamilyIndices BGLDevice::findQueueFamilies(VkPhysicalDevice device)
+    {
         QueueFamilyIndices indices;
 
         uint32_t queueFamilyCount = 0;
@@ -409,7 +440,8 @@ namespace bagel {
         return indices;
     }
 
-    SwapChainSupportDetails BGLDevice::querySwapChainSupport(VkPhysicalDevice device) {
+    SwapChainSupportDetails BGLDevice::querySwapChainSupport(VkPhysicalDevice device)
+    {
         SwapChainSupportDetails details;
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface_, &details.capabilities);
 
@@ -418,8 +450,8 @@ namespace bagel {
 
         if (formatCount != 0)
         {
-        details.formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface_, &formatCount, details.formats.data());
+            details.formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface_, &formatCount, details.formats.data());
         }
 
         uint32_t presentModeCount;
@@ -434,7 +466,8 @@ namespace bagel {
     }
 
     VkFormat BGLDevice::findSupportedFormat(
-            const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
+        const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
+    {
         for (VkFormat format : candidates)
         {
             VkFormatProperties props;
@@ -443,7 +476,7 @@ namespace bagel {
             if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
             {
                 return format;
-            } 
+            }
             else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
             {
                 return format;
@@ -452,7 +485,8 @@ namespace bagel {
         throw std::runtime_error("failed to find supported format!");
     }
 
-    uint32_t BGLDevice::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    uint32_t BGLDevice::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+    {
         VkPhysicalDeviceMemoryProperties memProperties;
         vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
         for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
@@ -467,18 +501,20 @@ namespace bagel {
     }
 
     void BGLDevice::createBuffer(
-            VkDeviceSize size,
-            VkBufferUsageFlags usage,
-            VkMemoryPropertyFlags properties,
-            VkBuffer &buffer,
-            VkDeviceMemory &bufferMemory) {
+        VkDeviceSize size,
+        VkBufferUsageFlags usage,
+        VkMemoryPropertyFlags properties,
+        VkBuffer &buffer,
+        VkDeviceMemory &bufferMemory)
+    {
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.size = size;
         bufferInfo.usage = usage;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        if (vkCreateBuffer(_device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        if (vkCreateBuffer(_device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
+        {
             throw std::runtime_error("failed to create buffer!");
         }
 
@@ -490,16 +526,19 @@ namespace bagel {
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-        if (vkAllocateMemory(_device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+        if (vkAllocateMemory(_device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
+        {
             throw std::runtime_error("Failed to allocate buffer!");
         }
 
-        if (vkBindBufferMemory(_device, buffer, bufferMemory, 0) != VK_SUCCESS) {
+        if (vkBindBufferMemory(_device, buffer, bufferMemory, 0) != VK_SUCCESS)
+        {
             throw std::runtime_error("Failed to bind buffer!");
         }
     }
 
-    VkCommandBuffer BGLDevice::beginSingleTimeCommands() {
+    VkCommandBuffer BGLDevice::beginSingleTimeCommands()
+    {
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -508,15 +547,15 @@ namespace bagel {
 
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        
+
         VkCommandBuffer commandBuffer;
         vkAllocateCommandBuffers(_device, &allocInfo, &commandBuffer);
         vkBeginCommandBuffer(commandBuffer, &beginInfo);
         return commandBuffer;
-        
     }
 
-    void BGLDevice::beginSingleTimeCommands(VkCommandBuffer* existingBuffer) {
+    void BGLDevice::beginSingleTimeCommands(VkCommandBuffer *existingBuffer)
+    {
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -529,21 +568,22 @@ namespace bagel {
 
         vkAllocateCommandBuffers(_device, &allocInfo, existingBuffer);
         vkBeginCommandBuffer(*existingBuffer, &beginInfo);
-
     }
 
-
-    void BGLDevice::endSingleTimeCommands(VkCommandBuffer commandBuffer, VkFence* fence) {
+    void BGLDevice::endSingleTimeCommands(VkCommandBuffer commandBuffer, VkFence *fence)
+    {
         vkEndCommandBuffer(commandBuffer);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffer;
-        if (fence != VK_NULL_HANDLE) {
+        if (fence != VK_NULL_HANDLE)
+        {
             vkQueueSubmit(graphicsQueue_, 1, &submitInfo, *fence);
         }
-        else {
+        else
+        {
             vkQueueSubmit(graphicsQueue_, 1, &submitInfo, VK_NULL_HANDLE);
         }
         vkQueueWaitIdle(graphicsQueue_);
@@ -551,12 +591,13 @@ namespace bagel {
         vkFreeCommandBuffers(_device, commandPool, 1, &commandBuffer);
     }
 
-    void BGLDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+    void BGLDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+    {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
         VkBufferCopy copyRegion{};
-        copyRegion.srcOffset = 0;  // Optional
-        copyRegion.dstOffset = 0;  // Optional
+        copyRegion.srcOffset = 0; // Optional
+        copyRegion.dstOffset = 0; // Optional
         copyRegion.size = size;
         vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
@@ -564,7 +605,8 @@ namespace bagel {
     }
 
     void BGLDevice::copyBufferToImage(
-            VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount) {
+        VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount)
+    {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
         VkBufferImageCopy region{};
@@ -590,12 +632,12 @@ namespace bagel {
         endSingleTimeCommands(commandBuffer);
     }
 
-
     void BGLDevice::createImageWithInfo(
-            const VkImageCreateInfo &imageInfo,
-            VkMemoryPropertyFlags properties,
-            VkImage &image,
-            VkDeviceMemory &imageMemory) {
+        const VkImageCreateInfo &imageInfo,
+        VkMemoryPropertyFlags properties,
+        VkImage &image,
+        VkDeviceMemory &imageMemory)
+    {
         if (vkCreateImage(_device, &imageInfo, nullptr, &image) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create image!");
@@ -619,7 +661,7 @@ namespace bagel {
             throw std::runtime_error("Failed to bind image memory!");
         }
     }
-    //unused
+    // unused
     VkFenceCreateInfo BGLDevice::fenceCreateInfo(VkFenceCreateFlags flags)
     {
         VkFenceCreateInfo fenceCreateInfo = {};
@@ -628,7 +670,7 @@ namespace bagel {
         fenceCreateInfo.flags = flags;
         return fenceCreateInfo;
     }
-    //unused
+    // unused
     VkSemaphoreCreateInfo BGLDevice::semaphoreCreateInfo(VkSemaphoreCreateFlags flags)
     {
         VkSemaphoreCreateInfo semCreateInfo = {};
@@ -637,17 +679,19 @@ namespace bagel {
         semCreateInfo.flags = flags;
         return semCreateInfo;
     }
-    //unused
-    void BGLDevice::createUploadFence() {
+    // unused
+    void BGLDevice::createUploadFence()
+    {
         VkFenceCreateInfo uploadFenceCreateInfo = fenceCreateInfo();
-        
-        if (vkCreateFence(_device, &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence) != VK_SUCCESS) {
+
+        if (vkCreateFence(_device, &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence) != VK_SUCCESS)
+        {
             vkDestroyFence(_device, _uploadContext._uploadFence, nullptr);
             throw std::runtime_error("Failed to create UploadFence!");
         }
     }
-    //unused
-    void BGLDevice::immediateUpload(std::function<void(VkCommandBuffer cmd)>&& function)
+    // unused
+    void BGLDevice::immediateUpload(std::function<void(VkCommandBuffer cmd)> &&function)
     {
         VkCommandBuffer cmd = _uploadContext._commandBuffer;
         beginSingleTimeCommands(&cmd);
@@ -657,18 +701,17 @@ namespace bagel {
         vkResetFences(_device, 1, &_uploadContext._uploadFence);
     }
 
-    VkBool32 BGLDevice::getSupportedDepthsFormat(VkFormat* depthFormat)
+    VkBool32 BGLDevice::getSupportedDepthsFormat(VkFormat *depthFormat)
     {
-        //https://github.com/SaschaWillems/Vulkan/blob/master/base/VulkanTools.cpp#L95
+        // https://github.com/SaschaWillems/Vulkan/blob/master/base/VulkanTools.cpp#L95
         std::vector<VkFormat> formatList = {
-                VK_FORMAT_D32_SFLOAT_S8_UINT,
-                VK_FORMAT_D32_SFLOAT,
-                VK_FORMAT_D24_UNORM_S8_UINT,
-                VK_FORMAT_D16_UNORM_S8_UINT,
-                VK_FORMAT_D16_UNORM
-        };
+            VK_FORMAT_D32_SFLOAT_S8_UINT,
+            VK_FORMAT_D32_SFLOAT,
+            VK_FORMAT_D24_UNORM_S8_UINT,
+            VK_FORMAT_D16_UNORM_S8_UINT,
+            VK_FORMAT_D16_UNORM};
 
-        for (auto& format : formatList)
+        for (auto &format : formatList)
         {
             VkFormatProperties formatProps;
             vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
@@ -680,6 +723,28 @@ namespace bagel {
         }
 
         return false;
+    }
+    void BGLDevice::BeginDebugUtilsLabel(VkCommandBuffer commandBuffer, std::string name)
+    {
+        if (enableValidationLayers)
+        {
+            VkDebugUtilsLabelEXT labelInfo{};
+            labelInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+            labelInfo.pLabelName = name.c_str();
+            labelInfo.color[0] = 1.0f; // You can even color-code it in RenderDoc! (Red)
+            labelInfo.color[1] = 0.5f; // (Green)
+            labelInfo.color[2] = 0.2f; // (Blue)
+            labelInfo.color[3] = 1.0f;
+
+            ObjCmdBeginDebugUtilsLabel(commandBuffer, &labelInfo);
+        }
+    }
+    void BGLDevice::EndDebugUtilsLabel(VkCommandBuffer commandBuffer)
+    {
+        if (enableValidationLayers)
+        {
+            ObjCmdEndDebugUtilsLabel(commandBuffer);
+        }
     }
 
 }

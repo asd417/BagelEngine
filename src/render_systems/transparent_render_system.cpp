@@ -50,6 +50,7 @@ namespace bagel {
 		//sort by distance
 		std::vector<std::pair<float, entt::entity>> order;
 		for (auto [entity, transform, model] : view.each()) {
+			if (model.isSkinned) continue; // skinned transparent submeshes are out of scope for now
 			if (!model.hasTransparent()) continue;
 			glm::vec3 d = camPos - transform.getTranslation();
 			order.emplace_back(glm::dot(d, d), entity);
@@ -82,6 +83,7 @@ namespace bagel {
 			push.UsesBufferedTransform = 0;
 			push.modelMatrix = transform.mat4();
 			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
+			push.materialRowBase = model.skinBase + model.skinIndex * model.numSlots;
 			SendTransparentPush(frameInfo.commandBuffer, pipelineLayout, push);
 
 			for (const ModelComponent::Submesh& sm : model.transparentSubmeshes()) {

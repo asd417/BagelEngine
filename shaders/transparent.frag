@@ -23,32 +23,30 @@ layout(location=5)flat in VS_OUT fs_in;
 // Single output: linear HDR blended into the radiosity buffer (composite tonemaps later).
 layout(location=0)out vec4 outColor;
 
-layout(set=0,binding=4)uniform GlobalUBO{
-	mat4 projectionMatrix;
-	mat4 viewMatrix;
-	mat4 inverseViewMatrix;
-	vec4 ambientLightColor;
-	PointLight pointLights[MAX_LIGHTS];
-	uint numLights;
-	// std140 auto-aligns vec4 lineColor to 544
-	vec4 lineColor;
-	mat4 invViewProjMatrix;
-	float exposure;
-	// std140 auto-aligns DirectionalLight to 640
-	DirectionalLight directionalLight;
-	uint hasDirLight;
-	uint shadowMapHandle;
-	float shadowBiasMin;
-	float shadowBiasSlope;
-}ubo;
+// GlobalUBO (binding 4) comes from ubo.glsl via pbr.glsl.
 
 layout(set=0,binding=6)uniform sampler2D samplerColor[];
+
+// Directional shadow maps (one per cascade) — same binding/layout as the deferred pass.
+layout(set=0,binding=7)uniform sampler2DShadow shadowMaps[CASCADE_COUNT];
+
+// PCF via hardware compare. 1.0 = lit, 0.0 = shadowed. (mirrors radiosity.frag)
+float sampleShadow(vec2 uv, int cascade, float refDepth) {
+	const int filterSize = 5;
+	vec2 texelSize = 1.0 / vec2(textureSize(shadowMaps[nonuniformEXT(cascade)], 0));
+	float shadow = 0.0;
+	for (int x = -(filterSize-1)/2; x <= (filterSize-1)/2; ++x)
+		for (int y = -(filterSize-1)/2; y <= (filterSize-1)/2; ++y)
+			shadow += texture(shadowMaps[nonuniformEXT(cascade)], vec3(uv + vec2(x,y)*texelSize, refDepth));
+	return shadow / float(filterSize*filterSize);
+}
 
 layout(push_constant)uniform Push{
 	mat4 modelMatrix;
 	vec4 scale;
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
+	uint materialRowBase;
 	float emissionLux;
 }push;
 
@@ -93,7 +91,31 @@ void main(){
 	for(int i=0;i<int(ubo.numLights);i++){
 		Lo+=calculatePointLight(ubo.pointLights[i],fragPosWorld,ubo.exposure,normal,V,albedo,F0,roughness,metallic);
 	}
-	
+
+	// Directional light + cascaded shadows (mirrors radiosity.frag, so transparent surfaces
+	// receive the sun + its shadows the same way opaque ones do).
+	if(ubo.hasDirLight!=0){
+		vec3 L=normalize(-ubo.directionalLight.direction.xyz);
+		vec3 radiance=ubo.directionalLight.color.xyz*ubo.directionalLight.color.w*ubo.exposure;
+
+		float viewDepth=-(ubo.viewMatrix*vec4(fragPosWorld,1.0)).z;
+		int cascade=CASCADE_COUNT-1;
+		if     (viewDepth<ubo.directionalLight.cascadeSplits.x) cascade=0;
+		else if(viewDepth<ubo.directionalLight.cascadeSplits.y) cascade=1;
+		else if(viewDepth<ubo.directionalLight.cascadeSplits.z) cascade=2;
+
+		float shadowFactor=1.0;
+		if(viewDepth<ubo.directionalLight.cascadeSplits.w){
+			vec4 lsPos=ubo.directionalLight.lightSpaceMatrix[cascade]*vec4(fragPosWorld,1.0);
+			vec2 shadowUV=lsPos.xy*0.5+0.5;
+			if(shadowUV.x>0.0&&shadowUV.x<1.0&&shadowUV.y>0.0&&shadowUV.y<1.0&&lsPos.z>0.0&&lsPos.z<1.0){
+				float bias=max(ubo.shadowBiasSlope*(1.0-dot(normal,L)),ubo.shadowBiasMin);
+				shadowFactor=sampleShadow(shadowUV,cascade,lsPos.z-bias);
+			}
+		}
+		Lo+=shadowFactor*pbrDirectLight(normal,V,L,radiance,albedo,F0,roughness,metallic);
+	}
+
 	vec3 ambient=ubo.ambientLightColor.xyz*ubo.ambientLightColor.w*albedo;
 	vec3 emission=emData.rgb*emData.a*10000.*ubo.exposure;
 	vec3 hdr=ambient+Lo+emission;

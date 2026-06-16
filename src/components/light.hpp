@@ -5,8 +5,6 @@
 namespace bagel {
 	struct PointLightComponent {
 		glm::vec4 color = { 1.0f,1.0f,1.0f,1.0f }; // rgb=color, w unused
-		float radius = 1.0f;
-		float bloomHaloRadius = 1.0f;
 		float lux = 800.0f; // luminous intensity in lux; multiplied by exposure in radiosity shader
 	};
 

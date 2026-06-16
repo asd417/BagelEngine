@@ -19,13 +19,7 @@ namespace ConsoleCommand {
 		if (app->runPhys) return "Physics acivated";
 		else return "Physics deacivated";
 	}
-char* ShowFPS(void* ptr)
-	{
-		Application* app = static_cast<Application*>(ptr);
-		app->showFPS = !app->showFPS;
-		if (app->showFPS) return "Printing FPS. FPS will tank";
-		else return "Printing FPS";
-	}
+
 	char* ShowInfo(void* ptr)
 	{
 		Application* app = static_cast<Application*>(ptr);
@@ -102,26 +96,57 @@ char* ShowFPS(void* ptr)
 		snprintf(response, sizeof(response), "FPS limited to %d", v);
 		return response;
 	}
-	// r_drawmode <n>  — 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic 6=bloom 7=raw emission
+	// skin <n>  — set the skin index on every ModelComponent (clamped per-model to numSkins)
+	char* SetSkin(void* ptr, const char* args)
+	{
+		static char response[64];
+		Application* app = static_cast<Application*>(ptr);
+		if (!args || args[0] == '\0') return "skin <n>: set skin index on all models";
+		int idx = atoi(args);
+		if (idx < 0) idx = 0;
+		int count = 0;
+		for (auto [e, m] : app->getRegistry().view<ModelComponent>().each()) {
+			m.setSkin(static_cast<uint32_t>(idx));
+			++count;
+		}
+		snprintf(response, sizeof(response), "Set skin %d on %d model(s)", idx, count);
+		return response;
+	}
+	// r_mipbias <f>  — shared texture sampler mip LOD bias. Negative = sharper (mips farther,
+	// more shimmer), positive = blurrier (mips closer). Retunes all loaded content textures live.
+	char* SetMipBias(void* ptr, const char* args)
+	{
+		static char response[64];
+		Application* app = static_cast<Application*>(ptr);
+		if (!args || args[0] == '\0')
+			return "r_mipbias <f>: sampler mip LOD bias (negative=sharper, positive=blurrier)";
+		float bias = static_cast<float>(atof(args));
+		app->setTextureMipBias(bias);
+		snprintf(response, sizeof(response), "r_mipbias set to %.2f", bias);
+		return response;
+	}
+	// r_drawmode <n>  — 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic
+	//                   6=bloom 7=raw emission 8=raw radiosity 9=SMAA edges
 	char* SetDrawMode(void* ptr, const char* args)
 	{
 		static char response[64];
 		Application* app = static_cast<Application*>(ptr);
 		if (!args || args[0] == '\0') {
 			snprintf(response, sizeof(response),
-				"r_drawmode: current mode is %d (0-7)", app->gbufferDebugMode);
+				"r_drawmode: current mode is %d (0-9)", app->gbufferDebugMode);
 			return response;
 		}
 		int mode = atoi(args);
-		if (mode < 0 || mode > 7) {
+		if (mode < 0 || mode > 9) {
 			snprintf(response, sizeof(response),
-				"[error] r_drawmode: invalid mode %d (valid: 0-7)", mode);
+				"[error] r_drawmode: invalid mode %d (valid: 0-9)", mode);
 			return response;
 		}
 		app->gbufferDebugMode = mode;
 		static const char* names[] = {
 			"Final composite", "Albedo", "World normals",
-			"World position",  "Roughness", "Metallic", "Bloom", "Raw emission"
+			"World position",  "Roughness", "Metallic", "Bloom", "Raw emission",
+			"Raw radiosity", "SMAA edges"
 		};
 		snprintf(response, sizeof(response), "GBuffer view: %s", names[mode]);
 		return response;

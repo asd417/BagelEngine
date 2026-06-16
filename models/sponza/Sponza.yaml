@@ -1,0 +1,28 @@
+# Sponza.yaml — model sidecar for Sponza.gltf
+# In-game properties for the model. First property: skins (Source $texturegroup analog).
+#
+# Sponza has 25 material slots (0..24). Each skin row maps a slot index to one of the named
+# materials below; any slot a skin doesn't list keeps Sponza's own glTF material.
+# Switch at runtime with the console:  skin 0 | skin 1 | skin 2 | skin 3
+
+materials:
+  bricks:
+    albedo:     "/materials/Bricks089_1K-PNG_Color.png"
+    normal:     "/materials/Bricks089_1K-PNG_NormalGL.png"
+    metalRough: "/materials/Bricks089_1K-PNG_RoughnessMetal.png"
+  roofing:
+    albedo:     "/materials/RoofingTiles013A_1K-PNG_Color.png"
+    normal:     "/materials/RoofingTiles013A_1K-PNG_NormalGL.png"
+    metalRough: "/materials/RoofingTiles013A_1K-PNG_Roughness.png"
+  grid:
+    albedo:     "/materials/grid.png"
+
+skins:
+  # skin 0 — stock Sponza (all defaults)
+  - {}
+  # skin 1 — re-skin the first chunk of slots with brick
+  - { 0: bricks, 1: bricks, 2: bricks, 3: bricks, 4: bricks, 5: bricks, 6: bricks, 7: bricks }
+  # skin 2 — same slots with roofing tiles
+  - { 0: roofing, 1: roofing, 2: roofing, 3: roofing, 4: roofing, 5: roofing, 6: roofing, 7: roofing }
+  # skin 3 — debug grid on those slots (the rest stay default Sponza)
+  - { 0: grid, 1: grid, 2: grid, 3: grid, 4: grid, 5: grid, 6: grid, 7: grid }

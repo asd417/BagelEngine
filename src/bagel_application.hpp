@@ -15,6 +15,9 @@
 #include "render_systems/radiosity_render_system.hpp"
 #include "render_systems/shadow_render_system.hpp"
 #include "render_systems/transparent_render_system.hpp"
+#include "render_systems/skinned_gbuffer_render_system.hpp"
+#include "render_systems/skinned_shadow_render_system.hpp"
+#include "render_systems/smaa_edge_render_system.hpp"
 
 #ifdef PHYSTEST
 #include "physics/bagel_physics.h"
@@ -24,6 +27,7 @@
 #include "bagel_model.hpp"
 #include "bagel_textures.hpp"
 #include "bagel_material.hpp"
+#include "animation/bagel_skin_manager.hpp"
 
 #include "physics/bagel_physics.hpp"
 
@@ -34,6 +38,9 @@
 
 namespace bagel
 {
+	// Used by drawImgui() below by reference only; full definition is included in the .cpp.
+	class KeyboardMovementController;
+
 	class Application
 	{
 	public:
@@ -46,13 +53,14 @@ namespace bagel
 		Application(const Application &) = delete;
 		Application &operator=(const Application &) = delete;
 
+		void updateDirectionalUBO(entt::registry& registry, GlobalUBO& ubo, glm::vec3 camPos, glm::vec3 camFwd, float aspect);
+		void drawImgui(BGLCamera& camera, KeyboardMovementController& cameraController, SmaaEdgeRenderSystem& edgeRender);
 		void run();
 		entt::registry &getRegistry() { return registry; }
 
 		// Console Command variables
 		bool freeFly = true;
 		bool runPhys = false;
-		bool showFPS = false;
 		bool showInfo = false;
 		bool showImgui = true;   // ` (grave) key toggles all ImGui panels
 		bool showWireframe = false;
@@ -62,6 +70,12 @@ namespace bagel
 		float bloomThreshold = 0.16f;
 		float bloomMipDecay  = 0.5f;
 		int gbufferDebugMode = 0; // 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic 6=bloom 7=raw emission
+
+		float smaaEdgeThreshold = 0.05f;
+		float smaaLocalContrastAdapt = 2.0f;
+		// Retune the shared texture sampler's mip LOD bias live (console R_MIPBIAS <value>).
+		// Negative = sharper/more shimmer; positive = blurrier. Forwards to BGLTextureLoader.
+		void setTextureMipBias(float bias);
 		bool showProfile = false;
 		bool stutterDetect = true;
 		float stutterThresholdMs = 33.3f; // flag frames slower than this (~30fps)
@@ -90,6 +104,7 @@ namespace bagel
 		std::unique_ptr<BGLDescriptorPool> globalPool;
 		std::unique_ptr<BGLBindlessDescriptorManager> descriptorManager;
 		std::unique_ptr<BGLMaterialManager> materialManager;
+		std::unique_ptr<BGLSkinManager> skinManager;
 		entt::registry registry;
 
 	private:

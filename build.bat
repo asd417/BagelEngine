@@ -44,6 +44,10 @@ if errorlevel 1 (echo [FAIL] bloom_downsample.frag   & set /a ERRORS+=1) else ec
 "%GLSLC%" "%S%\bloom_upsample.frag"     -o "%S%\bloom_upsample.frag.spv"
 if errorlevel 1 (echo [FAIL] bloom_upsample.frag     & set /a ERRORS+=1) else echo [OK] bloom_upsample.frag
 
+"%GLSLC%" "%S%\smaa_edge.frag"     -o "%S%\smaa_edge.frag.spv"
+if errorlevel 1 (echo [FAIL] smaa_edge.frag     & set /a ERRORS+=1) else echo [OK] smaa_edge.frag
+
+
 if %ERRORS% gtr 0 (
     echo %ERRORS% shader^(s^) failed. Aborting.
     exit /b 1

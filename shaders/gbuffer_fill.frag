@@ -1,6 +1,7 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier:enable
 #extension GL_KHR_vulkan_glsl:enable
+#extension GL_GOOGLE_include_directive:require
 #include "data_transform.glsl"
 
 struct VS_OUT{
@@ -29,6 +30,7 @@ layout(push_constant)uniform Push{
 	vec4 scale;
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
+	uint materialRowBase;
 	float emissionLux;
 	uint fallbackAlbedoMap;
 }push;

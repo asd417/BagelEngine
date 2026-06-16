@@ -1,5 +1,9 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier:enable
+#extension GL_GOOGLE_include_directive:require
+//#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
+// Only needs the UBO/light structs, not the PBR helpers (it has its own oct decode).
+#include "ubo.glsl"
 
 layout(location=0)in vec2 fragUV;
 layout(location=0)out vec4 outColor;
@@ -10,19 +14,7 @@ layout(set=0,binding=2)uniform sampler2D gAlbedo;
 layout(set=0,binding=3)uniform sampler2D gEmission;
 layout(set=0,binding=6)uniform sampler2D samplerColor[];
 
-const int MAX_LIGHTS=10;
-struct PointLight{vec4 position;vec4 color;};
-
-layout(set=0,binding=4)uniform GlobalUBO{
-    mat4 projectionMatrix;
-    mat4 viewMatrix;
-    mat4 inverseViewMatrix;
-    vec4 ambientLightColor;
-    PointLight pointLights[MAX_LIGHTS];
-    uint numLights;
-    vec4 lineColor;
-    mat4 invViewProjMatrix;
-}ubo;
+// GlobalUBO (binding 4) comes from ubo.glsl via pbr.glsl.
 
 layout(push_constant)uniform Push{
     float time;
@@ -30,6 +22,7 @@ layout(push_constant)uniform Push{
     uint bloomHandle;// bindless handle for the bloom result
     float bloomIntensity;
     uint radiosityHandle;// bindless handle for the HDR radiosity buffer
+    uint smaaEdgeHandle; // bindless handle for the SMAA edges target (debug mode 9)
 }push;
 
 vec3 reconstructWorldPos(vec2 uv,float depth){
@@ -73,6 +66,14 @@ vec3 ReinhardToneMapping(vec3 color)
 }
 
 void main(){
+    // r_drawmode 9: SMAA edge render output (R = west edge, G = north edge). Full-screen, so
+    // it runs before the background early-out below.
+    if(push.debugMode==9u){
+        vec2 e=(push.smaaEdgeHandle!=0u)?texture(samplerColor[push.smaaEdgeHandle],fragUV).rg:vec2(0.);
+        outColor=vec4(e,0.,1.);
+        return;
+    }
+
     vec4 albedoData=texture(gAlbedo,fragUV);
     
     vec3 bloom=(push.bloomHandle!=0u)
@@ -93,9 +94,15 @@ void main(){
     if(push.debugMode==1u){outColor=vec4(albedo,1.);return;}
     if(push.debugMode==2u){outColor=vec4(N*.5+.5,1.);return;}
     if(push.debugMode==3u){
-        float depth=texture(gDepth,fragUV).r;
-        vec3 fragPos=reconstructWorldPos(fragUV,depth);
-        outColor=vec4(fract(fragPos*.15+.5),1.);
+        float depth = texture(gDepth, fragUV).r;
+        vec3 fragPos = reconstructWorldPos(fragUV, depth);
+        float minWorldBound = -40.0;
+        float maxWorldBound = 40.0;
+
+        // 2. Map the float coordinates from [-100, 100] down to [0.0, 1.0]
+        vec3 visualPos = (fragPos - minWorldBound) / (maxWorldBound - minWorldBound);
+        visualPos = clamp(visualPos, 0.0, 1.0);
+        outColor = vec4(visualPos, 1.0);
         return;
     }
     if(push.debugMode==4u){outColor=vec4(vec3(roughness),1.);return;}

@@ -82,6 +82,29 @@ namespace bagel {
 		// order, so a single split index is enough to filter by transparency at draw time.
 		uint32_t solidSubmeshCount = 0;
 
+		// Skin table block (transient; rebuilt by the loader). The material for a draw is
+		//   skinTable[ skinBase + skinIndex*numSlots + vertex.materialIndex(=local slot) ].
+		// skinBase/numSlots/numSkins describe the model's block (shared by deduped instances);
+		// skinIndex is this entity's selected skin (per-entity, serialized). Packed small:
+		// skinBase fits the table cap (<=65535), numSlots fits the vertex's uint16 slot, and
+		// 256 skins is plenty.
+		uint16_t skinBase   = 0;
+		uint16_t numSlots   = 1;
+		uint8_t  numSkins   = 1;
+		uint8_t  skinIndex  = 0;
+
+		// Skeletal skinning (bone animation). isSkinned models are drawn by the dedicated
+		// SkinnedGBufferRenderSystem (per-entity, not buffered) and skipped by the static
+		// G-buffer/transparent passes. skinVertexBase is this model's base offset into the
+		// global per-vertex skin-influence SSBO; the shader reads v[skinVertexBase + gl_VertexIndex].
+		// The matching skeleton/clip state lives on a separate AnimationComponent.
+		bool     isSkinned      = false;
+		uint32_t skinVertexBase = 0;
+
+		// Switch this entity's skin. Instant (the next draw computes a new row base); ignored
+		// if out of range. numSkins/skinBase come from the model's "<model>.yaml" sidecar.
+		void setSkin(uint32_t i) { if (i < numSkins) skinIndex = static_cast<uint8_t>(i); }
+
 		glm::vec3 aabbMin{ 0.0f };
 		glm::vec3 aabbMax{ 0.0f };
 		bool frustumCull = true;
@@ -135,6 +158,8 @@ namespace bagel {
 			for (uint32_t i = 0; i < MAX_MATERIALS; ++i) materialSources[i] = std::move(o.materialSources[i]);
 			materialCount = o.materialCount;
 			submeshCount = o.submeshCount; solidSubmeshCount = o.solidSubmeshCount;
+			skinBase = o.skinBase; numSlots = o.numSlots; numSkins = o.numSkins; skinIndex = o.skinIndex;
+			isSkinned = o.isSkinned; skinVertexBase = o.skinVertexBase;
 			aabbMin = o.aabbMin; aabbMax = o.aabbMax; frustumCull = o.frustumCull;
 			vertexBuffer = o.vertexBuffer; indexBuffer = o.indexBuffer;
 			vertexMemory = o.vertexMemory; indexMemory = o.indexMemory;
@@ -171,5 +196,39 @@ namespace bagel {
 	};
 	struct CollisionModelComponent : ModelComponent {
 		glm::vec3 collisionScale = { 1.0,1.0,1.0 };
+	};
+
+	// Runtime skeletal-animation state for a skinned entity (paired with a skinned
+	// ModelComponent). The baked layout (paletteBase/jointCount/fps + per-clip frame table)
+	// is filled by the model builder at load; clip/time/playing are per-entity playback. The
+	// SkinnedGBufferRenderSystem advances `time` and resolves animBaseOffset() to push.
+	struct AnimationComponent {
+		// Baked layout (shared identity of the model's animation set).
+		uint32_t paletteBase = 0; // matrix index of (clip 0, frame 0) in the global palette SSBO
+		uint32_t jointCount  = 0;
+		float    fps         = 30.0f;
+		std::vector<uint32_t> clipFrameBase{};  // per clip: first frame row (in frames)
+		std::vector<uint32_t> clipFrameCount{}; // per clip: baked frame count
+
+		// Playback state.
+		uint32_t clip    = 0;
+		float    time    = 0.0f;
+		bool     playing = true;
+		bool     loop    = true;
+
+		uint32_t clipCount() const { return static_cast<uint32_t>(clipFrameBase.size()); }
+		float    clipDuration(uint32_t c) const {
+			return (c < clipFrameCount.size() && fps > 0.0f && clipFrameCount[c] > 0)
+				? (clipFrameCount[c] - 1) / fps : 0.0f;
+		}
+		// Palette row base for the current clip/time — pushed to the shader as animBaseOffset.
+		// Snaps to the nearest baked frame (clamped to the clip's last frame).
+		uint32_t animBaseOffset() const {
+			if (clip >= clipFrameBase.size() || jointCount == 0) return paletteBase;
+			const uint32_t frames = clipFrameCount[clip];
+			uint32_t frame = (fps > 0.0f) ? static_cast<uint32_t>(time * fps) : 0;
+			if (frames > 0 && frame >= frames) frame = frames - 1;
+			return paletteBase + (clipFrameBase[clip] + frame) * jointCount;
+		}
 	};
 }

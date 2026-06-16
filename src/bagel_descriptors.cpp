@@ -222,7 +222,9 @@ namespace bagel {
         for (auto& package : textures) {
             if (!package.isOwned) continue;
             vkDestroyImageView(BGLDevice::device(), package.imageInfo.imageView, nullptr);
-            vkDestroySampler(BGLDevice::device(), package.imageInfo.sampler, nullptr);
+            // NOTE: samplers are NOT destroyed here. Content textures share one sampler owned by
+            // BGLTextureLoader; render targets/shadow maps own theirs elsewhere. Destroying the
+            // per-package sampler would double-free the shared one across all textures.
             vkDestroyImage(BGLDevice::device(), package.image, nullptr);
             vkFreeMemory(BGLDevice::device(), package.memory, nullptr);
         }
@@ -251,10 +253,16 @@ namespace bagel {
         VkDescriptorSetLayoutBinding materialBinding = createDescriptorSetLayoutBinding(
             BINDINGS::MATERIAL, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL);
 
+        // Single storage buffers for skeletal skinning: per-vertex influences + joint palette.
+        VkDescriptorSetLayoutBinding skinBinding = createDescriptorSetLayoutBinding(
+            BINDINGS::SKIN, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL);
+        VkDescriptorSetLayoutBinding paletteBinding = createDescriptorSetLayoutBinding(
+            BINDINGS::PALETTE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL);
+
         VkDescriptorBindingFlags bindFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
 
-        constexpr int bindingCount = 9;
-        std::array<VkDescriptorBindingFlags, bindingCount> flagsArray = { bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags };
+        constexpr int bindingCount = 11;
+        std::array<VkDescriptorBindingFlags, bindingCount> flagsArray = { bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags, bindFlags };
 
         VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlags{};
         bindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
@@ -271,7 +279,9 @@ namespace bagel {
             deferredAlbedo,
             deferredEmission,
             shadowMapBinding,
-            materialBinding };
+            materialBinding,
+            skinBinding,
+            paletteBinding };
 
         VkDescriptorSetLayoutCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -372,6 +382,56 @@ namespace bagel {
         }
     }
 
+    void BGLBindlessDescriptorManager::storeSkinBuffer(VkDescriptorBufferInfo bufferInfo)
+    {
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write.dstBinding = BINDINGS::SKIN;
+        write.descriptorCount = 1;
+        write.pBufferInfo = &bufferInfo;
+        write.dstArrayElement = 0;
+        for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+            write.dstSet = bindlessDescriptorSet[i];
+            vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        }
+    }
+
+    void BGLBindlessDescriptorManager::storePaletteBuffer(VkDescriptorBufferInfo bufferInfo)
+    {
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write.dstBinding = BINDINGS::PALETTE;
+        write.descriptorCount = 1;
+        write.pBufferInfo = &bufferInfo;
+        write.dstArrayElement = 0;
+        for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+            write.dstSet = bindlessDescriptorSet[i];
+            vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        }
+    }
+
+    void BGLBindlessDescriptorManager::rebindTextureSampler(uint32_t handle, VkSampler newSampler)
+    {
+        if (handle >= textures.size()) return;
+        // Swap the sampler in the stored combined-image-sampler info and re-write the descriptor
+        // array element for every frame in flight. Image view + layout are unchanged.
+        textures[handle].imageInfo.sampler = newSampler;
+
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.dstBinding = BINDINGS::TEXTURE;
+        write.descriptorCount = 1;
+        write.pImageInfo = &textures[handle].imageInfo;
+        write.dstArrayElement = handle;
+        for (int i = 0; i < BGLSwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+            write.dstSet = bindlessDescriptorSet[i];
+            vkUpdateDescriptorSets(BGLDevice::device(), 1, &write, 0, nullptr);
+        }
+    }
+
     uint32_t BGLBindlessDescriptorManager::storeTexture(
         VkDescriptorImageInfo imageInfo,
         VkDeviceMemory memory,
@@ -388,7 +448,9 @@ namespace bagel {
             //Destroy existing data at the _handle index (only if owned)
             if (textures[handle].isOwned) {
                 vkDestroyImageView(BGLDevice::device(), textures[handle].imageInfo.imageView, nullptr);
-                vkDestroySampler(BGLDevice::device(), textures[handle].imageInfo.sampler, nullptr);
+                // Sampler intentionally not destroyed — it's the shared sampler owned by
+                // BGLTextureLoader (see destructor note); freeing it here would kill it for
+                // every other texture that references it.
                 vkDestroyImage(BGLDevice::device(), textures[handle].image, nullptr);
                 vkFreeMemory(BGLDevice::device(), textures[handle].memory, nullptr);
             }

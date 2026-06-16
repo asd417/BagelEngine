@@ -158,7 +158,7 @@ namespace bagel {
 
 	template<class Archive>
 	void serialize(Archive& ar, PointLightComponent& c) {
-		ar(c.color, c.radius, c.bloomHaloRadius, c.lux); // all authored
+		ar(c.color, c.lux); // all authored
 	}
 
 	template<class Archive>
@@ -186,7 +186,9 @@ namespace bagel {
 	// isn't serialized, so we can't derive the valid range any other way).
 	template<class Archive>
 	void serializeModelRecipe(Archive& ar, ModelComponent& c) {
-		ar(c.loadSettings, c.frustumCull, c.materialCount);
+		// skinIndex is the per-entity authored state; the skin block itself (skinBase/numSlots/
+		// numSkins) is transient and rebuilt from the .yaml sidecar by the loader on rehydrate.
+		ar(c.loadSettings, c.frustumCull, c.skinIndex, c.materialCount);
 		for (std::uint32_t i = 0; i < c.materialCount && i < ModelComponent::MAX_MATERIALS; ++i)
 			ar(c.materialSources[i]);
 	}

@@ -10,6 +10,7 @@
 // STL includes
 #include <iostream>
 #include <stdexcept>
+#include <cmath>
 #include <array>
 #include <chrono>
 #include <thread>
@@ -39,16 +40,17 @@
 
 #define GLOBAL_DESCRIPTOR_COUNT 1000
 
-namespace bagel {
+namespace bagel
+{
 
 	Application::Application()
 	{
 		globalPool = BGLDescriptorPool::Builder(bglDevice)
-			.setMaxSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,          BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT + BGLSwapChain::MAX_FRAMES_IN_FLIGHT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT + 10)
-			.build();
+						 .setMaxSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
+						 .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
+						 .addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT + BGLSwapChain::MAX_FRAMES_IN_FLIGHT)
+						 .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT + 10)
+						 .build();
 
 		descriptorManager = std::make_unique<BGLBindlessDescriptorManager>(bglDevice, *globalPool);
 		descriptorManager->createBindlessDescriptorSet(GLOBAL_DESCRIPTOR_COUNT);
@@ -66,6 +68,7 @@ namespace bagel {
 		initJolt();
 		materialManager = std::make_unique<BGLMaterialManager>(bglDevice, *globalPool, *descriptorManager);
 		fallbackAlbedoMap = materialManager->loadTexture("/materials/grid.png");
+		skinManager = std::make_unique<BGLSkinManager>(bglDevice, *descriptorManager);
 	}
 
 	Application::~Application()
@@ -73,6 +76,91 @@ namespace bagel {
 		ImGui_ImplVulkan_Shutdown();
 		vkDestroyDescriptorPool(BGLDevice::device(), imguiPool, nullptr);
 	}
+
+	void Application::updateDirectionalUBO(entt::registry &registry, GlobalUBO &ubo, glm::vec3 camPos, glm::vec3 camFwd, float aspect)
+	{
+		auto dirView = registry.view<DirectionalLightComponent>();
+		if (!dirView.empty())
+		{
+			// only works with 1 directional light.
+			auto &dlc = dirView.get<DirectionalLightComponent>(*dirView.begin());
+
+			float pitch = glm::radians(dlc.rotation.x);
+			float yaw = glm::radians(dlc.rotation.y);
+			float c2 = cosf(pitch), s2 = sinf(pitch);
+			float c1 = cosf(yaw), s1 = sinf(yaw);
+			glm::vec3 u{c1, 0.f, -s1};
+			glm::vec3 v{-s1 * s2, -c2, -c1 * s2};
+			glm::vec3 w{-c2 * s1, s2, -c1 * c2};
+
+			float tanY = tanf(glm::radians(100.0f) * 0.5f); // must match setPerspectiveProjection above
+			float tanX = tanY * aspect;
+			float k = tanX * tanX + tanY * tanY;
+
+			float sliceNear = 0.1f; // camera near plane
+			for (uint32_t ci = 0; ci < SHADOW_CASCADE_COUNT; ci++)
+			{
+				float n = sliceNear;
+				float f = dlc.cascadeEnds[ci];
+
+				// Bounding sphere of the frustum slice: centre on the view axis at depth cz,
+				// radius from whichever corner ring (near or far) is farther from it
+				float cz = 0.5f * (n + f) * (1.f + k);
+				if (cz > f)
+					cz = f;
+				float rNear = sqrtf(n * n * k + (n - cz) * (n - cz));
+				float rFar = sqrtf(f * f * k + (f - cz) * (f - cz));
+				float r = fmaxf(rNear, rFar);
+				glm::vec3 center = camPos + camFwd * cz;
+
+				// Snap the centre to the texel grid in the light's uv plane
+				float texel = (2.f * r) / float(ShadowMapBuffer::RESOLUTIONS[ci]);
+				float cu = floorf(glm::dot(u, center) / texel) * texel;
+				float cv = floorf(glm::dot(v, center) / texel) * texel;
+				center = u * cu + v * cv + w * glm::dot(w, center);
+
+				// Pull the light back so casters up to casterRange behind the slice still render
+				glm::vec3 lightPos = center - w * (r + dlc.casterRange);
+				float zRange = 2.f * r + dlc.casterRange;
+
+				glm::mat4 lightView{1.f};
+				lightView[0][0] = u.x;
+				lightView[1][0] = u.y;
+				lightView[2][0] = u.z;
+				lightView[0][1] = v.x;
+				lightView[1][1] = v.y;
+				lightView[2][1] = v.z;
+				lightView[0][2] = w.x;
+				lightView[1][2] = w.y;
+				lightView[2][2] = w.z;
+				lightView[3][0] = -glm::dot(u, lightPos);
+				lightView[3][1] = -glm::dot(v, lightPos);
+				lightView[3][2] = -glm::dot(w, lightPos);
+
+				glm::mat4 lightProj{0.f};
+				lightProj[0][0] = 1.f / r;
+				lightProj[1][1] = 1.f / r;
+				lightProj[2][2] = 1.f / zRange;
+				lightProj[3][3] = 1.f;
+				// No coordinate flip: shadow depth maps linearly [light->0, far->1]
+
+				ubo.directionalLight.lightSpaceMatrix[ci] = lightProj * lightView;
+				sliceNear = f;
+			}
+
+			ubo.directionalLight.cascadeSplits = dlc.cascadeEnds;
+			ubo.directionalLight.direction = glm::vec4(w, 0.0f);
+			ubo.directionalLight.color = glm::vec4(dlc.color.x, dlc.color.y, dlc.color.z, dlc.lux);
+			ubo.shadowBiasMin = dlc.shadowBiasMin;
+			ubo.shadowBiasSlope = dlc.shadowBiasSlope;
+			ubo.hasDirLight = 1;
+		}
+		else
+		{
+			ubo.hasDirLight = 0;
+		}
+	}
+	
 
 	void Application::run()
 	{
@@ -100,7 +188,8 @@ namespace bagel {
 		descriptorManager->storeUBOPerFrame(uboInfos, 0);
 
 		uint32_t bloomMipHandles[BGLRenderer::BLOOM_MIPS];
-		for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++) {
+		for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++)
+		{
 			bloomMipHandles[i] = descriptorManager->storeTexture(
 				bglRenderer.getBloomMipImageInfo(i),
 				bglRenderer.getBloomMipMemory(i),
@@ -114,55 +203,78 @@ namespace bagel {
 			bglRenderer.getRadiosityImage(),
 			"RadiosityBuffer", false, 0, false);
 
-		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = { descriptorManager->getDescriptorSetLayout() };
+		uint32_t smaaEdgeHandle = descriptorManager->storeTexture(
+			bglRenderer.getSmaaEdgeImageInfo(),
+			bglRenderer.getSmaaEdgeMemory(),
+			bglRenderer.getSmaaEdgeImage(),
+			"SmaaEdges", false, 0, false);
+
+		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = {descriptorManager->getDescriptorSetLayout()};
 
 		GBufferRenderSystem gBufferRenderSystem{
 			bglRenderer.getDeferredRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			registry };
+			registry};
+
+		SkinnedGBufferRenderSystem skinnedGBufferRenderSystem{
+			bglRenderer.getDeferredRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager,
+			registry};
 
 		CompositRenderSystem compositRenderSystem{
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			registry };
+			registry};
 
 		WireframeRenderSystem wireframeRenderSystem{
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
 			registry,
-			bglDevice };
+			bglDevice};
 
 		PointLightSystem pointLightSystem{
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
 			registry,
-			bglDevice };
+			bglDevice};
 
 		BloomRenderSystem bloomRenderSystem{
 			bglRenderer.getBloomMipRenderPassClear(0),
 			pipelineDescriptorSetLayouts,
-			descriptorManager };
+			descriptorManager};
 
 		RadiosityRenderSystem radiosityRenderSystem{
 			bglRenderer.getRadiosityRenderPass(),
 			pipelineDescriptorSetLayouts,
-			descriptorManager };
+			descriptorManager};
+		
+		SmaaEdgeRenderSystem smaaEdgeRenderSystem{
+			bglRenderer.getSmaaEdgeRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager};
+
+		SkinnedShadowRenderSystem skinnedShadowRenderSystem{
+			bglRenderer.getShadowMapRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager,
+			registry};
 
 		ShadowRenderSystem shadowRenderSystem{
 			bglRenderer.getShadowMapRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			registry };
+			registry};
 
 		TransparentRenderSystem transparentRenderSystem{
 			bglRenderer.getTransparentRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
-			registry };
+			registry};
 
 		{
 			VkImageView shadowViews[BGLBindlessDescriptorManager::SHADOW_MAP_CASCADE_COUNT];
@@ -181,7 +293,7 @@ namespace bagel {
 
 		initCommand();
 
-		BGLJolt::GetInstance()->SetGravity({0,-0.0f,0});
+		BGLJolt::GetInstance()->SetGravity({0, -0.0f, 0});
 		BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
 		BGLJolt::GetInstance()->SetComponentActivityAll(true);
 
@@ -189,33 +301,49 @@ namespace bagel {
 
 		// Game loop
 		float fpsAccum = 0.0f;
-		int   fpsFrames = 0;
+		int fpsFrames = 0;
 		float totalTime = 0.0f;
 
 		// Per-section profiling accumulators (ms totals + sample counts)
 		using Clock = std::chrono::high_resolution_clock;
-		struct PerfSection { double total = 0.0; int n = 0; };
-		enum Sect {
-			S_POLL, S_CAMERA, S_UPDATE, S_HIERARCHY, S_PHYSICS,
-			S_UBO, S_IMGUI, S_BEGINCMD, S_GBUFFER, S_BLOOM, S_COMPOSITE, S_ENDCMD,
+		struct PerfSection
+		{
+			double total = 0.0;
+			int n = 0;
+		};
+		enum Sect
+		{
+			S_POLL,
+			S_CAMERA,
+			S_UPDATE,
+			S_HIERARCHY,
+			S_PHYSICS,
+			S_UBO,
+			S_IMGUI,
+			S_BEGINCMD,
+			S_GBUFFER,
+			S_BLOOM,
+			S_COMPOSITE,
+			S_ENDCMD,
 			S_COUNT
 		};
-		static const char* sectName[S_COUNT] = {
+		static const char *sectName[S_COUNT] = {
 			"poll_events", "camera     ", "on_update  ", "hierarchy  ", "physics    ",
 			"ubo+lights ", "imgui      ", "begin_cmd  ", "gbuffer    ", "bloom      ",
-			"composite  ", "end_cmd    "
-		};
+			"composite  ", "end_cmd    "};
 		PerfSection perf[S_COUNT]{};
 		double profAccum = 0.0;
-		int    profFrames = 0;
+		int profFrames = 0;
 		double sectMs[S_COUNT]{};
-		auto recordSection = [&](Sect s, double ms) {
+		auto recordSection = [&](Sect s, double ms)
+		{
 			sectMs[s] = ms;
 			perf[s].total += ms;
 			perf[s].n++;
 		};
 
-		auto tMs = [](Clock::time_point a, Clock::time_point b) {
+		auto tMs = [](Clock::time_point a, Clock::time_point b)
+		{
 			return std::chrono::duration<double, std::milli>(b - a).count();
 		};
 
@@ -223,7 +351,8 @@ namespace bagel {
 
 #ifdef _WIN32
 		HANDLE hFpsTimer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-		if (!hFpsTimer) hFpsTimer = CreateWaitableTimerW(nullptr, FALSE, nullptr); // fallback for older Windows 10
+		if (!hFpsTimer)
+			hFpsTimer = CreateWaitableTimerW(nullptr, FALSE, nullptr); // fallback for older Windows 10
 #endif
 
 		bool gravePrev = false; // edge-detect the ` key for the ImGui toggle
@@ -238,7 +367,8 @@ namespace bagel {
 			// ignored while an ImGui text field is focused so it doesn't eat the keystroke.
 			{
 				bool graveDown = glfwGetKey(bglWindow.getGLFWWindow(), GLFW_KEY_GRAVE_ACCENT) == GLFW_PRESS;
-				if (graveDown && !gravePrev && !ImGui::GetIO().WantTextInput) showImgui = !showImgui;
+				if (graveDown && !gravePrev && !ImGui::GetIO().WantTextInput)
+					showImgui = !showImgui;
 				gravePrev = graveDown;
 			}
 
@@ -248,12 +378,15 @@ namespace bagel {
 			totalTime += frameTime;
 
 			t0 = Clock::now();
-			if (freeFly) cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject, 0);
+			if (freeFly)
+				cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject, 0);
 			camera.setViewYXZ(viewerObject.transform.getTranslation(), viewerObject.transform.getRotation());
-			float aspect = bglRenderer.getAspectRatio();
+			glm::vec3 camPos = viewerObject.transform.getTranslation();
+			glm::vec3 camFwd = -glm::vec3(camera.getInverseView()[2]); // camera images along -w of its basis
+			float aspect = bglRenderer.getAspectRatio(); //aspect ratio might change due to window resize
 			camera.setPerspectiveProjection(glm::radians(100.0f), aspect, 0.1f, 300.0f);
 			recordSection(S_CAMERA, tMs(t0, Clock::now()));
-
+				
 			t0 = Clock::now();
 			OnUpdate(frameTime);
 			recordSection(S_UPDATE, tMs(t0, Clock::now()));
@@ -264,7 +397,8 @@ namespace bagel {
 			recordSection(S_HIERARCHY, tMs(t0, Clock::now()));
 
 			t0 = Clock::now();
-			if (runPhys) {
+			if (runPhys)
+			{
 				BGLJolt::GetInstance()->ApplyTransformToKinematic(frameTime);
 				BGLJolt::GetInstance()->Step(frameTime, 3);
 				BGLJolt::GetInstance()->ApplyPhysicsTransform();
@@ -273,148 +407,29 @@ namespace bagel {
 
 			t0 = Clock::now();
 			GlobalUBO ubo{};
-			ubo.updateCameraInfo(camera.getProjection(), camera.getView(), camera.getInverseView(),
-				glm::inverse(camera.getProjection() * camera.getView()));
+			ubo.updateCameraInfo(camera.getProjection(), camera.getView(), camera.getInverseView(),glm::inverse(camera.getProjection() * camera.getView()), exposure);
 			pointLightSystem.update(ubo, 0);
-			ubo.exposure = exposure;
-
-			// Directional light: build one light-space view-projection per shadow cascade.
-			// The light looks along +w (lightProj maps light-space z in [0,zRange] to depth [0,1]).
-			// The camera, due to xSpaceTransformMatrix, images along -w of its setViewYXZ basis,
-			// so the basis below is setViewYXZ's rotated 180 degrees about u: positive pitch
-			// aims the light downward (+Y is down) to match the camera's rotation convention.
-			// Each cascade fits the bounding sphere of its camera-frustum slice (sphere -> ortho
-			// size is rotation-invariant) and snaps its centre to the shadow texel grid so
-			// shadow edges don't swim as the camera moves.
-			{
-				auto dirView = registry.view<DirectionalLightComponent>();
-				if (!dirView.empty()) {
-					// only works with 1 directional light.
-					auto& dlc = dirView.get<DirectionalLightComponent>(*dirView.begin());
-
-					float pitch = glm::radians(dlc.rotation.x);
-					float yaw   = glm::radians(dlc.rotation.y);
-					float c2 = cosf(pitch), s2 = sinf(pitch);
-					float c1 = cosf(yaw),   s1 = sinf(yaw);
-					glm::vec3 u{  c1,     0.f,  -s1    };
-					glm::vec3 v{ -s1*s2, -c2,  -c1*s2 };
-					glm::vec3 w{ -c2*s1,  s2,  -c1*c2 };
-
-					glm::vec3 camPos = viewerObject.transform.getTranslation();
-					glm::vec3 camFwd = -glm::vec3(camera.getInverseView()[2]); // camera images along -w of its basis
-					float tanY = tanf(glm::radians(100.0f) * 0.5f); // must match setPerspectiveProjection above
-					float tanX = tanY * aspect;
-					float k    = tanX * tanX + tanY * tanY;
-
-					float sliceNear = 0.1f; // camera near plane
-					for (uint32_t ci = 0; ci < SHADOW_CASCADE_COUNT; ci++) {
-						float n = sliceNear;
-						float f = dlc.cascadeEnds[ci];
-
-						// Bounding sphere of the frustum slice: centre on the view axis at depth cz,
-						// radius from whichever corner ring (near or far) is farther from it
-						float cz = 0.5f * (n + f) * (1.f + k);
-						if (cz > f) cz = f;
-						float rNear = sqrtf(n*n*k + (n - cz)*(n - cz));
-						float rFar  = sqrtf(f*f*k + (f - cz)*(f - cz));
-						float r     = fmaxf(rNear, rFar);
-						glm::vec3 center = camPos + camFwd * cz;
-
-						// Snap the centre to the texel grid in the light's uv plane
-						float texel = (2.f * r) / float(ShadowMapBuffer::RESOLUTIONS[ci]);
-						float cu = floorf(glm::dot(u, center) / texel) * texel;
-						float cv = floorf(glm::dot(v, center) / texel) * texel;
-						center = u * cu + v * cv + w * glm::dot(w, center);
-
-						// Pull the light back so casters up to casterRange behind the slice still render
-						glm::vec3 lightPos = center - w * (r + dlc.casterRange);
-						float zRange = 2.f * r + dlc.casterRange;
-
-						glm::mat4 lightView{ 1.f };
-						lightView[0][0] = u.x; lightView[1][0] = u.y; lightView[2][0] = u.z;
-						lightView[0][1] = v.x; lightView[1][1] = v.y; lightView[2][1] = v.z;
-						lightView[0][2] = w.x; lightView[1][2] = w.y; lightView[2][2] = w.z;
-						lightView[3][0] = -glm::dot(u, lightPos);
-						lightView[3][1] = -glm::dot(v, lightPos);
-						lightView[3][2] = -glm::dot(w, lightPos);
-
-						glm::mat4 lightProj{ 0.f };
-						lightProj[0][0] = 1.f / r;
-						lightProj[1][1] = 1.f / r;
-						lightProj[2][2] = 1.f / zRange;
-						lightProj[3][3] = 1.f;
-						// No coordinate flip: shadow depth maps linearly [light->0, far->1]
-
-						ubo.directionalLight.lightSpaceMatrix[ci] = lightProj * lightView;
-						sliceNear = f;
-					}
-
-					ubo.directionalLight.cascadeSplits = dlc.cascadeEnds;
-					ubo.directionalLight.direction = glm::vec4(w, 0.0f);
-					ubo.directionalLight.color     = glm::vec4(dlc.color.x, dlc.color.y, dlc.color.z, dlc.lux);
-					ubo.shadowBiasMin   = dlc.shadowBiasMin;
-					ubo.shadowBiasSlope = dlc.shadowBiasSlope;
-					ubo.hasDirLight = 1;
-				} else {
-					ubo.hasDirLight = 0;
-				}
-			}
+			updateDirectionalUBO(registry, ubo, camPos, camFwd, aspect);
 			recordSection(S_UBO, tMs(t0, Clock::now()));
 
-			t0 = Clock::now();
-			ImGui_ImplVulkan_NewFrame();
-			ImGui_ImplGlfw_NewFrame();
-			ImGui::NewFrame();
 			// Panels are built only when visible (toggled by `). NewFrame/Render still run
 			// every frame so the ImGui backend stays balanced — it just emits empty draw data.
-			if (showImgui) {
-			// Let the derived app draw its own panels and mutate the scene/registry
-			// before anything reads it this frame (e.g. map build/load buttons).
-			OnDrawGui();
-			VkExtent2D ext = bglRenderer.getExtent();
-			if(showInfo) DrawInfoPanels(registry, ext.width, ext.height, camera.getProjection(), camera.getView());
-			ConsoleApp::Instance()->Draw("Console", nullptr);
-			ImGui::Begin("Settings");
-			ImGui::SliderFloat("Mouse Sensitivity", &cameraController.mouseSensitivity, 0.05f, 0.3f);
-			ImGui::Separator();
+			t0 = Clock::now();
+			if (showImgui)
 			{
-				auto dirView = registry.view<DirectionalLightComponent>();
-				if (!dirView.empty()) {
-					auto& dlc = dirView.get<DirectionalLightComponent>(*dirView.begin());
-					ImGui::Text("Shadow Cascades");
-					ImGui::SliderFloat("Cascade 0 End", &dlc.cascadeEnds.x, 0.001f,  20.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
-					ImGui::SliderFloat("Cascade 1 End", &dlc.cascadeEnds.y, 0.001f,  30.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
-					ImGui::SliderFloat("Cascade 2 End", &dlc.cascadeEnds.z, 0.001f, 70.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
-					ImGui::SliderFloat("Cascade 3 End", &dlc.cascadeEnds.w, 0.001f, 100.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
-					// keep the splits strictly increasing
-					//dlc.cascadeEnds.y = fmaxf(dlc.cascadeEnds.y, dlc.cascadeEnds.x + 0.1f);
-					//dlc.cascadeEnds.z = fmaxf(dlc.cascadeEnds.z, dlc.cascadeEnds.y + 0.1f);
-					//dlc.cascadeEnds.w = fmaxf(dlc.cascadeEnds.w, dlc.cascadeEnds.z + 0.1f);
-					ImGui::SliderFloat("Caster Range", &dlc.casterRange, 10.0f, 2000.0f);
-					ImGui::SliderFloat("Shadow Bias",       &dlc.shadowBiasMin,   0.0f, 0.02f, "%.4f");
-					ImGui::SliderFloat("Shadow Bias Slope", &dlc.shadowBiasSlope, 0.0f, 0.05f, "%.4f");
-					ImGui::Separator();
-				}
-			}
-			ImGui::Checkbox("Bloom", &bloomEnabled);
-			if (bloomEnabled) {
-				ImGui::SliderFloat("Bloom Intensity", &bloomIntensity, 0.0f, 2.0f);
-				ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.001f, 2.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
-				ImGui::SliderFloat("Bloom Mip Decay", &bloomMipDecay, 0.5f, 1.0f);
-				ImGui::SliderFloat("Exposure", &exposure, 0.001f, 2.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
-			}
-			ImGui::End();
+				drawImgui(camera, cameraController, smaaEdgeRenderSystem);
 			} // showImgui
-			ImGui::Render();
 			recordSection(S_IMGUI, tMs(t0, Clock::now()));
 
-			if (vsyncDirty) {
+			if (vsyncDirty)
+			{
 				vsyncDirty = false;
 				bglRenderer.applyVsync(vsync);
 			}
 
 			// Re-register G-buffer, radiosity, and bloom mip descriptor entries after a window resize
-			if (bglRenderer.consumeGBufferRecreated()) {
+			if (bglRenderer.consumeGBufferRecreated())
+			{
 				descriptorManager->writeDeferredRenderTargetToDescriptor(
 					bglRenderer.getDRSampler(),
 					bglRenderer.getDRDepthView(),
@@ -423,10 +438,16 @@ namespace bagel {
 					bglRenderer.getDREmissionView());
 				descriptorManager->storeTexture(
 					bglRenderer.getRadiosityImageInfo(),
-					bglRenderer.getRadiosityMemory(),//dsad
+					bglRenderer.getRadiosityMemory(),
 					bglRenderer.getRadiosityImage(),
 					"RadiosityBuffer", true, radiosityHandle, false);
-				for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++) {
+				descriptorManager->storeTexture(
+					bglRenderer.getSmaaEdgeImageInfo(),
+					bglRenderer.getSmaaEdgeMemory(),
+					bglRenderer.getSmaaEdgeImage(),
+					"SmaaEdges", true, smaaEdgeHandle, false);
+				for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++)
+				{
 					descriptorManager->storeTexture(
 						bglRenderer.getBloomMipImageInfo(i),
 						bglRenderer.getBloomMipMemory(i),
@@ -439,7 +460,8 @@ namespace bagel {
 			auto primaryCommandBuffer = bglRenderer.beginPrimaryCMD();
 			recordSection(S_BEGINCMD, tMs(t0, Clock::now()));
 
-			if (primaryCommandBuffer) {
+			if (primaryCommandBuffer)
+			{
 				FrameInfo frameInfo{
 					frameTime,
 					totalTime,
@@ -447,77 +469,122 @@ namespace bagel {
 					camera,
 					descriptorManager->getDescriptorSet(bglRenderer.getFrameIndex()),
 					registry,
-					fallbackAlbedoMap
-				};
+					fallbackAlbedoMap};
+
+				// Advance skeletal animation once per frame, BEFORE the shadow and g-buffer
+				// passes sample the pose — otherwise the shadow silhouette would lag the
+				// deformed mesh by a frame (or render the bind pose entirely).
+				for (auto [animEnt, anim] : registry.view<AnimationComponent>().each())
+				{
+					if (!anim.playing)
+						continue;
+					anim.time += frameTime;
+					const float dur = anim.clipDuration(anim.clip);
+					if (dur > 0.0f && anim.time > dur)
+						anim.time = anim.loop ? std::fmod(anim.time, dur) : dur;
+				}
 
 				int frameIdx = bglRenderer.getFrameIndex();
 				uboBuffers->writeToIndex(&ubo, frameIdx);
 				uboBuffers->flushIndex(frameIdx);
 
-				compositRenderSystem.pushParams.debugMode       = (uint32_t)gbufferDebugMode;
-				compositRenderSystem.pushParams.bloomHandle     = bloomEnabled ? bloomMipHandles[0] : 0u;
-				compositRenderSystem.pushParams.bloomIntensity  = bloomIntensity;
+				compositRenderSystem.pushParams.debugMode = (uint32_t)gbufferDebugMode;
+				compositRenderSystem.pushParams.bloomHandle = bloomEnabled ? bloomMipHandles[0] : 0u;
+				compositRenderSystem.pushParams.bloomIntensity = bloomIntensity;
 				compositRenderSystem.pushParams.radiosityHandle = radiosityHandle;
+				compositRenderSystem.pushParams.smaaEdgeHandle = smaaEdgeHandle;
 
 				t0 = Clock::now();
-				if (ubo.hasDirLight) {
-					for (uint32_t ci = 0; ci < SHADOW_CASCADE_COUNT; ci++) {
+				if (ubo.hasDirLight)
+				{
+					bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "Shadow");
+					for (uint32_t ci = 0; ci < SHADOW_CASCADE_COUNT; ci++)
+					{
 						bglRenderer.beginShadowMapPass(primaryCommandBuffer, ci);
 						shadowRenderSystem.renderShadowCasters(frameInfo, ci);
+						skinnedShadowRenderSystem.renderShadowCasters(frameInfo, ci);
 						bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 					}
+					bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 				}
 				// gbuffer_fill
+				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "gbuffer_fill");
 				bglRenderer.beginDeferredRenderPass(primaryCommandBuffer);
 				gBufferRenderSystem.renderEntities(frameInfo);
+				skinnedGBufferRenderSystem.renderEntities(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 				// radiosity
+				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "radiosity");
 				bglRenderer.beginRadiosityPass(primaryCommandBuffer);
 				radiosityRenderSystem.render(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 				recordSection(S_GBUFFER, tMs(t0, Clock::now()));
-
 				// Forward transparent: blend HDR transparent lighting into the radiosity buffer
 				// (no tonemap — composite does that), depth-tested read-only against the opaque
 				// G-buffer depth. Bloom and composite then consume the combined radiosity buffer.
+				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "transparent");
 				bglRenderer.beginTransparentPass(primaryCommandBuffer);
 				transparentRenderSystem.renderEntities(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 
 				// bloom (downsamples the radiosity buffer, now including transparent)
 				t0 = Clock::now();
-				if (bloomEnabled) {
-					for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++) {
+				if (bloomEnabled)
+				{
+					for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++)
+					{
+						bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "bloom_down");
 						bglRenderer.beginBloomDownsamplePass(primaryCommandBuffer, i);
 						BloomDownPush dp{};
 						dp.inputHandle = (i == 0) ? radiosityHandle : bloomMipHandles[i - 1];
-						dp.threshold   = (i == 0) ? bloomThreshold : 0.0f;
-						dp.intensity   = 1.0f;
+						dp.threshold = (i == 0) ? bloomThreshold : 0.0f;
+						dp.intensity = 1.0f;
 						bloomRenderSystem.renderDownsample(frameInfo, dp);
 						bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+						bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 					}
 
-					for (int i = (int)BGLRenderer::BLOOM_MIPS - 2; i >= 0; i--) {
+					for (int i = (int)BGLRenderer::BLOOM_MIPS - 2; i >= 0; i--)
+					{
+						bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "bloom_up");
 						bglRenderer.beginBloomUpsamplePass(primaryCommandBuffer, i);
 						BloomUpPush up{};
-						up.inputHandle  = bloomMipHandles[i + 1];
+						up.inputHandle = bloomMipHandles[i + 1];
 						up.filterRadius = 1.0f;
 						up.weight = powf(bloomMipDecay, float(i));
 						bloomRenderSystem.renderUpsample(frameInfo, up);
 						bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+						bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 					}
 				}
 				recordSection(S_BLOOM, tMs(t0, Clock::now()));
 
+				// SMAA 1x edge detection on the lit scene (radiosity buffer). Writes the RG edges
+				// target sampled by the composite debug view (r_drawmode) and later SMAA passes.
+				// NOTE: input is the HDR radiosity buffer for now; ideally the post-tonemap composite
+				// output, which needs composite redirected to an offscreen target first.
+				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "smaa_edge");
+				bglRenderer.beginSmaaEdgePass(primaryCommandBuffer);
+				smaaEdgeRenderSystem.render(frameInfo, radiosityHandle);
+				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
+
 				// composite (radiosity + bloom -> tonemap -> swapchain) + debug overlays + ImGui
 				t0 = Clock::now();
 				bglRenderer.blitGBufferDepthToSwapchain(primaryCommandBuffer);
+				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "composite");
 				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
 				compositRenderSystem.render(frameInfo);
-				if (showWireframe) wireframeRenderSystem.renderEntities(frameInfo);
-				if (drawBBox) wireframeRenderSystem.renderBBoxes(frameInfo);
+				if (showWireframe)
+					wireframeRenderSystem.renderEntities(frameInfo);
+				if (drawBBox)
+					wireframeRenderSystem.renderBBoxes(frameInfo);
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), primaryCommandBuffer);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 				recordSection(S_COMPOSITE, tMs(t0, Clock::now()));
 
 				t0 = Clock::now();
@@ -525,51 +592,56 @@ namespace bagel {
 				recordSection(S_ENDCMD, tMs(t0, Clock::now()));
 			}
 
-			if (stutterDetect && frameTime * 1000.0f > stutterThresholdMs) {
+			if (stutterDetect && frameTime * 1000.0f > stutterThresholdMs)
+			{
 				// find the section that took the most time this frame
 				int worst = 0;
 				for (int s = 1; s < S_COUNT; s++)
-					if (sectMs[s] > sectMs[worst]) worst = s;
+					if (sectMs[s] > sectMs[worst])
+						worst = s;
 				printf("[STUTTER] %.1f ms (%.0f fps) | worst: %s %.3f ms\n",
-					frameTime * 1000.0f, 1.0f / frameTime,
-					sectName[worst], sectMs[worst]);
+					   frameTime * 1000.0f, 1.0f / frameTime,
+					   sectName[worst], sectMs[worst]);
 			}
 
-			if (showFPS) {
-				fpsAccum += frameTime;
-				fpsFrames++;
-				if (fpsAccum >= 1.0f) {
-					std::cout << fpsFrames << " fps\n";
-					fpsAccum = 0.0f;
-					fpsFrames = 0;
-				}
-			}
-
-			if (showProfile) {
+			if (showProfile)
+			{
 				profAccum += frameTime;
 				profFrames++;
-				if (profAccum >= 1.0) {
+				if (profAccum >= 1.0)
+				{
 					double cpuSum = 0.0;
-					for (int s = 0; s < S_COUNT; s++) cpuSum += perf[s].total;
+					for (int s = 0; s < S_COUNT; s++)
+						cpuSum += perf[s].total;
 					printf("=== Profile (%d frames, cpu_sum=%.3f ms) ===\n", profFrames, cpuSum / profFrames);
-					for (int s = 0; s < S_COUNT; s++) {
+					for (int s = 0; s < S_COUNT; s++)
+					{
 						double avg = perf[s].n > 0 ? perf[s].total / perf[s].n : 0.0;
 						double pct = cpuSum > 0.0 ? avg / (cpuSum / profFrames) * 100.0 : 0.0;
 						char note = ' ';
-						if (s == S_BEGINCMD) note = '*'; // fence wait / image acquire
-						if (s == S_ENDCMD)   note = '*'; // queue submit + present
+						if (s == S_BEGINCMD)
+							note = '*'; // fence wait / image acquire
+						if (s == S_ENDCMD)
+							note = '*'; // queue submit + present
 						printf("  %c %s : %7.3f ms  (%5.1f%%)\n", note, sectName[s], avg, pct);
 					}
 					printf("  * = includes GPU sync point\n\n");
-					for (int s = 0; s < S_COUNT; s++) { perf[s].total = 0.0; perf[s].n = 0; }
-					profAccum = 0.0; profFrames = 0;
+					for (int s = 0; s < S_COUNT; s++)
+					{
+						perf[s].total = 0.0;
+						perf[s].n = 0;
+					}
+					profAccum = 0.0;
+					profFrames = 0;
 				}
 			}
-			if (maxFps > 0) {
+			if (maxFps > 0)
+			{
 				double targetMs = 1000.0 / maxFps;
 				double elapsedMs = tMs(newTime, Clock::now());
 				double sleepMs = targetMs - elapsedMs;
-				if (sleepMs > 0.5) {
+				if (sleepMs > 0.5)
+				{
 #ifdef _WIN32
 					LARGE_INTEGER ft;
 					ft.QuadPart = -(LONGLONG)(sleepMs * 10000.0); // 100-ns units, negative = relative
@@ -582,25 +654,32 @@ namespace bagel {
 			}
 		}
 #ifdef _WIN32
-		if (hFpsTimer) CloseHandle(hFpsTimer);
+		if (hFpsTimer)
+			CloseHandle(hFpsTimer);
 #endif
 		vkDeviceWaitIdle(BGLDevice::device());
 	}
 
-
 	void Application::initCommand()
 	{
-		CONSOLE->AddCommand("FREEFLY",        this, ConsoleCommand::ToggleFly);
-		CONSOLE->AddCommand("TOGGLEPHYSICS",  this, ConsoleCommand::TogglePhys);
-		CONSOLE->AddCommand("SHOWFPS",        this, ConsoleCommand::ShowFPS);
-		CONSOLE->AddCommand("SHOWINFO",       this, ConsoleCommand::ShowInfo);
-		CONSOLE->AddCommand("SHOWWIREFRAME",  this, ConsoleCommand::ShowWireframe);
-		CONSOLE->AddCommand("R_DRAWBBOX",     this, ConsoleCommand::DrawBBox);
-		CONSOLE->AddCommand("PROFILE",        this, ConsoleCommand::ShowProfile);
-		CONSOLE->AddCommandWithArg("R_DRAWMODE",  this, ConsoleCommand::SetDrawMode);
+		CONSOLE->AddCommand("FREEFLY", this, ConsoleCommand::ToggleFly);
+		CONSOLE->AddCommand("TOGGLEPHYSICS", this, ConsoleCommand::TogglePhys);
+		CONSOLE->AddCommand("SHOWINFO", this, ConsoleCommand::ShowInfo);
+		CONSOLE->AddCommand("SHOWWIREFRAME", this, ConsoleCommand::ShowWireframe);
+		CONSOLE->AddCommand("R_DRAWBBOX", this, ConsoleCommand::DrawBBox);
+		CONSOLE->AddCommand("PROFILE", this, ConsoleCommand::ShowProfile);
+		CONSOLE->AddCommandWithArg("R_DRAWMODE", this, ConsoleCommand::SetDrawMode);
 		CONSOLE->AddCommandWithArg("R_DRAWBLOOM", this, ConsoleCommand::SetBloom);
-		CONSOLE->AddCommandWithArg("R_MAXFPS",   this, ConsoleCommand::SetMaxFPS);
-		CONSOLE->AddCommandWithArg("R_VSYNC",    this, ConsoleCommand::SetVSync);
+		CONSOLE->AddCommandWithArg("R_MAXFPS", this, ConsoleCommand::SetMaxFPS);
+		CONSOLE->AddCommandWithArg("R_VSYNC", this, ConsoleCommand::SetVSync);
+		CONSOLE->AddCommandWithArg("SKIN", this, ConsoleCommand::SetSkin);
+		CONSOLE->AddCommandWithArg("R_MIPBIAS", this, ConsoleCommand::SetMipBias);
+	}
+
+	void Application::setTextureMipBias(float bias)
+	{
+		if (materialManager)
+			materialManager->getTextureLoader().setMipLodBias(bias);
 	}
 
 	void Application::initJolt()
@@ -611,19 +690,18 @@ namespace bagel {
 	void Application::initImgui()
 	{
 		VkDescriptorPoolSize pool_sizes[] =
-		{
-			{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-			{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-		};
+			{
+				{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+				{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+				{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+				{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+				{VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+				{VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+				{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+				{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+				{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+				{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+				{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
 
 		VkDescriptorPoolCreateInfo pool_info = {};
 		pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -652,5 +730,59 @@ namespace bagel {
 
 		ImGui_ImplVulkan_Init(&init_info);
 	}
-
+	void Application::drawImgui(BGLCamera& camera, KeyboardMovementController& cameraController, SmaaEdgeRenderSystem& edgeRender)
+	{
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		// Let the derived app draw its own panels and mutate the scene/registry
+		// before anything reads it this frame (e.g. map build/load buttons).
+		OnDrawGui();
+		VkExtent2D ext = bglRenderer.getExtent();
+		if (showInfo)
+			DrawInfoPanels(registry, ext.width, ext.height, camera.getProjection(), camera.getView());
+		ConsoleApp::Instance()->Draw("Console", nullptr);
+		ImGui::Begin("Settings");
+		ImGui::SliderFloat("Mouse Sensitivity", &cameraController.mouseSensitivity, 0.05f, 0.3f);
+		ImGui::Separator();
+		{
+			auto dirView = registry.view<DirectionalLightComponent>();
+			if (!dirView.empty())
+			{
+				auto &dlc = dirView.get<DirectionalLightComponent>(*dirView.begin());
+				ImGui::Text("Shadow Cascades");
+				ImGui::SliderFloat("Cascade 0 End", &dlc.cascadeEnds.x, 0.001f, 20.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+				ImGui::SliderFloat("Cascade 1 End", &dlc.cascadeEnds.y, 0.001f, 30.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+				ImGui::SliderFloat("Cascade 2 End", &dlc.cascadeEnds.z, 0.001f, 70.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+				ImGui::SliderFloat("Cascade 3 End", &dlc.cascadeEnds.w, 0.001f, 100.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+				// keep the splits strictly increasing
+				// dlc.cascadeEnds.y = fmaxf(dlc.cascadeEnds.y, dlc.cascadeEnds.x + 0.1f);
+				// dlc.cascadeEnds.z = fmaxf(dlc.cascadeEnds.z, dlc.cascadeEnds.y + 0.1f);
+				// dlc.cascadeEnds.w = fmaxf(dlc.cascadeEnds.w, dlc.cascadeEnds.z + 0.1f);
+				ImGui::SliderFloat("Caster Range", &dlc.casterRange, 10.0f, 2000.0f);
+				ImGui::SliderFloat("Shadow Bias", &dlc.shadowBiasMin, 0.0f, 0.02f, "%.4f");
+				ImGui::SliderFloat("Shadow Bias Slope", &dlc.shadowBiasSlope, 0.0f, 0.05f, "%.4f");
+				ImGui::Separator();
+			}
+		}
+		ImGui::Checkbox("Bloom", &bloomEnabled);
+		if (bloomEnabled)
+		{
+			ImGui::SliderFloat("Bloom Intensity", &bloomIntensity, 0.0f, 2.0f);
+			ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.001f, 2.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
+			ImGui::SliderFloat("Bloom Mip Decay", &bloomMipDecay, 0.5f, 1.0f);
+			ImGui::SliderFloat("Exposure", &exposure, 0.001f, 2.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
+		}
+		ImGui::Text("SMAA");
+		// Edge detection method: luma (default), color (catches chroma edges, ~2x cost), or
+		// depth (cheapest, geometry-only; wants a much smaller threshold — depth is non-linear).
+		ImGui::Combo("SMAA Edge Method", &edgeRender.edgeMethod, "Luma\0Color\0Depth\0Custom\0");
+		// Log scale can't represent 0 — use a small positive min (like Bloom Threshold) or the
+		// low end of the slider is unusable. SMAA's useful luma-threshold range is ~0.05-0.2.
+		ImGui::SliderFloat("SMAA Threshold", &edgeRender.edgeThreshold, 0.001f, 2.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
+		// Unused by the depth method.
+		ImGui::SliderFloat("SMAA Local Constrast Adaptation", &edgeRender.localConstrastAdapt, 1.0f, 4.0f, "%.4f");
+		ImGui::End();
+		ImGui::Render();
+	}
 } // namespace bagel

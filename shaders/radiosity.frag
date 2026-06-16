@@ -15,24 +15,7 @@ layout(set=0, binding=3) uniform sampler2D gEmission;
 // One shadow map per cascade, each at its own resolution
 layout(set=0, binding=7) uniform sampler2DShadow shadowMaps[CASCADE_COUNT];
 
-layout(set=0, binding=4) uniform GlobalUBO {
-    mat4 projectionMatrix;
-    mat4 viewMatrix;
-    mat4 inverseViewMatrix;
-    vec4 ambientLightColor;
-    PointLight pointLights[MAX_LIGHTS];
-    uint numLights;
-    // std140 auto-aligns vec4 lineColor to 544
-    vec4 lineColor;
-    mat4 invViewProjMatrix;
-    float exposure;
-    // std140 auto-aligns DirectionalLight to 640
-    DirectionalLight directionalLight;
-    uint hasDirLight;
-    uint shadowMapHandle;
-    float shadowBiasMin;
-    float shadowBiasSlope;
-} ubo;
+// GlobalUBO (binding 4) comes from ubo.glsl via pbr.glsl.
 
 // 3x3 PCF via hardware compare (LESS_OR_EQUAL). Returns 1.0 = fully lit, 0.0 = fully shadowed.
 // cascade diverges per fragment, so indexing the sampler array needs nonuniformEXT.

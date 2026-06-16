@@ -2,6 +2,8 @@
 
 #extension GL_KHR_vulkan_glsl : enable
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : require
+#include "pbr.glsl"
 
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
@@ -25,24 +27,7 @@ layout(location=1) out vec3 fragNormalWorld;
 layout(location=2) out vec2 fragUV;
 layout(location=3) out int isInstancedTransform;
 
-struct PointLight {
-	vec4 position; // ignore w
-	vec4 color; // w intensity
-};
-const int MAX_LIGHTS = 10; //Must match value in bagel_frame_info.hpp
-
-layout(set = 0, binding = 4) uniform GlobalUBO {
-	mat4 projectionMatrix;
-	mat4 viewMatrix;
-	mat4 inverseViewMatrix;
-	vec4 ambientLightColor;
-
-	PointLight pointLights[MAX_LIGHTS]; //Can use 'specialization constants' to set the size of this array at pipeline creation
-	uint numLights;
-
-// Line color for wireframe
-	vec4 lineColor;
-} ubo;
+// GlobalUBO (binding 4) comes from ubo.glsl via pbr.glsl.
 
 struct ObjectData{
 	mat4 modelMatrix;

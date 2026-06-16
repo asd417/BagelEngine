@@ -39,6 +39,7 @@ namespace bagel {
 		prepareDeferredRenderFrameBuffer();
 		prepareBloomMips();
 		prepareRadiosityBuffer();
+		prepareSmaaEdgeBuffer();
 		prepareShadowMapBuffer();
 		prepareTransparentPass();          // depends on the radiosity buffer + G-buffer depth
 		buildTransparentFramebuffers();
@@ -186,9 +187,11 @@ namespace bagel {
 			destroyDeferredFrameBuffer();
 			destroyBloomMips();
 			destroyRadiosityBuffer();
+			destroySmaaEdgeBuffer();
 			prepareDeferredRenderFrameBuffer();
 			prepareBloomMips();
 			prepareRadiosityBuffer();
+			prepareSmaaEdgeBuffer();
 			gbufferExtent = newExtent;
 			gbufferRecreated = true;
 		}
@@ -260,7 +263,10 @@ namespace bagel {
 		srcBarrier.srcAccessMask       = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 		srcBarrier.dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT;
 
-		// Use UNDEFINED as old layout so Vulkan discards previous swapchain depth contents (correct on first frame too)
+		// Use UNDEFINED as old layout so Vulkan discards previous swapchain depth contents (correct on
+		// first frame too) — the blit overwrites the whole image, and assuming a specific prior layout
+		// (e.g. READ_ONLY) trips a layout-mismatch validation error when the swapchain pass left it
+		// in DEPTH_STENCIL_ATTACHMENT_OPTIMAL.
 		VkImageMemoryBarrier dstBarrier{};
 		dstBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		dstBarrier.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -787,6 +793,115 @@ namespace bagel {
 		vkCmdSetScissor(commandBuffer, 0, 1, &sc);
 	}
 
+	void BGLRenderer::prepareSmaaEdgeBuffer()
+	{
+		// Single RG8 color target, screen-sized. Same render-pass shape as the radiosity buffer:
+		// CLEAR on load (the edge shader discards non-edge pixels, so cleared 0 = "no edge"),
+		// finalLayout SHADER_READ so later passes / the debug view can sample it.
+		auto sc = bglSwapChain->getSwapChainExtent();
+		smaaEdgeBuffer.width  = sc.width;
+		smaaEdgeBuffer.height = sc.height;
+
+		createAttachment(VK_FORMAT_R8G8_UNORM,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			&smaaEdgeBuffer.color,
+			smaaEdgeBuffer.width, smaaEdgeBuffer.height);
+
+		VkAttachmentDescription desc{};
+		desc.format         = VK_FORMAT_R8G8_UNORM;
+		desc.samples        = VK_SAMPLE_COUNT_1_BIT;
+		desc.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		desc.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+		desc.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		desc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+		desc.finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkAttachmentReference colorRef{ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+
+		VkSubpassDescription subpass{};
+		subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments    = &colorRef;
+
+		std::array<VkSubpassDependency, 2> deps{};
+		deps[0] = { VK_SUBPASS_EXTERNAL, 0,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+			VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			VK_DEPENDENCY_BY_REGION_BIT };
+		deps[1] = { 0, VK_SUBPASS_EXTERNAL,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			VK_ACCESS_SHADER_READ_BIT,
+			VK_DEPENDENCY_BY_REGION_BIT };
+
+		VkRenderPassCreateInfo rpInfo{};
+		rpInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		rpInfo.attachmentCount = 1;
+		rpInfo.pAttachments    = &desc;
+		rpInfo.subpassCount    = 1;
+		rpInfo.pSubpasses      = &subpass;
+		rpInfo.dependencyCount = static_cast<uint32_t>(deps.size());
+		rpInfo.pDependencies   = deps.data();
+		VK_CHECK(vkCreateRenderPass(BGLDevice::device(), &rpInfo, nullptr, &smaaEdgeBuffer.renderPass));
+
+		VkFramebufferCreateInfo fbInfo{};
+		fbInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		fbInfo.renderPass      = smaaEdgeBuffer.renderPass;
+		fbInfo.attachmentCount = 1;
+		fbInfo.pAttachments    = &smaaEdgeBuffer.color.view;
+		fbInfo.width           = smaaEdgeBuffer.width;
+		fbInfo.height          = smaaEdgeBuffer.height;
+		fbInfo.layers          = 1;
+		VK_CHECK(vkCreateFramebuffer(BGLDevice::device(), &fbInfo, nullptr, &smaaEdgeBuffer.frameBuffer));
+
+		VkSamplerCreateInfo samplerInfo{};
+		samplerInfo.sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerInfo.magFilter    = samplerInfo.minFilter = VK_FILTER_LINEAR;
+		samplerInfo.mipmapMode   = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerInfo.addressModeU = samplerInfo.addressModeV = samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerInfo.maxAnisotropy = 1.0f;
+		samplerInfo.maxLod       = 1.0f;
+		samplerInfo.borderColor  = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		VK_CHECK(vkCreateSampler(BGLDevice::device(), &samplerInfo, nullptr, &smaaEdgeBuffer.sampler));
+	}
+
+	void BGLRenderer::destroySmaaEdgeBuffer()
+	{
+		vkDestroySampler    (BGLDevice::device(), smaaEdgeBuffer.sampler,     nullptr);
+		vkDestroyRenderPass (BGLDevice::device(), smaaEdgeBuffer.renderPass,  nullptr);
+		vkDestroyFramebuffer(BGLDevice::device(), smaaEdgeBuffer.frameBuffer, nullptr);
+		vkDestroyImageView  (BGLDevice::device(), smaaEdgeBuffer.color.view,  nullptr);
+		vkDestroyImage      (BGLDevice::device(), smaaEdgeBuffer.color.image, nullptr);
+		vkFreeMemory        (BGLDevice::device(), smaaEdgeBuffer.color.mem,   nullptr);
+		smaaEdgeBuffer.sampler     = VK_NULL_HANDLE;
+		smaaEdgeBuffer.renderPass  = VK_NULL_HANDLE;
+		smaaEdgeBuffer.frameBuffer = VK_NULL_HANDLE;
+		smaaEdgeBuffer.color.view  = VK_NULL_HANDLE;
+		smaaEdgeBuffer.color.image = VK_NULL_HANDLE;
+		smaaEdgeBuffer.color.mem   = VK_NULL_HANDLE;
+	}
+
+	void BGLRenderer::beginSmaaEdgePass(VkCommandBuffer commandBuffer)
+	{
+		assert(isFrameStarted);
+		VkRenderPassBeginInfo rpInfo{};
+		rpInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		rpInfo.renderPass      = smaaEdgeBuffer.renderPass;
+		rpInfo.framebuffer     = smaaEdgeBuffer.frameBuffer;
+		rpInfo.renderArea      = { {0,0}, {smaaEdgeBuffer.width, smaaEdgeBuffer.height} };
+		VkClearValue cv{}; cv.color = {0,0,0,0};
+		rpInfo.clearValueCount = 1; rpInfo.pClearValues = &cv;
+		vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+		VkViewport vp{ 0,0,(float)smaaEdgeBuffer.width,(float)smaaEdgeBuffer.height,0,1 };
+		VkRect2D   sc{ {0,0},{smaaEdgeBuffer.width,smaaEdgeBuffer.height} };
+		vkCmdSetViewport(commandBuffer, 0, 1, &vp);
+		vkCmdSetScissor(commandBuffer, 0, 1, &sc);
+	}
+
 	void BGLRenderer::prepareTransparentPass()
 	{
 		// Radiosity-only forward transparent pass: blends HDR transparent lighting into the
@@ -802,11 +917,14 @@ namespace bagel {
 		att[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		att[0].initialLayout  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		att[0].finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		// 1: opaque G-buffer depth — LOAD, read-only depth test (no write/store)
+		// 1: opaque G-buffer depth — LOAD, read-only depth test (no write). STORE is required:
+		// DONT_CARE lets the driver discard the depth contents after this pass, which breaks every
+		// later reader of the G-buffer depth (composite world-pos reconstruction, SMAA depth mode,
+		// the depth blit). The pass doesn't write depth, but the contents must survive it.
 		att[1].format         = deferredRenderFrameBuffer.depth.format;
 		att[1].samples        = VK_SAMPLE_COUNT_1_BIT;
 		att[1].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
-		att[1].storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		att[1].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
 		att[1].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		att[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		att[1].initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;

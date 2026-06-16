@@ -83,11 +83,48 @@ namespace bagel {
 		void setImageLayoutShaderRead();
 		void generateSamplerCreateInfo();
 		void generateImageViewCreateInfo(VkFormat imageFormat, VkImage image);
-		//BINDLESS
+
+		// --- Mipmapping --------------------------------------------------------------------
+		// Full mip pyramid level count for a base size: floor(log2(max(w,h))) + 1.
+		static uint32_t computeMipLevels(uint32_t w, uint32_t h);
+		// True if `format` supports a linear-filtered blit (required to downsample mips on the
+		// GPU with vkCmdBlitImage). Guards the runtime generation path; falls back to 1 mip.
+		bool formatSupportsLinearBlit(VkFormat format) const;
+		// Generate mips 1..mipLevels-1 from level 0 by successive half-size linear blits.
+		// Precondition: level 0 is in TRANSFER_DST_OPTIMAL with its pixels uploaded; all other
+		// levels are TRANSFER_DST_OPTIMAL/UNDEFINED. Postcondition: every level is left in
+		// SHADER_READ_ONLY_OPTIMAL. Recorded into `cmd`.
+		void generateMipmaps(VkCommandBuffer cmd, VkImage image, int32_t w, int32_t h, uint32_t mipLevels);
+
+		// --- Shared sampler ----------------------------------------------------------------
+		// All content textures share ONE sampler instead of creating one per texture: it makes
+		// the LOD knobs (below) a single source of truth and lets them be retuned live (see
+		// setMipLodBias). The image VIEW's levelCount bounds the mip range per texture, so the
+		// shared sampler uses VK_LOD_CLAMP_NONE and works for any texture's mip count.
+		void createSharedSampler();
+		// Recreate the shared sampler with a new mip LOD bias and re-point every content
+		// texture's descriptor at it. Negative bias = sharper (mips kick in farther, more
+		// shimmer); positive = blurrier (mips kick in closer). Drives "mip distance".
+	public:
+		void setMipLodBias(float bias);
+		float getMipLodBias() const { return mipLodBias; }
+	private:
+
+		VkSampler sharedSampler = VK_NULL_HANDLE;
+		// LOD controls baked into sharedSampler. Anisotropy is the biggest quality lever for
+		// oblique surfaces; mipLodBias is the direct sharpness/shimmer dial.
+		float    mipLodBias    = 0.0f;
+		// Bindless handles of textures this loader created (content textures), so a sampler
+		// retune can rebind exactly those — NOT render targets / shadow maps, which own their
+		// own samplers elsewhere.
+		std::vector<uint32_t> contentTextureHandles{};
 
 		uint32_t width = 0;
 		uint32_t height = 0;
 		uint32_t mipLvl = 0;
+		// True when the loaded source has ONLY level 0 (stb/PNG/generated) and the rest of the
+		// pyramid must be generated on the GPU. False for KTX, which ships all mip levels.
+		bool genMipchain = false;
 
 		std::string lastBoundTextureName = "";
 

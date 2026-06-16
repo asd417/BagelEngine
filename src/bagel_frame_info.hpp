@@ -11,8 +11,12 @@
 
 namespace bagel {
 	struct PointLight {
-		//vec4 for memory alignment
-		glm::vec4 position{}; // w = bloom halo radius in pixels
+		glm::vec3 position{};
+		// Max influence distance of this light (world units); also fills the std140 slot that
+		// keeps `color` at offset 16 (a vec3 occupies a 16-byte slot, GLM types are alignof 4
+		// here — see GlobalUBO). Sits at offset 12, i.e. position.w in shaders that declare the
+		// PointLight position as a vec4.
+		float     maxDistance{};
 		glm::vec4 color{}; // w intensity
 	};
 
@@ -58,11 +62,12 @@ namespace bagel {
 		float shadowBiasMin   = 0.002f;           // offset 952
 		float shadowBiasSlope = 0.005f;           // offset 956; struct ends exactly at the 960-byte std140 block size
 
-		void updateCameraInfo(glm::mat4 projMat, glm::mat4 viewMat, glm::mat4 inverseViewMat, glm::mat4 invViewProjMat) {
+		void updateCameraInfo(glm::mat4 projMat, glm::mat4 viewMat, glm::mat4 inverseViewMat, glm::mat4 invViewProjMat, float exp) {
 			projectionMatrix   = projMat;
 			viewMatrix         = viewMat;
 			inverseViewMatrix  = inverseViewMat;
 			invViewProjMatrix  = invViewProjMat;
+			exposure = exp;
 		}
 	};
 	// GlobalUBO is uploaded as a raw memcpy; these guard the std140 offsets the shaders declare

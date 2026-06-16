@@ -5,6 +5,7 @@
 #include "bagel_descriptors.hpp"
 #include "bagel_ecs_components.hpp"
 #include "model_loaders/bagel_model_loader.hpp"
+#include "animation/bagel_skin_manager.hpp"
 
 // GLM functions will expect radian angles for all its functions
 #define GLM_FORCE_RADIANS
@@ -90,6 +91,17 @@ namespace bagel {
 				newComp.materialCount = comp.materialCount;
 				for (uint32_t _i = 0; _i < comp.materialCount; _i++)
 					newComp.materialSources[_i] = comp.materialSources[_i];
+				// Deduped instances share the model's skin block; skinIndex stays per-entity (0).
+				newComp.skinBase = comp.skinBase;
+				newComp.numSlots = comp.numSlots;
+				newComp.numSkins = comp.numSkins;
+				// Skinning identity is shared too (same vertex influences + baked palette). The
+				// AnimationComponent (playback state) is copied so the duplicate animates
+				// independently while pointing at the same palette block.
+				newComp.isSkinned      = comp.isSkinned;
+				newComp.skinVertexBase = comp.skinVertexBase;
+				if (comp.isSkinned && registry.all_of<AnimationComponent>(srcEnt))
+					registry.emplace<AnimationComponent>(targetEnt, registry.get<AnimationComponent>(srcEnt));
 				newComp.vertexBuffer = comp.vertexBuffer;
 				newComp.indexBuffer  = comp.indexBuffer;
 				newComp.vertexMemory = comp.vertexMemory;
@@ -167,6 +179,30 @@ namespace bagel {
 			}
 			comp.indexCount  = static_cast<uint32_t>(indices.size());
 			comp.vertexCount = static_cast<uint32_t>(vertices.size());
+			// Skin block the loader reserved/filled for this model (numSkins from the sidecar).
+			comp.skinBase = static_cast<uint16_t>(activeLoader->getSkinBase());
+			comp.numSlots = static_cast<uint16_t>(activeLoader->getNumSlots());
+			comp.numSkins = static_cast<uint8_t>(activeLoader->getNumSkins());
+
+			// Skeletal skinning: if the model carries influences and a skin manager is set,
+			// upload per-vertex influences + the baked joint palette, and attach playback state.
+			if (pSkinManager && activeLoader->isSkinned()) {
+				auto& infl = activeLoader->getSkinInfluences();
+				comp.skinVertexBase = pSkinManager->uploadInfluences(infl.data(), static_cast<uint32_t>(infl.size()));
+				comp.isSkinned = true;
+
+				BakedAnimation baked = bakeClips(activeLoader->getSkeleton(), activeLoader->getAnimations());
+				AnimationComponent& anim = registry.emplace<AnimationComponent>(targetEnt);
+				anim.jointCount     = baked.jointCount;
+				anim.fps            = baked.fps;
+				anim.clipFrameBase  = baked.clipFrameBase;
+				anim.clipFrameCount = baked.clipFrameCount;
+				anim.paletteBase    = baked.matrices.empty()
+					? 0
+					: pSkinManager->uploadPalette(baked.matrices.data(), static_cast<uint32_t>(baked.matrices.size()));
+				std::cout << "Skinned model: " << infl.size() << " influences, "
+				          << baked.jointCount << " joints, " << anim.clipCount() << " clip(s)\n";
+			}
 			activeLoader.reset();
 			std::cout << "Finished building Component\n";
 			return comp;
@@ -181,6 +217,10 @@ namespace bagel {
 		// Optional: set before buildComponent() so loaders register their materials into the
 		// global material table (and vertices store global material indices).
 		void setMaterialManager(BGLMaterialManager* mm) { pMaterialManager = mm; }
+		// Optional: set before buildComponent() to enable skeletal skinning. When a loaded model
+		// carries skin influences, the builder uploads them + the baked palette here and attaches
+		// an AnimationComponent. Without it, skinned models load as static (no skinning).
+		void setSkinManager(BGLSkinManager* sm) { pSkinManager = sm; }
 	protected:
 		void loadModel(const char* filename, ModelLoadSettings buildSettings);
 
@@ -197,6 +237,7 @@ namespace bagel {
 		std::vector<GLTFMaterial>* p_materialSet = nullptr;
 		BGLTextureLoader* pTextureLoader = nullptr;
 		BGLMaterialManager* pMaterialManager = nullptr;
+		BGLSkinManager* pSkinManager = nullptr;
 
 		BGLDevice& bglDevice;
 		entt::registry& registry;

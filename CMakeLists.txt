@@ -58,7 +58,16 @@ else()
 endif()
  
 include_directories(Dependencies)
- 
+
+# yaml-cpp (model .yaml sidecar parsing) — built from the submodule. Skip its tests/tools.
+# yaml-cpp 0.8.0 declares cmake_minimum_required < 3.5, which CMake 4.x rejects; raise the floor.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+set(YAML_CPP_BUILD_TESTS   OFF CACHE BOOL "" FORCE)
+set(YAML_CPP_BUILD_TOOLS   OFF CACHE BOOL "" FORCE)
+set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "" FORCE)
+set(YAML_CPP_INSTALL       OFF CACHE BOOL "" FORCE)
+add_subdirectory(Dependencies/yaml-cpp)
+
 # file(GLOB_RECURSE SOURCES "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.hpp" "${PROJECT_SOURCE_DIR}/src/*.h")
 
 file(GLOB SOURCES "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.hpp" "${PROJECT_SOURCE_DIR}/src/*.h")
@@ -67,6 +76,7 @@ file(GLOB RENDERSYSTEM 	"${PROJECT_SOURCE_DIR}/src/render_systems/*.cpp" "${PROJ
 file(GLOB PHYSICS 	"${PROJECT_SOURCE_DIR}/src/physics/*.cpp" "${PROJECT_SOURCE_DIR}/src/physics/*.hpp")
 file(GLOB MATH		"${PROJECT_SOURCE_DIR}/src/math/*.cpp" "${PROJECT_SOURCE_DIR}/src/math/*.hpp")
 file(GLOB MODEL_LOADERS "${PROJECT_SOURCE_DIR}/src/model_loaders/*.cpp" "${PROJECT_SOURCE_DIR}/src/model_loaders/*.hpp")
+file(GLOB ANIMATION 	"${PROJECT_SOURCE_DIR}/src/animation/*.cpp" "${PROJECT_SOURCE_DIR}/src/animation/*.hpp")
 
 file(GLOB IMGUI_SRC "${IMGUI}/*.cpp" "${IMGUI}/*.h")
 file(GLOB IMGUI_BCKEND_vk ${IMGUI}/backends/imgui_impl_vulkan.*)
@@ -82,6 +92,7 @@ add_executable(${PROJECT_NAME}
 	${PHYSICS}
 	${MATH}
 	${MODEL_LOADERS}
+	${ANIMATION}
 	${IMGUI_SRC}
 	${IMGUI_BCKEND_vk}
 	${IMGUI_BCKEND_glfw}
@@ -92,6 +103,7 @@ source_group("Render Systems"	FILES ${RENDERSYSTEM})
 source_group("Physics"		FILES ${PHYSICS})
 source_group("Math"		FILES ${MATH})
 source_group("Model Loaders"	FILES ${MODEL_LOADERS})
+source_group("Animation"	FILES ${ANIMATION})
 source_group("Imgui"            FILES ${IMGUI_SRC} ${IMGUI_BCKEND_vk} ${IMGUI_BCKEND_glfw})
 source_group("xatlas"           FILES ${XATLAS_SRC})
 
@@ -144,7 +156,7 @@ if (WIN32)
 	$<$<CONFIG:Release>:${KTX_LIB}/Release>
 	$<$<CONFIG:Release>:${JOLT}/Build/VS2022_CL/Release>)
 
-  target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1 ktx Jolt)
+  target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1 ktx Jolt yaml-cpp)
 
   # glfw3.lib prebuilt with /MD; suppress conflicting MSVCRT defaultlib in Debug
   target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:/NODEFAULTLIB:MSVCRT>)
@@ -174,7 +186,7 @@ elseif (UNIX)
     ${DEPS}/KTX-Software/build/Release
     ${JOLT}/Build/Linux)
 
-  target_link_libraries(${PROJECT_NAME} glfw vulkan ktx Jolt)
+  target_link_libraries(${PROJECT_NAME} glfw vulkan ktx Jolt yaml-cpp)
 
 endif()
 

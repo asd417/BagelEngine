@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #include "bagel_textures.hpp"
 #include "model_load_settings.hpp"
+#include "animation/bagel_animation.hpp" // JointTransform, SkeletonData, AnimationClip
 
 #include <xatlas.h>
 
@@ -27,6 +28,19 @@ namespace bagel {
 			uint32_t materialIndex = 0;
 			bool transparentMaterial = false;
 		};
+
+	// Per-vertex skinning influence, packed to 8 bytes. NOT part of BGLModel::Vertex —
+	// it lives in a parallel array that becomes a GPU SSBO read by the skinned shader via
+	// skinData[skinBase + gl_VertexIndex]. The static vertex format is untouched.
+	//   joints[i]  = joint index (into the skeleton's palette); glTF caps influences at 4.
+	//   weights[i] = unorm8 blend weight (255 == 1.0). Default: full weight on joint 0.
+	struct SkinInfluence {
+		uint8_t joints[4]{ 0, 0, 0, 0 };
+		uint8_t weights[4]{ 255, 0, 0, 0 };
+	};
+
+	// SkeletonData / JointTransform / AnimationClip live in animation/bagel_animation.hpp
+	// (included above) — the loader fills them, the animation module consumes them.
     // ComponentBuildMode and ModelLoadSettings now live in model_load_settings.hpp
 	// (included above) so ModelComponent can store/serialize the load recipe.
 	namespace BGLModel
@@ -130,15 +144,34 @@ namespace bagel {
 
         bool hasTangents() const { return tangentsLoaded; }
 		void calculateTangent();
+
+        // Skin block this model owns in the global skin table, how many material slots
+        // (= columns) it has, and how many skins (rows). The builder copies these onto the
+        // ModelComponent.
+        uint32_t getSkinBase()  const { return skinBase; }
+        uint32_t getNumSlots()  const { return numSlots; }
+        uint32_t getNumSkins()  const { return numSkins; }
+
+        // Skeletal animation (bone skinning). isSkinned() is true once a loaded primitive
+        // carried JOINTS_0/WEIGHTS_0. skinInfluences is parallel to getVertices() (one entry
+        // per vertex, same order) and becomes the per-vertex SSBO; skeleton feeds the baker.
+        bool isSkinned() const { return !skinInfluences.empty(); }
+        std::vector<SkinInfluence>&         getSkinInfluences() { return skinInfluences; }
+        const SkeletonData&                 getSkeleton()   const { return skeleton; }
+        const std::vector<AnimationClip>&   getAnimations() const { return animations; }
     protected:
-        // Register every entry of `materials` into the global material table and fill
-        // materialIndexMap (local material id -> global table index). Call after `materials`
-        // is populated and BEFORE building vertices, so each vertex can store its global
-        // index. Local id 0..n map through materialIndexMap; "no material" -> global 0.
-        void registerMaterialsToTable();
-        uint16_t globalMaterialIndex(int localMaterialId) const {
-            return (localMaterialId >= 0 && localMaterialId < static_cast<int>(materialIndexMap.size()))
-                ? materialIndexMap[localMaterialId] : 0;
+        // Reserve this model's skin block and fill it. numSlots = distinct material count;
+        // numSkins comes from the "<model>.yaml" sidecar ($texturegroup analog), or 1 if
+        // absent. For skin s, slot k: the sidecar override if present, else the model's own
+        // material[k]. Call after `materials` is populated and BEFORE building vertices, so
+        // each vertex can store its local slot index. modelSourcePath is the engine-relative
+        // model path used to find the sidecar.
+        void buildSkinBlock(const std::string& modelSourcePath);
+        // Local material id -> local slot (the column the vertex stores). Clamped; out of
+        // range -> 0 (the unused material).
+        uint16_t localMaterialSlot(int localMaterialId) const {
+            return (localMaterialId >= 0 && localMaterialId < static_cast<int>(numSlots))
+                ? static_cast<uint16_t>(localMaterialId) : 0;
         }
 
         BGLTextureLoader* pTextureLoader;
@@ -147,7 +180,15 @@ namespace bagel {
 		std::vector<uint32_t> indices{};
         std::vector<BGLModel::Vertex> vertices{};
         std::vector<BGLModel::Material> materials{};
-        std::vector<uint16_t> materialIndexMap{}; // local material id -> global table index
+        uint32_t skinBase = 0;  // base entry of this model's skin block
+        uint32_t numSlots = 1;  // distinct material count (columns); always >= 1
+        uint32_t numSkins = 1;  // skin rows from the sidecar; always >= 1
         bool tangentsLoaded = false;
+
+        // Skeletal skinning data (empty for static models). skinInfluences is kept parallel
+        // to `vertices`; loaders that read JOINTS_0/WEIGHTS_0 must keep both in lockstep.
+        std::vector<SkinInfluence> skinInfluences{};
+        SkeletonData               skeleton{};
+        std::vector<AnimationClip> animations{};
     };
 }

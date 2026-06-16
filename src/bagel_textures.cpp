@@ -290,10 +290,17 @@ namespace bagel {
 		: bglDevice{ _bglDevice },
 		globalPool{ _globalPool },
 		descriptorManager{ _descriptorManager }
-	{}
+	{
+		createSharedSampler();
+	}
 
 	BGLTextureLoader::~BGLTextureLoader()
-	{}
+	{
+		// The shared sampler is owned here (content-texture packages reference it but no longer
+		// destroy it — see BGLBindlessDescriptorManager).
+		if (sharedSampler != VK_NULL_HANDLE)
+			vkDestroySampler(BGLDevice::device(), sharedSampler, nullptr);
+	}
 
 	uint32_t BGLTextureLoader::loadTexture(const char* filePath, VkFormat imageFormat)
 	{
@@ -330,35 +337,55 @@ namespace bagel {
 
 	uint32_t BGLTextureLoader::buildAndStoreFromMemory(const char* name, VkFormat imageFormat, bool designatedIndex, uint32_t storedIndex)
 	{
-		VkSampler sampler;
 		VkImageView imageView;
 		VkImage image;
 		VkDeviceMemory memory;
 
+		// For generated (stb/pixel) sources, decide the real mip count now that the format is
+		// known: only if the GPU can linear-blit this format (otherwise stay at 1 mip). KTX
+		// already set mipLvl from the file and leaves genMipchain false.
+		if (genMipchain)
+			mipLvl = formatSupportsLinearBlit(imageFormat) ? computeMipLevels(width, height) : 1;
+		const bool willGenerate = genMipchain && mipLvl > 1;
+
 		generateImageCreateInfo(imageFormat);
 		bglDevice.createImageWithInfo(imageCreateInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image, memory);
-		generateSubresRange();
+		generateSubresRange();      // covers all mipLvl levels
 		setImageLayoutTransfer(image);
 
 		VkCommandBuffer cpyCmd = bglDevice.beginSingleTimeCommands();
+		// All levels: UNDEFINED -> TRANSFER_DST so we can upload/blit into them.
 		vkCmdPipelineBarrier(cpyCmd, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemBarrier);
+		// Upload the supplied levels. stb/pixel: just level 0. KTX: every level (buffCpyRegions).
 		vkCmdCopyBufferToImage(cpyCmd, stagingBuffer->getBuffer(), image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(buffCpyRegions.size()), buffCpyRegions.data());
-		setImageLayoutShaderRead();
-		vkCmdPipelineBarrier(cpyCmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemBarrier);
+
+		if (willGenerate) {
+			// Downsample level 0 into the rest of the chain; leaves all levels SHADER_READ_ONLY.
+			generateMipmaps(cpyCmd, image, static_cast<int32_t>(width), static_cast<int32_t>(height), mipLvl);
+		} else {
+			// All uploaded levels: TRANSFER_DST -> SHADER_READ_ONLY in one barrier.
+			setImageLayoutShaderRead();
+			vkCmdPipelineBarrier(cpyCmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemBarrier);
+		}
 		bglDevice.endSingleTimeCommands(cpyCmd);
 
-		generateSamplerCreateInfo();
-		VK_CHECK(vkCreateSampler(BGLDevice::device(), &samplerCreateInfo, nullptr, &sampler));
+		// All content textures share one sampler (created once); the image view's levelCount
+		// bounds the mip range for this specific texture.
 		generateImageViewCreateInfo(imageFormat, image);
 		VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageViewCreateInfo, nullptr, &imageView));
 
 		uint32_t handle = descriptorManager.storeTexture(
-			{ sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+			{ sharedSampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
 			memory, image, name, designatedIndex, storedIndex);
+
+		// Remember the handle so setMipLodBias() can rebind it to a retuned shared sampler.
+		if (std::find(contentTextureHandles.begin(), contentTextureHandles.end(), handle) == contentTextureHandles.end())
+			contentTextureHandles.push_back(handle);
 
 		delete stagingBuffer;
 		stagingBuffer = nullptr;
 		buffCpyRegions.clear();
+		genMipchain = false;        // reset for the next load
 		return handle;
 	}
 
@@ -428,7 +455,8 @@ namespace bagel {
 	{
 		width     = w;
 		height    = h;
-		mipLvl    = 1;
+		mipLvl    = 1;          // only level 0 is provided; the rest is generated on the GPU
+		genMipchain = true;     // pre-decoded RGBA source -> generate the mip chain via blits
 		imageSize = static_cast<size_t>(w) * h * 4;
 
 		stagingBuffer = new BGLBuffer(
@@ -455,7 +483,8 @@ namespace bagel {
 		}
 		width = width_int;
 		height = height_int;
-		mipLvl = 1;
+		mipLvl = 1;             // only level 0 is decoded here; the rest is generated on the GPU
+		genMipchain = true;     // stb source -> generate the mip chain via blits
 		imageSize = width * height * 4;
 
 		unsigned char* modified = new unsigned char[imageSize];
@@ -495,6 +524,7 @@ namespace bagel {
 		width = ktx_texture->baseWidth;
 		height = ktx_texture->baseHeight;
 		mipLvl = ktx_texture->numLevels;
+		genMipchain = false;    // KTX ships its full mip pyramid; upload it as-is, don't generate
 
 		ktx_uint8_t* ktxImageData = ktx_texture->pData;
 		imageSize = ktx_texture->dataSize;
@@ -561,7 +591,9 @@ namespace bagel {
 		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageCreateInfo.extent = { width, height, 1 };
-		imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		// TRANSFER_SRC is required so each mip level can be the source of the blit that
+		// downsamples it into the next level (see generateMipmaps). Harmless when not generating.
+		imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	}
 
 	void BGLTextureLoader::generateSamplerCreateInfo()
@@ -606,6 +638,142 @@ namespace bagel {
 		// Only set mip map count if optimal tiling is used
 		imageViewCreateInfo.subresourceRange.levelCount = mipLvl;
 		imageViewCreateInfo.image = image; // The view will be based on the texture's image
+	}
+
+	uint32_t BGLTextureLoader::computeMipLevels(uint32_t w, uint32_t h)
+	{
+		// floor(log2(max(w,h))) + 1, computed with shifts (no <cmath>): each halving of the
+		// largest dimension is one more level, down to the 1x1 tail.
+		uint32_t levels = 1;
+		uint32_t d = std::max(w, h);
+		while (d > 1) { d >>= 1; ++levels; }
+		return levels;
+	}
+
+	bool BGLTextureLoader::formatSupportsLinearBlit(VkFormat format) const
+	{
+		// vkCmdBlitImage with VK_FILTER_LINEAR requires the format to advertise
+		// SAMPLED_IMAGE_FILTER_LINEAR on the (optimal-tiled) image we sample from. R8G8B8A8
+		// UNORM/SRGB support it on all desktop GPUs; the guard keeps exotic formats safe.
+		VkFormatProperties props{};
+		vkGetPhysicalDeviceFormatProperties(bglDevice.getPhysicalDevice(), format, &props);
+		return (props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
+	}
+
+	void BGLTextureLoader::generateMipmaps(VkCommandBuffer cmd, VkImage image, int32_t w, int32_t h, uint32_t mipLevels)
+	{
+		// One reusable single-level barrier; baseMipLevel is moved as we walk the chain.
+		VkImageMemoryBarrier barrier{};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.image = image;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.layerCount = 1;
+		barrier.subresourceRange.levelCount = 1;
+
+		int32_t mipW = w, mipH = h;
+		for (uint32_t i = 1; i < mipLevels; i++)
+		{
+			// Flip level i-1 from "just written" (TRANSFER_DST) to a readable blit source.
+			barrier.subresourceRange.baseMipLevel = i - 1;
+			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+				0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+			// Halve each dimension (min 1 -> handles non-power-of-two). LINEAR filter does the
+			// 2x2 box downsample. NOTE: for sRGB formats this filters in sRGB space, so color
+			// mips come out slightly dark — acceptable; UNORM (normal/ORM) maps are exact.
+			const int32_t nextW = mipW > 1 ? mipW / 2 : 1;
+			const int32_t nextH = mipH > 1 ? mipH / 2 : 1;
+			VkImageBlit blit{};
+			blit.srcOffsets[0] = { 0, 0, 0 };
+			blit.srcOffsets[1] = { mipW, mipH, 1 };
+			blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			blit.srcSubresource.mipLevel = i - 1;
+			blit.srcSubresource.baseArrayLayer = 0;
+			blit.srcSubresource.layerCount = 1;
+			blit.dstOffsets[0] = { 0, 0, 0 };
+			blit.dstOffsets[1] = { nextW, nextH, 1 };
+			blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			blit.dstSubresource.mipLevel = i;
+			blit.dstSubresource.baseArrayLayer = 0;
+			blit.dstSubresource.layerCount = 1;
+			vkCmdBlitImage(cmd,
+				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &blit, VK_FILTER_LINEAR);
+
+			// Level i-1 is fully produced -> make it shader-readable now.
+			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+			mipW = nextW;
+			mipH = nextH;
+		}
+
+		// The last level was never a blit source, so it's still TRANSFER_DST -> transition it.
+		barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			0, 0, nullptr, 0, nullptr, 1, &barrier);
+	}
+
+	void BGLTextureLoader::createSharedSampler()
+	{
+		// One sampler for all content textures. The per-texture image VIEW bounds the mip
+		// range, so maxLod is left unbounded (VK_LOD_CLAMP_NONE) here.
+		VkSamplerCreateInfo s{};
+		s.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		s.magFilter = VK_FILTER_LINEAR;
+		s.minFilter = VK_FILTER_LINEAR;
+		s.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR; // trilinear: blend between mips, no seam
+		s.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		s.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		s.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		s.mipLodBias = mipLodBias;                    // the direct "mip distance" dial
+		s.compareOp = VK_COMPARE_OP_NEVER;
+		s.minLod = 0.0f;
+		s.maxLod = VK_LOD_CLAMP_NONE;                 // use every level the image view exposes
+		// Anisotropy: the biggest quality lever for oblique surfaces (floors/walls at grazing
+		// angles) — without it they blur far too early.
+		if (bglDevice.supportedFeatures.samplerAnisotropy) {
+			s.maxAnisotropy = bglDevice.properties.limits.maxSamplerAnisotropy;
+			s.anisotropyEnable = VK_TRUE;
+		} else {
+			s.maxAnisotropy = 1.0f;
+			s.anisotropyEnable = VK_FALSE;
+		}
+		s.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		VK_CHECK(vkCreateSampler(BGLDevice::device(), &s, nullptr, &sharedSampler));
+	}
+
+	void BGLTextureLoader::setMipLodBias(float bias)
+	{
+		// Samplers are immutable, so retuning means: build a new one, re-point every content
+		// texture's descriptor at it, then retire the old one. GPU must be idle first since the
+		// old sampler may still be referenced by in-flight frames.
+		mipLodBias = bias;
+		vkDeviceWaitIdle(BGLDevice::device());
+
+		VkSampler old = sharedSampler;
+		createSharedSampler(); // overwrites sharedSampler with the retuned one
+		for (uint32_t handle : contentTextureHandles)
+			descriptorManager.rebindTextureSampler(handle, sharedSampler);
+
+		if (old != VK_NULL_HANDLE)
+			vkDestroySampler(BGLDevice::device(), old, nullptr);
 	}
 
 }

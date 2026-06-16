@@ -17,6 +17,7 @@ namespace bagel {
 		glm::vec4 scale{ 1.0f };
 		uint32_t BufferedTransformHandle = 0;
 		uint32_t UsesBufferedTransform   = 0;
+		uint32_t materialRowBase = 0; // skinBase + skinIndex*numSlots; skinTable row for this draw
 		float emissionLux = 1.0f;
 		uint32_t fallbackAlbedoMap = 0;
 	};

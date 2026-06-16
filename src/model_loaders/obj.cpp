@@ -64,9 +64,9 @@ namespace bagel {
                 materials[i].metalRoughMap = tryLoadTexture(pTextureLoader, materialPath, roughName);
             }
         }
-        // Register the file's materials into the global table first, then build vertices
-        // (each vertex stores its global material index — see appendFace below).
-        registerMaterialsToTable();
+        // Build this model's skin block first (reads the "<model>.yaml" sidecar), then build
+        // vertices (each vertex stores its local material slot — see appendFace below).
+        buildSkinBlock(parms.source);
         loadOBJModel(reader, parms);
     }
 
@@ -111,7 +111,7 @@ namespace bagel {
 						attrib.colors[3 * size_t(idx.vertex_index) + 1],
 						attrib.colors[3 * size_t(idx.vertex_index) + 2]
 					};
-					vertex.materialIndex = globalMaterialIndex(static_cast<int>(materialID));
+					vertex.materialIndex = localMaterialSlot(static_cast<int>(materialID));
 
 					if (auto it = vmap.find(vertex); it != vmap.end())
 						indices.push_back(it->second);

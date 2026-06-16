@@ -1,5 +1,6 @@
 #include "bagel_model_loader.hpp"
 #include "bagel_material.hpp"
+#include "model_sidecar.hpp"
 // GLM functions will expect radian angles for all its functions
 #define GLM_FORCE_RADIANS
 // Expect depths buffer to range from 0 to 1. (opengl depth buffer ranges from -1 to 1)
@@ -36,15 +37,39 @@ namespace bagel
 		return (int)strlen(buf);
 	}
 
-	void ModelLoaderBase::registerMaterialsToTable()
+	void ModelLoaderBase::buildSkinBlock(const std::string& modelSourcePath)
 	{
-		materialIndexMap.resize(materials.size());
-		for (size_t i = 0; i < materials.size(); ++i) {
-			const BGLModel::Material& m = materials[i];
-			materialIndexMap[i] = pMaterialManager
-				? static_cast<uint16_t>(pMaterialManager->registerMaterial(
-					m.albedoMap, m.normalMap, m.metalRoughMap, m.emissionMap))
-				: 0;
+		numSlots = materials.empty() ? 1u : static_cast<uint32_t>(materials.size());
+
+		const ModelSidecar sidecar = ModelSidecar::loadForModel(modelSourcePath);
+		numSkins = sidecar.numSkins();
+		if (numSkins > 255) numSkins = 255; // ModelComponent::skinIndex / numSkins are uint8
+
+		if (!pMaterialManager) { skinBase = 0; return; }
+
+		// Block is numSkins*numSlots entries, skin-major. For skin s, slot k: the sidecar
+		// override if it lists slot k, else the model's own material[k] (default inheritance).
+		skinBase = pMaterialManager->allocateSkinBlock(numSkins * numSlots);
+		for (uint32_t s = 0; s < numSkins; ++s) {
+			const std::map<uint32_t, MaterialSource>* row =
+				(s < sidecar.skins.size()) ? &sidecar.skins[s] : nullptr;
+			for (uint32_t k = 0; k < numSlots; ++k) {
+				uint32_t a = 0, n = 0, mr = 0, e = 0;
+				bool overridden = false;
+				if (row) {
+					const auto f = row->find(k);
+					if (f != row->end()) {
+						const Material m = pMaterialManager->loadMaterial(f->second);
+						a = m.albedoMap; n = m.normalMap; mr = m.metalRoughMap; e = m.emissionMap;
+						overridden = true;
+					}
+				}
+				if (!overridden && k < materials.size()) {
+					const BGLModel::Material& d = materials[k];
+					a = d.albedoMap; n = d.normalMap; mr = d.metalRoughMap; e = d.emissionMap;
+				}
+				pMaterialManager->writeSkinEntry(skinBase + s * numSlots + k, a, n, mr, e);
+			}
 		}
 	}
 

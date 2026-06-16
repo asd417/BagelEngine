@@ -29,12 +29,13 @@ namespace bagel {
 			entt::entity e;
 			ModelLoadSettings ls;
 			bool frustumCull;
+			uint8_t skinIndex;
 			uint32_t materialCount;
 			std::vector<MaterialSource> sources; // only the [0, materialCount) valid slots
 		};
 		std::vector<Recipe> recipes;
 		for (auto [e, m] : registry.view<T>().each())
-			recipes.push_back({ e, m.loadSettings, m.frustumCull, m.materialCount,
+			recipes.push_back({ e, m.loadSettings, m.frustumCull, m.skinIndex, m.materialCount,
 			                    { m.materialSources, m.materialSources + m.materialCount } });
 
 		for (auto& r : recipes) registry.remove<T>(r.e);
@@ -42,6 +43,7 @@ namespace bagel {
 		for (auto& r : recipes) {
 			T& m = builder.buildComponent<T>(r.e, r.ls.source.c_str(), r.ls);
 			m.frustumCull = r.frustumCull;
+			m.setSkin(r.skinIndex); // re-apply the saved skin (numSkins came back from the sidecar)
 			// Restore the generated-material source paths (OBJ/GLTF have materialCount == 0;
 			// their materials are re-baked into the vertex buffer by buildComponent above).
 			for (uint32_t i = 0; i < r.sources.size() && i < ModelComponent::MAX_MATERIALS; ++i)
@@ -80,6 +82,8 @@ namespace bagel {
 		case 0:  return "cube_field";
 		case 1:  return "sponza";
 		case 2:  return "hierarchy";
+		case 3:  return "dragon";
+		case 4:  return "monkey";
 		default: return "map";
 		}
 	}
@@ -93,6 +97,9 @@ namespace bagel {
 	{
 		// Drop the current scene: waits for the GPU, tears down physics bodies, clears ECS.
 		Map::unload(registry);
+		// Reset the skin-table allocator (GPU is idle after unload); the new scene's models
+		// reallocate their blocks from scratch.
+		materialManager->clearSkinTable();
 		hierarchyRoot = entt::null;
 		currentMap = index;
 
@@ -100,6 +107,8 @@ namespace bagel {
 		case 0: createLights();              placeCubes();         break;
 		case 1: createLights();              loadSponza();         break;
 		case 2: createLights();              buildHierarchyStack(); break;
+		case 3: createLights();              loadDragon();         break;
+		case 4: createLights();              loadMonkeyBone();     break;
 		default: break;
 		}
 		CONSOLE->Log("Map", std::string("Built scene '") + mapName(index) + "'");
@@ -123,6 +132,9 @@ namespace bagel {
 			CONSOLE->Log("Map", "FAILED to load " + path);
 			return;
 		}
+		// Map::load unloaded the old scene (GPU idle); reset the skin-table allocator before
+		// rehydrate rebuilds the loaded models' blocks.
+		materialManager->clearSkinTable();
 		rehydrateScene();                        // rebuild transient GPU/material state
 		hierarchyRoot = entt::null;              // loaded hierarchy is static (no live root)
 		currentMap = index;
@@ -134,6 +146,7 @@ namespace bagel {
 		auto builder = std::make_unique<ModelComponentBuilder>(bglDevice, registry);
 		builder->setTextureLoader(&materialManager->getTextureLoader());
 		builder->setMaterialManager(materialManager.get());
+		builder->setSkinManager(skinManager.get());
 		rehydrateModelType<ModelComponent>(registry, *builder);
 		rehydrateModelType<WireframeComponent>(registry, *builder);
 		rehydrateModelType<CollisionModelComponent>(registry, *builder);
@@ -153,6 +166,10 @@ namespace bagel {
 		if (ImGui::Button("Sponza"))     buildScene(1);
 		ImGui::SameLine();
 		if (ImGui::Button("Hierarchy"))  buildScene(2);
+		ImGui::SameLine();
+		if (ImGui::Button("Dragon"))     buildScene(3);
+		ImGui::SameLine();
+		if (ImGui::Button("Monkey"))     buildScene(4);
 
 		ImGui::Separator();
 		if (ImGui::Button("Save as map")) saveCurrentMap();
@@ -161,7 +178,7 @@ namespace bagel {
 
 		ImGui::Separator();
 		ImGui::TextUnformatted("Load (from disk):");
-		for (int i = 0; i < 3; ++i) {
+		for (int i = 0; i < 5; ++i) {
 			const bool onDisk = Map::exists(mapPath(i));
 			std::string label = std::string("Load ") + mapName(i) + (onDisk ? "" : " (none)");
 			if (ImGui::Button(label.c_str())) loadMap(i);
@@ -302,6 +319,7 @@ namespace bagel {
 		auto* builder = new ModelComponentBuilder(bglDevice, registry);
 		builder->setTextureLoader(&materialManager->getTextureLoader());
 		builder->setMaterialManager(materialManager.get());
+		builder->setSkinManager(skinManager.get());
 
 		auto entity = registry.create();
 		auto& tc = registry.emplace<TransformComponent>(entity);
@@ -314,6 +332,47 @@ namespace bagel {
 		// off-screen chunks. Set to true to merge back into a single opaque submesh.
 		settings.mergeSolidSubmeshes = false;
 		builder->buildComponent<ModelComponent>(entity, "/models/sponza/Sponza.gltf", settings);
+
+		delete builder;
+	}
+
+	void MyApplication::loadDragon()
+	{
+		auto* builder = new ModelComponentBuilder(bglDevice, registry);
+		builder->setTextureLoader(&materialManager->getTextureLoader());
+		builder->setMaterialManager(materialManager.get());
+		builder->setSkinManager(skinManager.get());
+
+		// Text glTF with a base64-embedded buffer and solid-color (baseColorFactor) materials.
+		// ~14x6x10 units; scale it down so it sits comfortably in view.
+		auto entity = registry.create();
+		auto& tc = registry.emplace<TransformComponent>(entity);
+		tc.setTranslation({ 0.0f, 0.0f, 0.0f });
+		tc.setScale({ 0.3f, 0.3f, 0.3f });
+
+		ModelLoadSettings settings{};
+		builder->buildComponent<ModelComponent>(entity, "/models/chinesedragon.gltf", settings);
+
+		delete builder;
+	}
+
+	void MyApplication::loadMonkeyBone()
+	{
+		// Skinned / bone-animated test model: 1 skin (5 joints), 2 clips (action1, action2).
+		// The builder uploads its skin influences + baked palette and attaches an
+		// AnimationComponent, so it renders through the SkinnedGBufferRenderSystem.
+		auto* builder = new ModelComponentBuilder(bglDevice, registry);
+		builder->setTextureLoader(&materialManager->getTextureLoader());
+		builder->setMaterialManager(materialManager.get());
+		builder->setSkinManager(skinManager.get());
+
+		auto entity = registry.create();
+		auto& tc = registry.emplace<TransformComponent>(entity);
+		tc.setTranslation({ 0.0f, 0.0f, 0.0f });
+		tc.setScale({ 1.0f, 1.0f, 1.0f });
+
+		ModelLoadSettings settings{};
+		builder->buildComponent<ModelComponent>(entity, "/models/monkey_bone_anim/monkeybone.glb", settings);
 
 		delete builder;
 	}
