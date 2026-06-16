@@ -86,6 +86,45 @@ namespace bagel
 		}
 	};
 
+	// Composite output target — post-tonemap+gamma LDR. Composite renders here (not the swapchain)
+	// so SMAA edge detection + neighborhood blending can sample it. UNORM (values already
+	// gamma-encoded; must not be re-decoded on sample).
+	struct CompositeBuffer
+	{
+		uint32_t width = 0;
+		uint32_t height = 0;
+		FrameBufferAttachment color{};
+		VkRenderPass renderPass = VK_NULL_HANDLE;
+		VkFramebuffer frameBuffer = VK_NULL_HANDLE;
+		VkSampler sampler = VK_NULL_HANDLE;
+		~CompositeBuffer()
+		{
+			if (renderPass == VK_NULL_HANDLE) return;
+			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
+			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
+			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer, nullptr);
+		}
+	};
+
+	// SMAA 1x blending-weight target — RGBA8 (per-direction coverage weights). Screen-sized,
+	// cleared each frame. Same single-color shape as SmaaEdgeBuffer; read by neighborhood blend.
+	struct SmaaWeightBuffer
+	{
+		uint32_t width = 0;
+		uint32_t height = 0;
+		FrameBufferAttachment color{};
+		VkRenderPass renderPass = VK_NULL_HANDLE;
+		VkFramebuffer frameBuffer = VK_NULL_HANDLE;
+		VkSampler sampler = VK_NULL_HANDLE;
+		~SmaaWeightBuffer()
+		{
+			if (renderPass == VK_NULL_HANDLE) return;
+			vkDestroySampler(BGLDevice::device(), sampler, nullptr);
+			vkDestroyRenderPass(BGLDevice::device(), renderPass, nullptr);
+			vkDestroyFramebuffer(BGLDevice::device(), frameBuffer, nullptr);
+		}
+	};
+
 	struct BloomBuffer
 	{
 		uint32_t width = 0;
@@ -198,6 +237,16 @@ namespace bagel
 		VkImage getRadiosityImage() const { return radiosityBuffer.color.image; }
 		VkDeviceMemory getRadiosityMemory() const { return radiosityBuffer.color.mem; }
 
+		// Composite (LDR) offscreen target — composite renders here; SMAA samples + presents it.
+		void beginCompositePass(VkCommandBuffer commandBuffer);
+		VkRenderPass getCompositeRenderPass() const { return compositeBuffer.renderPass; }
+		VkDescriptorImageInfo getCompositeImageInfo() const
+		{
+			return {compositeBuffer.sampler, compositeBuffer.color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+		}
+		VkImage getCompositeImage() const { return compositeBuffer.color.image; }
+		VkDeviceMemory getCompositeMemory() const { return compositeBuffer.color.mem; }
+
 		// SMAA edge-detection target — written by SmaaEdgeRenderSystem, read by composite/debug.
 		void beginSmaaEdgePass(VkCommandBuffer commandBuffer);
 		VkRenderPass getSmaaEdgeRenderPass() const { return smaaEdgeBuffer.renderPass; }
@@ -207,6 +256,16 @@ namespace bagel
 		}
 		VkImage getSmaaEdgeImage() const { return smaaEdgeBuffer.color.image; }
 		VkDeviceMemory getSmaaEdgeMemory() const { return smaaEdgeBuffer.color.mem; }
+
+		// SMAA blending-weight target — written by SmaaWeightRenderSystem, read by neighborhood blend.
+		void beginSmaaWeightPass(VkCommandBuffer commandBuffer);
+		VkRenderPass getSmaaWeightRenderPass() const { return smaaWeightBuffer.renderPass; }
+		VkDescriptorImageInfo getSmaaWeightImageInfo() const
+		{
+			return {smaaWeightBuffer.sampler, smaaWeightBuffer.color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+		}
+		VkImage getSmaaWeightImage() const { return smaaWeightBuffer.color.image; }
+		VkDeviceMemory getSmaaWeightMemory() const { return smaaWeightBuffer.color.mem; }
 
 		VkSampler getDRSampler() const { return deferredRenderFrameBuffer.sampler; }
 		VkImageView getDRDepthView() const { return deferredRenderFrameBuffer.depth.view; }
@@ -251,8 +310,12 @@ namespace bagel
 		void prepareDeferredRenderFrameBuffer();
 		void prepareBloomMips();
 		void prepareRadiosityBuffer();
+		void prepareCompositeBuffer();
+		void destroyCompositeBuffer();
 		void prepareSmaaEdgeBuffer();
 		void destroySmaaEdgeBuffer();
+		void prepareSmaaWeightBuffer();
+		void destroySmaaWeightBuffer();
 		void prepareShadowMapBuffer();
 		void prepareTransparentPass();          // create the radiosity+depth render pass (once)
 		void buildTransparentFramebuffers();    // (re)build the transparent framebuffer
@@ -270,7 +333,9 @@ namespace bagel
 		FrameBuffer deferredRenderFrameBuffer{};
 		std::array<BloomBuffer, BLOOM_MIPS> bloomMips{};
 		RadiosityBuffer radiosityBuffer{};
+		CompositeBuffer compositeBuffer{};
 		SmaaEdgeBuffer smaaEdgeBuffer{};
+		SmaaWeightBuffer smaaWeightBuffer{};
 		ShadowMapBuffer shadowMapBuffer{};
 
 		// Forward transparent pass target: radiosity color + opaque G-buffer depth (single full-screen FB)

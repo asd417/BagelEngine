@@ -35,6 +35,7 @@
 
 #include "physics/bagel_jolt.hpp"
 #include "math/bagel_math.hpp"
+#include "smaa/smaa_textures.hpp"
 
 #include "Jolt/Jolt.h"
 
@@ -209,6 +210,22 @@ namespace bagel
 			bglRenderer.getSmaaEdgeImage(),
 			"SmaaEdges", false, 0, false);
 
+		// SMAA precomputed LUTs (AreaTex/SearchTex) — consumed by the blending-weight pass.
+		SmaaLutHandles smaaLuts = loadSmaaLuts(materialManager->getTextureLoader());
+
+		uint32_t smaaWeightHandle = descriptorManager->storeTexture(
+			bglRenderer.getSmaaWeightImageInfo(),
+			bglRenderer.getSmaaWeightMemory(),
+			bglRenderer.getSmaaWeightImage(),
+			"SmaaWeights", false, 0, false);
+
+		// Offscreen composite (LDR) — SMAA edge input + neighborhood-blend color source.
+		uint32_t compositeHandle = descriptorManager->storeTexture(
+			bglRenderer.getCompositeImageInfo(),
+			bglRenderer.getCompositeMemory(),
+			bglRenderer.getCompositeImage(),
+			"CompositeLDR", false, 0, false);
+
 		std::vector<VkDescriptorSetLayout> pipelineDescriptorSetLayouts = {descriptorManager->getDescriptorSetLayout()};
 
 		GBufferRenderSystem gBufferRenderSystem{
@@ -223,11 +240,18 @@ namespace bagel
 			descriptorManager,
 			registry};
 
+		// Composite renders to the offscreen LDR buffer (so SMAA can sample it), not the swapchain.
 		CompositRenderSystem compositRenderSystem{
-			bglRenderer.getSwapChainRenderPass(),
+			bglRenderer.getCompositeRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
 			registry};
+
+		// SMAA pass 3 / present: blends composite + weights to the swapchain (overlays draw after).
+		SmaaNeighborhoodRenderSystem smaaNeighborhoodRenderSystem{
+			bglRenderer.getSwapChainRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager};
 
 		WireframeRenderSystem wireframeRenderSystem{
 			bglRenderer.getSwapChainRenderPass(),
@@ -255,6 +279,11 @@ namespace bagel
 		
 		SmaaEdgeRenderSystem smaaEdgeRenderSystem{
 			bglRenderer.getSmaaEdgeRenderPass(),
+			pipelineDescriptorSetLayouts,
+			descriptorManager};
+
+		SmaaWeightRenderSystem smaaWeightRenderSystem{
+			bglRenderer.getSmaaWeightRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager};
 
@@ -446,6 +475,16 @@ namespace bagel
 					bglRenderer.getSmaaEdgeMemory(),
 					bglRenderer.getSmaaEdgeImage(),
 					"SmaaEdges", true, smaaEdgeHandle, false);
+				descriptorManager->storeTexture(
+					bglRenderer.getSmaaWeightImageInfo(),
+					bglRenderer.getSmaaWeightMemory(),
+					bglRenderer.getSmaaWeightImage(),
+					"SmaaWeights", true, smaaWeightHandle, false);
+				descriptorManager->storeTexture(
+					bglRenderer.getCompositeImageInfo(),
+					bglRenderer.getCompositeMemory(),
+					bglRenderer.getCompositeImage(),
+					"CompositeLDR", true, compositeHandle, false);
 				for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++)
 				{
 					descriptorManager->storeTexture(
@@ -493,6 +532,7 @@ namespace bagel
 				compositRenderSystem.pushParams.bloomIntensity = bloomIntensity;
 				compositRenderSystem.pushParams.radiosityHandle = radiosityHandle;
 				compositRenderSystem.pushParams.smaaEdgeHandle = smaaEdgeHandle;
+				compositRenderSystem.pushParams.smaaWeightHandle = smaaWeightHandle;
 
 				t0 = Clock::now();
 				if (ubo.hasDirLight)
@@ -562,22 +602,34 @@ namespace bagel
 				}
 				recordSection(S_BLOOM, tMs(t0, Clock::now()));
 
-				// SMAA 1x edge detection on the lit scene (radiosity buffer). Writes the RG edges
-				// target sampled by the composite debug view (r_drawmode) and later SMAA passes.
-				// NOTE: input is the HDR radiosity buffer for now; ideally the post-tonemap composite
-				// output, which needs composite redirected to an offscreen target first.
-				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "smaa_edge");
-				bglRenderer.beginSmaaEdgePass(primaryCommandBuffer);
-				smaaEdgeRenderSystem.render(frameInfo, radiosityHandle);
+				// composite (radiosity + bloom -> tonemap+gamma) into the offscreen LDR buffer
+				t0 = Clock::now();
+				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "composite");
+				bglRenderer.beginCompositePass(primaryCommandBuffer);
+				compositRenderSystem.render(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 
-				// composite (radiosity + bloom -> tonemap -> swapchain) + debug overlays + ImGui
+				// SMAA 1x on the composite (LDR, perceptual) — edge detect, blend weights.
+				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "smaa_edge");
+				bglRenderer.beginSmaaEdgePass(primaryCommandBuffer);
+				smaaEdgeRenderSystem.render(frameInfo, compositeHandle);
+				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+
+				bglRenderer.beginSmaaWeightPass(primaryCommandBuffer);
+				smaaWeightRenderSystem.render(frameInfo, smaaEdgeHandle, smaaLuts.areaTex, smaaLuts.searchTex);
+				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
+				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
+
+				// SMAA pass 3 / present: neighborhood-blend composite + weights -> swapchain, then
+				// overlays + ImGui. Blend is disabled (passthrough) when SMAA is off or a debug
+				// view is active, so those show the raw composite.
 				t0 = Clock::now();
 				bglRenderer.blitGBufferDepthToSwapchain(primaryCommandBuffer);
-				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "composite");
+				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "smaa_neighborhood/present");
 				bglRenderer.beginSwapChainRenderPass(primaryCommandBuffer);
-				compositRenderSystem.render(frameInfo);
+				smaaNeighborhoodRenderSystem.render(frameInfo, compositeHandle, smaaWeightHandle,
+					smaaEnabled && gbufferDebugMode == 0);
 				if (showWireframe)
 					wireframeRenderSystem.renderEntities(frameInfo);
 				if (drawBBox)
@@ -674,6 +726,7 @@ namespace bagel
 		CONSOLE->AddCommandWithArg("R_VSYNC", this, ConsoleCommand::SetVSync);
 		CONSOLE->AddCommandWithArg("SKIN", this, ConsoleCommand::SetSkin);
 		CONSOLE->AddCommandWithArg("R_MIPBIAS", this, ConsoleCommand::SetMipBias);
+		CONSOLE->AddCommand("R_SMAA", this, ConsoleCommand::ToggleSmaa);
 	}
 
 	void Application::setTextureMipBias(float bias)
@@ -776,7 +829,7 @@ namespace bagel
 		ImGui::Text("SMAA");
 		// Edge detection method: luma (default), color (catches chroma edges, ~2x cost), or
 		// depth (cheapest, geometry-only; wants a much smaller threshold — depth is non-linear).
-		ImGui::Combo("SMAA Edge Method", &edgeRender.edgeMethod, "Luma\0Color\0Depth\0Custom\0");
+		ImGui::Combo("SMAA Edge Method", &edgeRender.edgeMethod, "Predicated Luma\0Luma\0Color\0Depth\0Custom\0");
 		// Log scale can't represent 0 — use a small positive min (like Bloom Threshold) or the
 		// low end of the slider is unusable. SMAA's useful luma-threshold range is ~0.05-0.2.
 		ImGui::SliderFloat("SMAA Threshold", &edgeRender.edgeThreshold, 0.001f, 2.0f, "%.4f", ImGuiSliderFlags_Logarithmic);

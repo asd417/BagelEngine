@@ -114,4 +114,58 @@ vec2 smaaDepthEdges(sampler2D depthTex, vec2 uv, float depthThreshold, float nea
 	return step(vec2(depthThreshold), delta);
 }
 
+// --- Predicated luma edge detection (canonical SMAA_PREDICATION) ----------------------------
+// Depth doesn't add edges here (that would be a non-canonical union); instead it MODULATES the
+// luma threshold per pixel: near a depth discontinuity the threshold drops, so true geometry
+// edges are caught, while flat-but-noisy regions stay at the (raised) base threshold. Constants
+// are SMAA's defaults (predication threshold is on linearized depth here).
+const float SMAA_PREDICATION_THRESHOLD = 0.01;
+const float SMAA_PREDICATION_SCALE     = 2.0;
+const float SMAA_PREDICATION_STRENGTH  = 0.4;
+
+// Per-direction (west/north) luma threshold, lowered where depth changes.
+vec2 smaaPredicatedThreshold(sampler2D depthTex, vec2 uv, float baseThreshold, float nearP, float farP) {
+	const ivec2 size = textureSize(depthTex, 0);
+	const ivec2 p    = clamp(ivec2(uv * vec2(size)), ivec2(0), size - ivec2(1));
+	float D     = smaaLinearize01(smaaDepthAt(depthTex, p,                size), nearP, farP);
+	float Dleft = smaaLinearize01(smaaDepthAt(depthTex, p + ivec2(-1, 0), size), nearP, farP);
+	float Dtop  = smaaLinearize01(smaaDepthAt(depthTex, p + ivec2( 0, -1), size), nearP, farP);
+	vec2 dedges = step(vec2(SMAA_PREDICATION_THRESHOLD), abs(D - vec2(Dleft, Dtop)));
+	return SMAA_PREDICATION_SCALE * baseThreshold * (1.0 - SMAA_PREDICATION_STRENGTH * dedges);
+}
+
+// Luma edge detection (same math as smaaLumaEdges) but with the depth-predicated per-direction
+// threshold instead of a scalar one.
+vec2 smaaPredicatedLumaEdges(uint h, sampler2D depthTex, vec2 uv, float baseThreshold,
+                             float smaaLocalContrastAdapt, float nearP, float farP) {
+	const ivec2 size = textureSize(samplerColor[h], 0);
+	const ivec2 p    = clamp(ivec2(uv * vec2(size)), ivec2(0), size - ivec2(1));
+
+	vec2 threshold = smaaPredicatedThreshold(depthTex, uv, baseThreshold, nearP, farP);
+
+	float L     = smaaLumaAt(h, p,                 size);
+	float Lleft = smaaLumaAt(h, p + ivec2(-1, 0),  size);
+	float Ltop  = smaaLumaAt(h, p + ivec2( 0, -1), size);
+
+	vec4 delta;
+	delta.xy = abs(L - vec2(Lleft, Ltop));
+	vec2 edges = step(threshold, delta.xy);
+	if (edges.x + edges.y == 0.0)
+		return vec2(0.0);
+
+	float Lright    = smaaLumaAt(h, p + ivec2( 1, 0),  size);
+	float Lbottom   = smaaLumaAt(h, p + ivec2( 0, 1),  size);
+	delta.zw = abs(L - vec2(Lright, Lbottom));
+	vec2 maxDelta = max(delta.xy, delta.zw);
+
+	float Lleftleft = smaaLumaAt(h, p + ivec2(-2, 0),  size);
+	float Ltoptop   = smaaLumaAt(h, p + ivec2( 0, -2), size);
+	delta.zw = abs(vec2(Lleft, Ltop) - vec2(Lleftleft, Ltoptop));
+	maxDelta = max(maxDelta, delta.zw);
+
+	float finalDelta = max(maxDelta.x, maxDelta.y);
+	edges *= step(vec2(finalDelta), smaaLocalContrastAdapt * delta.xy);
+	return edges;
+}
+
 #endif // SMAA_GLSL

@@ -21,32 +21,30 @@ layout(push_constant) uniform Push {
 	uint inputHandle; // bindless handle of the color image to edge-detect (luma/color modes)
 	float threshold;
 	float localContrastAdapt;
-	uint method;      // 0 = luma, 1 = color, 2 = depth
+	uint method;      // 0=predicated luma (default) 1=luma 2=color 3=depth 4=custom(union)
 } push;
 
 void main() {
+	// near/far for any depth-based mode (linearization). GLM perspective is ZERO_TO_ONE.
+	float P22 = ubo.projectionMatrix[2][2];
+	float P32 = ubo.projectionMatrix[3][2];
+	float nearP = P32 / P22;
+	float farP  = P32 / (P22 + 1.0);
+
 	vec2 edges;
-	if (push.method == 0u)
-		edges = smaaColorEdges(push.inputHandle, fragUV, push.threshold, push.localContrastAdapt);
-	else if (push.method == 1u) {
-		// Reconstruct near/far from the perspective projection (GLM ZERO_TO_ONE) to linearize depth.
-		float P22 = ubo.projectionMatrix[2][2];
-		float P32 = ubo.projectionMatrix[3][2];
-		float nearP = P32 / P22;
-		float farP  = P32 / (P22 + 1.0);
-		edges = smaaDepthEdges(gDepth, fragUV, push.threshold, nearP, farP);
-	}
-	else if (push.method == 2u) {
+	if (push.method == 1u)        // Luma
 		edges = smaaLumaEdges(push.inputHandle, fragUV, push.threshold, push.localContrastAdapt);
-	}
-	else
-	{
-		float P22 = ubo.projectionMatrix[2][2];
-		float P32 = ubo.projectionMatrix[3][2];
-		float nearP = P32 / P22;
-		float farP  = P32 / (P22 + 1.0);
-		edges = max(smaaColorEdges(push.inputHandle, fragUV, 0.22f, 2.0f), smaaDepthEdges(gDepth, fragUV, 0.0005f, nearP, farP));
-	}
+	else if (push.method == 2u)   // Color
+		edges = smaaColorEdges(push.inputHandle, fragUV, push.threshold, push.localContrastAdapt);
+	else if (push.method == 3u)   // Depth (geometry only)
+		edges = smaaDepthEdges(gDepth, fragUV, push.threshold, nearP, farP);
+	else if (push.method == 4u)   // Custom union of all three (non-canonical; tuned constants)
+		edges = max(max(smaaColorEdges(push.inputHandle, fragUV, 0.22, 2.0),
+		                smaaDepthEdges(gDepth, fragUV, 0.0005, nearP, farP)),
+		            smaaLumaEdges(push.inputHandle, fragUV, 0.01, 2.0));
+	else                          // 0 = Predicated luma (canonical: depth modulates luma threshold) — default
+		edges = smaaPredicatedLumaEdges(push.inputHandle, gDepth, fragUV, push.threshold, push.localContrastAdapt, nearP, farP);
+
 	if (edges.x + edges.y == 0.0)
 		discard; // not an edge — leave the cleared 0
 	outEdges = edges;

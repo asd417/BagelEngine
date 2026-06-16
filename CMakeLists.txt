@@ -77,6 +77,7 @@ file(GLOB PHYSICS 	"${PROJECT_SOURCE_DIR}/src/physics/*.cpp" "${PROJECT_SOURCE_D
 file(GLOB MATH		"${PROJECT_SOURCE_DIR}/src/math/*.cpp" "${PROJECT_SOURCE_DIR}/src/math/*.hpp")
 file(GLOB MODEL_LOADERS "${PROJECT_SOURCE_DIR}/src/model_loaders/*.cpp" "${PROJECT_SOURCE_DIR}/src/model_loaders/*.hpp")
 file(GLOB ANIMATION 	"${PROJECT_SOURCE_DIR}/src/animation/*.cpp" "${PROJECT_SOURCE_DIR}/src/animation/*.hpp")
+file(GLOB SMAA		"${PROJECT_SOURCE_DIR}/src/smaa/*.cpp" "${PROJECT_SOURCE_DIR}/src/smaa/*.hpp")
 
 file(GLOB IMGUI_SRC "${IMGUI}/*.cpp" "${IMGUI}/*.h")
 file(GLOB IMGUI_BCKEND_vk ${IMGUI}/backends/imgui_impl_vulkan.*)
@@ -93,12 +94,14 @@ add_executable(${PROJECT_NAME}
 	${MATH}
 	${MODEL_LOADERS}
 	${ANIMATION}
+	${SMAA}
 	${IMGUI_SRC}
 	${IMGUI_BCKEND_vk}
 	${IMGUI_BCKEND_glfw}
 	${TINYGLTF}
 	${XATLAS_SRC})
 
+source_group("SMAA"		FILES ${SMAA})
 source_group("Render Systems"	FILES ${RENDERSYSTEM})
 source_group("Physics"		FILES ${PHYSICS})
 source_group("Math"		FILES ${MATH})

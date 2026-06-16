@@ -76,7 +76,9 @@ namespace bagel {
 		uint32_t buildAndStoreFromMemory(const char* name, VkFormat imageFormat, bool designatedIndex, uint32_t storedIndex);
 		void loadSTBImageInStagingBuffer(const char* filePath, VkFormat format);
 		void loadKTXImageInStagingBuffer(const char* filePath, VkFormat format);
-		void loadPixelDataInStagingBuffer(const uint8_t* rgba, uint32_t w, uint32_t h);
+		void loadPixelDataInStagingBuffer(const uint8_t* rgba, uint32_t w, uint32_t h, uint32_t bpp = 4);
+		// Bytes per texel for an uncompressed VkFormat (sizes staging uploads for non-RGBA formats).
+		static uint32_t bytesPerTexel(VkFormat format);
 		void generateImageCreateInfo(VkFormat imageFormat);
 		void generateSubresRange();
 		void setImageLayoutTransfer(VkImage image);

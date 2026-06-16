@@ -18,6 +18,8 @@
 #include "render_systems/skinned_gbuffer_render_system.hpp"
 #include "render_systems/skinned_shadow_render_system.hpp"
 #include "render_systems/smaa_edge_render_system.hpp"
+#include "render_systems/smaa_weight_render_system.hpp"
+#include "render_systems/smaa_neighborhood_render_system.hpp"
 
 #ifdef PHYSTEST
 #include "physics/bagel_physics.h"
@@ -66,6 +68,7 @@ namespace bagel
 		bool showWireframe = false;
 		bool drawBBox = false;
 		bool  bloomEnabled   = true;
+		bool  smaaEnabled    = true;   // SMAA neighborhood blend (R_SMAA); off = passthrough
 		float bloomIntensity = 0.054f;
 		float bloomThreshold = 0.16f;
 		float bloomMipDecay  = 0.5f;

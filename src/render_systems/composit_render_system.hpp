@@ -17,7 +17,8 @@ namespace bagel {
 		uint32_t bloomHandle     = 0;     // bindless texture handle for the bloom result
 		float    bloomIntensity  = 0.08f; // global bloom brightness scale
 		uint32_t radiosityHandle = 0;     // bindless texture handle for the HDR radiosity buffer
-		uint32_t smaaEdgeHandle  = 0;     // bindless handle for the SMAA edges target (r_drawmode 9)
+		uint32_t smaaEdgeHandle   = 0;    // bindless handle for the SMAA edges target (r_drawmode 9)
+		uint32_t smaaWeightHandle = 0;    // bindless handle for the SMAA weights target (r_drawmode 10)
 	};
 
 	class CompositRenderSystem : BGLRenderSystem {

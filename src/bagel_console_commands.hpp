@@ -125,28 +125,34 @@ namespace ConsoleCommand {
 		snprintf(response, sizeof(response), "r_mipbias set to %.2f", bias);
 		return response;
 	}
+	char* ToggleSmaa(void* ptr)
+	{
+		Application* app = static_cast<Application*>(ptr);
+		app->smaaEnabled = !app->smaaEnabled;
+		return app->smaaEnabled ? "SMAA enabled" : "SMAA disabled (passthrough)";
+	}
 	// r_drawmode <n>  — 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic
-	//                   6=bloom 7=raw emission 8=raw radiosity 9=SMAA edges
+	//                   6=bloom 7=raw emission 8=raw radiosity 9=SMAA edges 10=SMAA weights
 	char* SetDrawMode(void* ptr, const char* args)
 	{
 		static char response[64];
 		Application* app = static_cast<Application*>(ptr);
 		if (!args || args[0] == '\0') {
 			snprintf(response, sizeof(response),
-				"r_drawmode: current mode is %d (0-9)", app->gbufferDebugMode);
+				"r_drawmode: current mode is %d (0-10)", app->gbufferDebugMode);
 			return response;
 		}
 		int mode = atoi(args);
-		if (mode < 0 || mode > 9) {
+		if (mode < 0 || mode > 10) {
 			snprintf(response, sizeof(response),
-				"[error] r_drawmode: invalid mode %d (valid: 0-9)", mode);
+				"[error] r_drawmode: invalid mode %d (valid: 0-10)", mode);
 			return response;
 		}
 		app->gbufferDebugMode = mode;
 		static const char* names[] = {
 			"Final composite", "Albedo", "World normals",
 			"World position",  "Roughness", "Metallic", "Bloom", "Raw emission",
-			"Raw radiosity", "SMAA edges"
+			"Raw radiosity", "SMAA edges", "SMAA weights"
 		};
 		snprintf(response, sizeof(response), "GBuffer view: %s", names[mode]);
 		return response;

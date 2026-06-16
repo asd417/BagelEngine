@@ -22,7 +22,8 @@ layout(push_constant)uniform Push{
     uint bloomHandle;// bindless handle for the bloom result
     float bloomIntensity;
     uint radiosityHandle;// bindless handle for the HDR radiosity buffer
-    uint smaaEdgeHandle; // bindless handle for the SMAA edges target (debug mode 9)
+    uint smaaEdgeHandle;   // bindless handle for the SMAA edges target (debug mode 9)
+    uint smaaWeightHandle; // bindless handle for the SMAA weights target (debug mode 10)
 }push;
 
 vec3 reconstructWorldPos(vec2 uv,float depth){
@@ -71,6 +72,12 @@ void main(){
     if(push.debugMode==9u){
         vec2 e=(push.smaaEdgeHandle!=0u)?texture(samplerColor[push.smaaEdgeHandle],fragUV).rg:vec2(0.);
         outColor=vec4(e,0.,1.);
+        return;
+    }
+    if(push.debugMode==10u){
+        // SMAA blend weights (RGBA). Sum the four directions to show where/how much it blends.
+        vec4 w=(push.smaaWeightHandle!=0u)?texture(samplerColor[push.smaaWeightHandle],fragUV):vec4(0.);
+        outColor=vec4(vec3(w.r+w.g+w.b+w.a),1.);
         return;
     }
 

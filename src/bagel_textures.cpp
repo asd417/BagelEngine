@@ -398,7 +398,7 @@ namespace bagel {
 			if (!descriptorManager.checkMissingTexture(storedIndex)) return storedIndex;
 			designatedIndex = true;
 		}
-		loadPixelDataInStagingBuffer(rgba, w, h);
+		loadPixelDataInStagingBuffer(rgba, w, h, bytesPerTexel(imageFormat));
 		return buildAndStoreFromMemory(name, imageFormat, designatedIndex, storedIndex);
 	}
 
@@ -451,13 +451,53 @@ namespace bagel {
 		return buildAndStoreFromMemory(name.c_str(), VK_FORMAT_R8G8B8A8_UNORM, designatedIndex, storedIndex);
 	}
 
-	void BGLTextureLoader::loadPixelDataInStagingBuffer(const uint8_t* rgba, uint32_t w, uint32_t h)
+	// Bytes per texel for an uncompressed color format. Lets the upload size match the format
+	// (loadTextureFromMemory works for any format, not just RGBA8). Covers the formats the engine
+	// uploads; asserts and falls back to 4 for anything unlisted.
+	uint32_t BGLTextureLoader::bytesPerTexel(VkFormat format)
+	{
+		switch (format) {
+		case VK_FORMAT_R8_UNORM:
+		case VK_FORMAT_R8_SRGB:
+		case VK_FORMAT_R8_UINT:
+		case VK_FORMAT_R8_SINT:
+			return 1;
+		case VK_FORMAT_R8G8_UNORM:
+		case VK_FORMAT_R8G8_SRGB:
+		case VK_FORMAT_R8G8_UINT:
+		case VK_FORMAT_R16_UNORM:
+		case VK_FORMAT_R16_SFLOAT:
+			return 2;
+		case VK_FORMAT_R8G8B8A8_UNORM:
+		case VK_FORMAT_R8G8B8A8_SRGB:
+		case VK_FORMAT_R8G8B8A8_UINT:
+		case VK_FORMAT_B8G8R8A8_UNORM:
+		case VK_FORMAT_B8G8R8A8_SRGB:
+		case VK_FORMAT_R16G16_UNORM:
+		case VK_FORMAT_R16G16_SFLOAT:
+		case VK_FORMAT_R32_SFLOAT:
+		case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
+		case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+			return 4;
+		case VK_FORMAT_R16G16B16A16_UNORM:
+		case VK_FORMAT_R16G16B16A16_SFLOAT:
+		case VK_FORMAT_R32G32_SFLOAT:
+			return 8;
+		case VK_FORMAT_R32G32B32A32_SFLOAT:
+			return 16;
+		default:
+			assert(false && "bytesPerTexel: unhandled VkFormat — add it here");
+			return 4;
+		}
+	}
+
+	void BGLTextureLoader::loadPixelDataInStagingBuffer(const uint8_t* rgba, uint32_t w, uint32_t h, uint32_t bpp)
 	{
 		width     = w;
 		height    = h;
 		mipLvl    = 1;          // only level 0 is provided; the rest is generated on the GPU
-		genMipchain = true;     // pre-decoded RGBA source -> generate the mip chain via blits
-		imageSize = static_cast<size_t>(w) * h * 4;
+		genMipchain = true;     // pre-decoded source -> generate the mip chain via blits
+		imageSize = static_cast<size_t>(w) * h * bpp;
 
 		stagingBuffer = new BGLBuffer(
 			bglDevice, 1, static_cast<uint32_t>(imageSize),
