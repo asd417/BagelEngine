@@ -197,9 +197,23 @@ namespace bagel {
 				anim.fps            = baked.fps;
 				anim.clipFrameBase  = baked.clipFrameBase;
 				anim.clipFrameCount = baked.clipFrameCount;
+				// Carry the glTF animation names alongside the baked frame table (same clip order).
+				{
+					const auto& clips = activeLoader->getAnimations();
+					anim.clipNames.reserve(clips.size());
+					for (const auto& c : clips) anim.clipNames.push_back(c.name);
+				}
 				anim.paletteBase    = baked.matrices.empty()
 					? 0
 					: pSkinManager->uploadPalette(baked.matrices.data(), static_cast<uint32_t>(baked.matrices.size()));
+
+				// Manual posing: keep the skeleton at runtime, seed an editable pose from rest,
+				// and reserve a dynamic palette region the engine overwrites when manualPose is on.
+				anim.skeleton = activeLoader->getSkeleton();
+				anim.editPose = anim.skeleton.restPose;
+				if (anim.jointCount > 0)
+					anim.dynamicPaletteBase = pSkinManager->reservePalette(anim.jointCount);
+
 				std::cout << "Skinned model: " << infl.size() << " influences, "
 				          << baked.jointCount << " joints, " << anim.clipCount() << " clip(s)\n";
 			}

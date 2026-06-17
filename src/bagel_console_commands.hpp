@@ -131,6 +131,20 @@ namespace ConsoleCommand {
 		app->smaaEnabled = !app->smaaEnabled;
 		return app->smaaEnabled ? "SMAA enabled" : "SMAA disabled (passthrough)";
 	}
+	// editmode <0|1>  — toggle the bone-posing gizmo edit mode (same as the G hotkey).
+	char* SetEditMode(void* ptr, const char* args)
+	{
+		static char response[64];
+		Application* app = static_cast<Application*>(ptr);
+		if (!args || args[0] == '\0') {
+			snprintf(response, sizeof(response), "editmode: %d", (int)app->gizmoEditModeOn());
+			return response;
+		}
+		bool on = atoi(args) != 0;
+		app->setGizmoEditMode(on);
+		snprintf(response, sizeof(response), "Pose edit mode %s", on ? "ON" : "OFF");
+		return response;
+	}
 	// r_drawmode <n>  — 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic
 	//                   6=bloom 7=raw emission 8=raw radiosity 9=SMAA edges 10=SMAA weights
 	char* SetDrawMode(void* ptr, const char* args)

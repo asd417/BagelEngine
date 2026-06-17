@@ -106,6 +106,46 @@ namespace bagel {
                     ImGui::DragFloat("Sun lux", &dl->lux, 10.0f, 0.0f, 100000.0f);
                 }
                 if (auto* m = registry.try_get<ModelComponent>(entity))          drawModel("Model", *m);
+                if (auto* a = registry.try_get<AnimationComponent>(entity))
+                {
+                    ImGui::Text("Animation: joints=%u  clips=%u  fps=%.1f",
+                        a->jointCount, a->clipCount(), a->fps);
+                    ImGui::Text("paletteBase=%u  dynamicBase=%u", a->paletteBase, a->dynamicPaletteBase);
+
+                    if (ImGui::Checkbox("Manual pose", &a->manualPose)) a->poseDirty = true;
+                    if (a->manualPose) {
+                        ImGui::SameLine();
+                        if (ImGui::SmallButton("Reset to rest")) {
+                            a->editPose = a->skeleton.restPose;
+                            a->poseDirty = true;
+                        }
+                        ImGui::Text("editPose joints=%u  dirty=%s",
+                            (unsigned)a->editPose.size(), a->poseDirty ? "yes" : "no");
+                    } else if (a->clipCount() > 0) {
+                        // Clip dropdown: pick any loaded glTF animation by name and switch live.
+                        if (ImGui::BeginCombo("Clip", a->clipName(a->clip))) {
+                            for (uint32_t i = 0; i < a->clipCount(); ++i) {
+                                ImGui::PushID((int)i); // distinct IDs for same-named/unnamed clips
+                                const bool selected = (i == a->clip);
+                                if (ImGui::Selectable(a->clipName(i), selected)) {
+                                    a->clip = i;
+                                    a->time = 0.0f;
+                                }
+                                if (selected) ImGui::SetItemDefaultFocus();
+                                ImGui::PopID();
+                            }
+                            ImGui::EndCombo();
+                        }
+                        if (ImGui::Button(a->playing ? "Pause" : "Play")) a->playing = !a->playing;
+                        ImGui::SameLine();
+                        if (ImGui::Button("Restart")) { a->time = 0.0f; a->playing = true; }
+                        ImGui::SameLine();
+                        ImGui::Checkbox("Loop", &a->loop);
+                        const float dur = a->clipDuration(a->clip);
+                        if (ImGui::SliderFloat("Time", &a->time, 0.0f, dur > 0.0f ? dur : 1.0f))
+                            a->playing = false; // scrubbing pauses playback
+                    }
+                }
                 if (auto* w = registry.try_get<WireframeComponent>(entity))      drawModel("Wireframe", *w);
                 if (auto* c = registry.try_get<CollisionModelComponent>(entity)) drawModel("CollisionModel", *c);
                 if (auto* db = registry.try_get<DataBufferComponent>(entity))

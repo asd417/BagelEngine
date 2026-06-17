@@ -260,6 +260,13 @@ namespace bagel
 			registry,
 			bglDevice};
 
+		// Bone-posing gizmo: interaction state + overlay renderer (drawn in the swapchain pass).
+		GizmoRenderSystem gizmoRenderSystem{
+			bglRenderer.getSwapChainRenderPass(),
+			pipelineDescriptorSetLayouts,
+			bglDevice};
+		// poseGizmo is an Application member (so the editmode console command can reach it).
+
 		PointLightSystem pointLightSystem{
 			bglRenderer.getSwapChainRenderPass(),
 			pipelineDescriptorSetLayouts,
@@ -415,6 +422,13 @@ namespace bagel
 			float aspect = bglRenderer.getAspectRatio(); //aspect ratio might change due to window resize
 			camera.setPerspectiveProjection(glm::radians(100.0f), aspect, 0.1f, 300.0f);
 			recordSection(S_CAMERA, tMs(t0, Clock::now()));
+
+			// Bone-posing gizmo input/logic (G toggles edit mode; W/E switch translate/rotate).
+			{
+				VkExtent2D ext = bglRenderer.getExtent();
+				poseGizmo.update(bglWindow.getGLFWWindow(), camera,
+					static_cast<float>(ext.width), static_cast<float>(ext.height));
+			}
 				
 			t0 = Clock::now();
 			OnUpdate(frameTime);
@@ -515,6 +529,20 @@ namespace bagel
 				// deformed mesh by a frame (or render the bind pose entirely).
 				for (auto [animEnt, anim] : registry.view<AnimationComponent>().each())
 				{
+					// Manual posing: resolve the authored pose into the dynamic palette region
+					// (only when it changed) and skip clip playback entirely for this entity.
+					if (anim.manualPose)
+					{
+						if (anim.poseDirty && anim.jointCount > 0)
+						{
+							std::vector<glm::mat4> palette(anim.jointCount);
+							resolvePalette(anim.skeleton, anim.editPose, palette.data());
+							skinManager->writePalette(anim.dynamicPaletteBase, palette.data(), anim.jointCount);
+							anim.poseDirty = false;
+						}
+						continue;
+					}
+
 					if (!anim.playing)
 						continue;
 					anim.time += frameTime;
@@ -634,6 +662,7 @@ namespace bagel
 					wireframeRenderSystem.renderEntities(frameInfo);
 				if (drawBBox)
 					wireframeRenderSystem.renderBBoxes(frameInfo);
+				gizmoRenderSystem.render(frameInfo, poseGizmo);
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), primaryCommandBuffer);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
@@ -727,6 +756,7 @@ namespace bagel
 		CONSOLE->AddCommandWithArg("SKIN", this, ConsoleCommand::SetSkin);
 		CONSOLE->AddCommandWithArg("R_MIPBIAS", this, ConsoleCommand::SetMipBias);
 		CONSOLE->AddCommand("R_SMAA", this, ConsoleCommand::ToggleSmaa);
+		CONSOLE->AddCommandWithArg("EDITMODE", this, ConsoleCommand::SetEditMode);
 	}
 
 	void Application::setTextureMipBias(float bias)
@@ -788,6 +818,20 @@ namespace bagel
 		ImGui_ImplVulkan_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
+		// Pose-gizmo edit-mode overlay, pinned to the top-left.
+		if (poseGizmo.editModeOn())
+		{
+			const ImGuiWindowFlags ovFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize
+				| ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing
+				| ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs;
+			ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
+			ImGui::SetNextWindowBgAlpha(0.35f);
+			ImGui::Begin("##editmode_overlay", nullptr, ovFlags);
+			ImGui::TextUnformatted("Edit mode active. Press T for transform mode, R for rotation mode");
+			ImGui::Text("Press L to toggle local/global space (now: %s)",
+				poseGizmo.localSpaceOn() ? "local" : "global");
+			ImGui::End();
+		}
 		// Let the derived app draw its own panels and mutate the scene/registry
 		// before anything reads it this frame (e.g. map build/load buttons).
 		OnDrawGui();

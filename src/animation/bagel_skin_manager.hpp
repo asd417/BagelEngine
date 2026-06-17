@@ -30,6 +30,14 @@ namespace bagel {
 		// AnimationComponent stores as paletteBase.
 		uint32_t uploadPalette(const glm::mat4* data, uint32_t matrixCount);
 
+		// Bump-allocate `matrixCount` palette slots WITHOUT writing them, returning the base.
+		// Used for manual posing / IK: the caller overwrites the region later with writePalette.
+		uint32_t reservePalette(uint32_t matrixCount);
+
+		// Overwrite `count` matrices at an already-reserved `base` (does not advance the cursor).
+		// `base + count` must lie within a region previously handed out by reservePalette/uploadPalette.
+		void writePalette(uint32_t base, const glm::mat4* data, uint32_t count);
+
 		// Reset both allocators for a new scene (GPU must be idle; old contents get overwritten).
 		void clear() { skinCursor = 0; paletteCursor = 0; }
 

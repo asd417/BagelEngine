@@ -11,6 +11,7 @@
 
 #include "bagel_engine_device.hpp"
 #include "model_loaders/model_load_settings.hpp"
+#include "animation/bagel_animation.hpp" // SkeletonData, Pose, JointTransform (manual posing)
 
 namespace bagel {
 	// PBR material — bindless texture handles for each map slot.
@@ -209,6 +210,7 @@ namespace bagel {
 		float    fps         = 30.0f;
 		std::vector<uint32_t> clipFrameBase{};  // per clip: first frame row (in frames)
 		std::vector<uint32_t> clipFrameCount{}; // per clip: baked frame count
+		std::vector<std::string> clipNames{};   // per clip: glTF animation name (parallel to clipFrameBase)
 
 		// Playback state.
 		uint32_t clip    = 0;
@@ -216,7 +218,22 @@ namespace bagel {
 		bool     playing = true;
 		bool     loop    = true;
 
+		// ---- Manual posing (live, no disk persistence) -------------------------------------
+		// When manualPose is set, draws read from a dedicated dynamic palette region
+		// (dynamicPaletteBase) that the engine fills each frame by resolving `editPose`,
+		// instead of from a baked clip frame. The skeleton (kept from load) is needed to
+		// resolve a local pose into skinning matrices; editPose is the per-joint TRS the
+		// gizmo authors. poseDirty gates the (re-)resolve+upload so we only do it on change.
+		SkeletonData skeleton{};             // restPose / parents / inverseBind, retained for runtime resolve
+		Pose         editPose{};             // per-joint local TRS being authored
+		bool         manualPose = false;     // route draws to the dynamic region when true
+		uint32_t     dynamicPaletteBase = 0; // base of the reserved jointCount-matrix scratch region
+		bool         poseDirty   = true;     // re-resolve + re-upload editPose when set
+
 		uint32_t clipCount() const { return static_cast<uint32_t>(clipFrameBase.size()); }
+		const char* clipName(uint32_t c) const {
+			return (c < clipNames.size() && !clipNames[c].empty()) ? clipNames[c].c_str() : "(unnamed)";
+		}
 		float    clipDuration(uint32_t c) const {
 			return (c < clipFrameCount.size() && fps > 0.0f && clipFrameCount[c] > 0)
 				? (clipFrameCount[c] - 1) / fps : 0.0f;
@@ -224,6 +241,7 @@ namespace bagel {
 		// Palette row base for the current clip/time — pushed to the shader as animBaseOffset.
 		// Snaps to the nearest baked frame (clamped to the clip's last frame).
 		uint32_t animBaseOffset() const {
+			if (manualPose) return dynamicPaletteBase; // hand-posed: read the dynamic region
 			if (clip >= clipFrameBase.size() || jointCount == 0) return paletteBase;
 			const uint32_t frames = clipFrameCount[clip];
 			uint32_t frame = (fps > 0.0f) ? static_cast<uint32_t>(time * fps) : 0;

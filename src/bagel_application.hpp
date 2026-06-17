@@ -20,6 +20,7 @@
 #include "render_systems/smaa_edge_render_system.hpp"
 #include "render_systems/smaa_weight_render_system.hpp"
 #include "render_systems/smaa_neighborhood_render_system.hpp"
+#include "render_systems/gizmo_render_system.hpp"
 
 #ifdef PHYSTEST
 #include "physics/bagel_physics.h"
@@ -86,6 +87,10 @@ namespace bagel
 		bool vsync = false;
 		bool vsyncDirty = false;
 		float exposure = 0.0075f;
+
+		// Bone-posing gizmo edit mode (console: editmode 0/1; also the G hotkey).
+		void setGizmoEditMode(bool on) { poseGizmo.setEditMode(on); }
+		bool gizmoEditModeOn() const   { return poseGizmo.editModeOn(); }
 	
 		// Override in derived classes
 		virtual void OnSceneLoad() {}
@@ -109,6 +114,8 @@ namespace bagel
 		std::unique_ptr<BGLMaterialManager> materialManager;
 		std::unique_ptr<BGLSkinManager> skinManager;
 		entt::registry registry;
+		// Declared after registry (constructed after it; holds only a reference to it).
+		PoseGizmo poseGizmo{ registry };
 
 	private:
 		std::unique_ptr<BGLDescriptorSetLayout> modelSetLayout;

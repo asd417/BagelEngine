@@ -44,14 +44,26 @@ namespace bagel {
 
 	uint32_t BGLSkinManager::uploadPalette(const glm::mat4* data, uint32_t matrixCount)
 	{
+		const uint32_t base = reservePalette(matrixCount);
+		writePalette(base, data, matrixCount);
+		return base;
+	}
+
+	uint32_t BGLSkinManager::reservePalette(uint32_t matrixCount)
+	{
 		assert(paletteCursor + matrixCount <= MAX_PALETTE_MATRICES && "joint palette buffer overflow");
 		const uint32_t base = paletteCursor;
-		paletteBuffer->writeToBuffer(const_cast<glm::mat4*>(data),
-			static_cast<VkDeviceSize>(matrixCount) * sizeof(glm::mat4),
-			static_cast<VkDeviceSize>(base) * sizeof(glm::mat4));
-		paletteBuffer->flush();
 		paletteCursor += matrixCount;
 		return base;
+	}
+
+	void BGLSkinManager::writePalette(uint32_t base, const glm::mat4* data, uint32_t count)
+	{
+		assert(base + count <= paletteCursor && "writePalette outside a reserved region");
+		paletteBuffer->writeToBuffer(const_cast<glm::mat4*>(data),
+			static_cast<VkDeviceSize>(count) * sizeof(glm::mat4),
+			static_cast<VkDeviceSize>(base) * sizeof(glm::mat4));
+		paletteBuffer->flush();
 	}
 
 } // namespace bagel
