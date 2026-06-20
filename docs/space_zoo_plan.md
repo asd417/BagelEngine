@@ -57,8 +57,12 @@ typical scene, this game **does need new engine-level rendering/geometry work** 
 
 ### 2.5 Engine capability gaps (net-new rendering/geometry workstreams)
 
-Per the gameplay's actual demands, these three are first-class engineering tracks, not
-incidental game code. They are the project's real technical risk (more than the gameplay sim).
+Per the gameplay's actual demands, these are first-class engineering tracks, not incidental game
+code — collectively the project's real technical risk (more than the gameplay sim):
+**A** instanced skinned crowds · **B** dynamic editable path meshes · **C** particle system ·
+**D** planet-horizon culling · **E** atmosphere shader · **F** procedural deep-space skybox.
+A–C share a **per-instance bindless-SSBO** backbone; E/F/atmosphere share the **full-screen-pass**
+plumbing already used by the composite/SMAA systems. Build each backbone once and reuse.
 
 **A. Instanced rendering of *animated* meshes — the headline feature.**
 Crowds of tourists (and herds of aliens) are many copies of a few skinned models, so they must
@@ -138,6 +142,28 @@ needs **atmospheric scattering**, which no existing pass produces — it's a new
   thickens haze (ties to the disaster director, §3.4).
 - *Reuse:* shares `ubo.glsl` (camera/sun) and the full-screen-pass plumbing; the sun already exists
   as the directional light (`updateDirectionalUBO`).
+
+**F. Procedural skybox / deep-space backdrop — a shader.**
+The space backdrop — starfields, distant galaxies, and nearby planets/moons of the current
+system — is rendered **entirely in a shader** rather than from cubemap textures.
+- *Where it slots in:* a full-screen `SkyboxRenderSystem`, same full-screen-pass plumbing as E,
+  drawn **first into empty-space pixels** (where the G-buffer has no surface / depth = far). It's
+  the deep-space layer; the atmosphere pass (E) then composites the planet's rim glow *over* it,
+  and bloom runs after both so stars, galaxies, and glow all bloom. Order: **skybox → atmosphere →
+  bloom → composite.**
+- *Shader (`skybox.frag`):* reconstruct the per-pixel view-ray direction from the inverse
+  view-projection, then evaluate procedurally:
+  - **Stars:** hash/noise-based point field with twinkle and color/temperature variation.
+  - **Galaxies / nebulae:** layered fractal noise bands (the Milky Way streak, colored nebula clouds).
+  - **Nearby celestial bodies:** the current system's planets/moons as analytic spheres or
+    billboards "at infinity" (lit by the same sun direction), including the **destination planet
+    that visibly grows as you approach** during transit.
+- *Gameplay synergy:* the sky is **data-driven per star system** (which bodies/galaxy are visible),
+  so travel (§3.1, M5) genuinely changes the view — and the destination looming larger is the
+  "planet visibly flying" payoff (resolves open question §7.5 toward the cinematic option, cheaply).
+- *Why shader, not cubemap:* infinite resolution, zero texture memory/streaming, trivially
+  animated/parameterized per system, and the moving destination planet can't be a static cubemap.
+  Reuses `ubo.glsl` and the full-screen plumbing shared with E.
 
 ### Key constraints to respect
 - `ModelComponent` is **move-only** (owns Vk buffers) — never copy; transfer or share via the
@@ -319,8 +345,10 @@ src/render_systems/                # ENGINE-level additions (§2.5), not game-sp
   instanced_skinned_gbuffer_render_system.*  # A: instanced + skinned deferred pass
   particle_render_system.*                    # C: instanced billboard particles
   atmosphere_render_system.*                  # E: full-screen atmospheric scattering pass
+  skybox_render_system.*                      # F: full-screen procedural deep-space backdrop
 shaders/
   atmosphere.frag                  # E: Rayleigh/Mie scattering (+ .vert reuses full-screen tri)
+  skybox.frag                      # F: procedural stars/galaxies/nearby planets from view ray
 src/animation/ or src/geometry/
   path_mesh_builder.*              # B: control-points -> surface ribbon mesh (raise/lower)
 src/game/
@@ -361,7 +389,8 @@ alien sim → visitor sim → build-mode input. `OnDrawGui`: HUD + active panel 
 ## 6. Milestones (incremental, each independently runnable)
 
 **M0 — Skeleton + spherical surface (1st PR)**
-- `SpaceZooApplication` subclass wired into the build; **spherical planet mesh + skybox** with a
+- `SpaceZooApplication` subclass wired into the build; **spherical planet mesh** + a placeholder
+  starfield background (the full procedural skybox/atmosphere lands in E4, §2.5-E/F) with a
   surface-orbiting camera and center-pointing gravity. Implement and unit-feel-test the
   `PlanetSurface` helper (point↔normal, `surfaceBasis`, cursor→sphere raycast) — everything else
   depends on it. HUD shows placeholder resources. Loads/saves an empty zoo `.bmap`.
@@ -392,9 +421,11 @@ alien sim → visitor sim → build-mode input. `OnDrawGui`: HUD + active panel 
 - Path graph over dynamic paths, instanced-skinned visitor crowds spawn + path-follow + spend,
   ticket income, fuel/credits loop.
 
-**E4 — Atmosphere shader (§2.5-E)** *(visual identity; pairs with M5 "planet from space")*
-- `AtmosphereRenderSystem` + `atmosphere.frag` scattering pass (after lighting, before bloom),
-  parameterized per star system. Cheap analytic version first, deepen later.
+**E4 — Atmosphere + skybox shaders (§2.5-E, §2.5-F)** *(visual identity; pairs with M5)*
+- `SkyboxRenderSystem` + `skybox.frag` procedural deep-space backdrop (stars/galaxies/nearby
+  planets), then `AtmosphereRenderSystem` + `atmosphere.frag` scattering over it — both before
+  bloom (skybox → atmosphere → bloom → composite). Per-star-system params. A flat starfield can
+  land first; galaxies, nearby bodies, and the approaching destination planet follow.
 
 **M5 — Travel**
 - Star map UI, fuel-gated system travel, per-system species/civilization/disaster reshuffle.
@@ -432,11 +463,13 @@ alien sim → visitor sim → build-mode input. `OnDrawGui`: HUD + active panel 
 ---
 
 ## 8. Risks
-- **Engine rendering/geometry work is the dominant risk** (§2.5), ahead of the gameplay sim. In
-  order: (A) instanced *skinned* rendering is net-new and the headline feature — prototype it
+- **Engine rendering/geometry work is the dominant risk** (§2.5), ahead of the gameplay sim. By
+  difficulty: (A) instanced *skinned* rendering is net-new and the headline feature — prototype it
   standalone (E2) before crowds depend on it; (B) editable dynamic path meshes need a safe
-  buffer-rebuild path respecting move-only buffer ownership; (C) the particle system is fully
-  net-new. All three share the per-instance-SSBO backbone — build it once.
+  buffer-rebuild path respecting move-only buffer ownership; (C) particle system; (E) atmosphere
+  and (F) skybox shaders are lower-risk (they reuse the existing full-screen-pass plumbing) but are
+  the game's visual identity. A–C share the per-instance-SSBO backbone, E/F share the full-screen
+  pass — build each backbone once.
 - **Spherical surface + freeform building compound each other** — the two hardest design choices
   both got picked, so tangent-space placement, snapping, path graphs, and enclosure flood-fill are
   all non-trivial. Mitigation: build and prove `PlanetSurface` in M0 before any gameplay leans on
