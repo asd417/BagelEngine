@@ -278,18 +278,24 @@ event — meteor streaks, radiation shimmer, storm dust, booster exhaust — is 
 ### 3.5 Building System (the centerpiece)
 A detailed, creative editor that runs **in-game**, reusing engine pieces.
 
-**Placement model — freeform precision (Planet Coaster style)**
-- **Smooth free placement + rotation** on the sphere surface, with **optional** snapping rather
-  than a hard grid:
-  - Objects sit on the surface oriented to the local normal; the player freely rotates around the
-    local "up" (surface normal) and slides the piece continuously across the surface.
-  - Optional snaps: surface-tangent angle increments, edge/vertex snapping to neighboring pieces,
-    and surface-distance grid lines for players who want alignment. Hold a modifier to toggle
-    snap on/off.
+**Placement model — freeform precision (Planet Coaster style), NO global grid**
+- **Why no grid:** a sphere cannot be tiled with uniform squares, so games that "grid-build" on a
+  planet all pick a distorted compromise (cube-sphere → corner/seam warping; DSP-style adaptive
+  latitude bands → lots of engine work; geodesic hexes → a tile idiom, not freeform). The freeform
+  choice deliberately **sidesteps this** — there is no world lattice to distort. Confirmed direction.
+- **Smooth free placement + rotation** on the sphere surface:
+  - Objects sit on the surface oriented to the local normal; the player freely **slides** a piece
+    across the surface and **rotates** it around the local "up" (surface normal).
+  - **Snapping is relational, not to a world grid:** snap a piece to its *neighbors* — edge-to-edge,
+    socket/connector points (fences chain, paths join, walls align), and optional surface-tangent
+    angle increments. Hold a modifier to toggle snap off for fully free placement. (If players later
+    want alignment aid, an optional cube-sphere "soft grid" snap target can be layered on — but it's
+    not the underlying data model.)
   - Vertical stacking for multi-floor structures, with height offset along the surface normal.
 - **Implication:** placement is a sphere raycast from the cursor → surface point → build a
-  transform from `surfaceBasis(point)` + the player's heading angle. No flat-plane grid; the
-  gizmo and validation operate in tangent space (see `PlanetSurface`, §3.1).
+  transform from `surfaceBasis(point)` + the player's heading angle. The gizmo and all snapping
+  math operate in **tangent space** at the placement point (see `PlanetSurface`, §3.1). Pieces
+  store a surface position + tangent heading, never a grid cell.
 - **Build categories:**
   - *Terrain/ground:* biome tiles (paint ice/lava/grass), elevation.
   - *Paths:* **dynamically generated** walkways the visitor path graph reads. Authored as control
@@ -346,7 +352,8 @@ a progression layer that grants it:
 
 All serialized ones follow the rehydrate discipline (§2). Names provisional.
 
-- `PlaceableComponent` — catalog id, category, grid cell/anchor, rotation, footprint, integrity/health.
+- `PlaceableComponent` — catalog id, category, **surface position + tangent heading** (no grid
+  cell), footprint, connector/socket points for relational snapping, integrity/health.
 - `EnclosureComponent` — region cells, biome mix, temperature, area, assigned species, list of contained animals.
 - `AlienComponent` — species id, happiness, hunger, health, social state, home enclosure entity.
 - `SpeciesDef` (data, not component) — needs/appeal/model; loaded from `assets/species/*.json`.
@@ -497,14 +504,18 @@ alien sim → visitor sim → objective/achievement eval → build-mode input. `
 2. **Building feel** — ✅ **Freeform precision (Planet Coaster style)** with optional snapping,
    in tangent space on the sphere (§3.5).
 3. **Capture depth** — ✅ **Abstract cost/roll for v1**; deepen into an expedition mechanic later.
+4. **Building snap model** — ✅ **Freeform + relational snapping, NO global grid** (§3.5). A sphere
+   can't hold a uniform square grid; pieces store surface position + tangent heading and snap to
+   neighbors. Optional cube-sphere "soft grid" snap target may be layered on later, not as the
+   data model.
 
 **Still open (confirm before/at M1):**
-4. **Art pipeline** — author placeholder primitives/generated models first, or source GLTF assets early?
-5. **Scope of "planet moves"** — full transit sequence with the planet visibly flying, or a
+5. **Art pipeline** — author placeholder primitives/generated models first, or source GLTF assets early?
+6. **Scope of "planet moves"** — full transit sequence with the planet visibly flying, or a
    star-map fast-travel abstraction for v1?
-6. **Camera scheme** — fully free orbit around the sphere, or a constrained "over-the-shoulder of
+7. **Camera scheme** — fully free orbit around the sphere, or a constrained "over-the-shoulder of
    the surface" cam? (Freeform building on a sphere makes camera control a usability risk.)
-7. **Jump-currency faucet (§3.6)** — are Jump Cores earned via the **campaign**, **achievements**,
+8. **Jump-currency faucet (§3.6)** — are Jump Cores earned via the **campaign**, **achievements**,
    or **both**? Working default: campaign is the primary faucet, achievements a secondary bonus.
    (Also: is there a *fully sandbox* mode where jumps are unlocked/free?)
 
