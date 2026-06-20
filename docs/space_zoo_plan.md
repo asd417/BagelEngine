@@ -120,6 +120,25 @@ the engine's frustum test (`Frustum::testAABB`) does **not** provide.
   behind *near-side* hills/buildings (leave that to the existing depth buffer). Tall structures and
   raised paths on the limb need the height bias to avoid popping.
 
+**E. Atmosphere — a custom shader pass.**
+The iconic tiny-planet look (a glowing atmospheric rim around the limb, sky color from the surface)
+needs **atmospheric scattering**, which no existing pass produces — it's a new custom shader.
+- *Where it slots in:* a new full-screen `AtmosphereRenderSystem` following the existing
+  `CompositRenderSystem` / SMAA pattern (full-screen triangle, `BGLRenderSystem` base, bindless
+  G-buffer handles + push constants). Run it **after deferred lighting, before bloom**, so the rim
+  glow feeds the bloom pass and reads the same depth/position G-buffer the composite already uses.
+  No new render-target plumbing — reuse the bindless-handle convention in `CompositionPush`.
+- *Shader (`atmosphere.frag`):* analytic single-scattering (O'Neil/Bruneton-style Rayleigh + Mie)
+  parameterized by planet center/radius, atmosphere shell radius, sun direction, and scattering
+  coefficients. For each pixel, march/integrate the view ray against the atmosphere shell; where the
+  G-buffer has surface depth, scatter up to the surface (aerial perspective), and where it's empty
+  space, render the sky/limb glow. Can start with a cheap analytic approximation and deepen later.
+- *Gameplay synergy:* scattering params are **per star system** (different planets/skies as you
+  travel, §3.1) and can be driven by events — e.g. solar radiation tints the sky, an ion storm
+  thickens haze (ties to the disaster director, §3.4).
+- *Reuse:* shares `ubo.glsl` (camera/sun) and the full-screen-pass plumbing; the sun already exists
+  as the directional light (`updateDirectionalUBO`).
+
 ### Key constraints to respect
 - `ModelComponent` is **move-only** (owns Vk buffers) — never copy; transfer or share via the
   loader's dedup path.
@@ -167,6 +186,8 @@ engine** for the building system:
   - **Why this is the hard part:** snapping, footprints, path graphs, and enclosure flood-fill
     all have to work in spherical/tangent space rather than on a plane. Keep that math behind the
     `PlanetSurface` interface so gameplay code stays surface-agnostic. (Build/test it first in M0.)
+- **Atmosphere:** each planet/system has its own sky and limb glow via the custom atmosphere
+  shader pass (§2.5-E); scattering params are per star system and can shift with disasters.
 - **Boosters:** visual + a `BoosterComponent` (thrust level, fuel burn rate). Mostly
   cosmetic/economic in v1 — they gate travel via fuel.
 - **Star map:** a separate UI/overlay (`OnDrawGui`) listing reachable star systems, each with:
@@ -297,6 +318,9 @@ All serialized ones follow the rehydrate discipline (§2). Names provisional.
 src/render_systems/                # ENGINE-level additions (§2.5), not game-specific
   instanced_skinned_gbuffer_render_system.*  # A: instanced + skinned deferred pass
   particle_render_system.*                    # C: instanced billboard particles
+  atmosphere_render_system.*                  # E: full-screen atmospheric scattering pass
+shaders/
+  atmosphere.frag                  # E: Rayleigh/Mie scattering (+ .vert reuses full-screen tri)
 src/animation/ or src/geometry/
   path_mesh_builder.*              # B: control-points -> surface ribbon mesh (raise/lower)
 src/game/
@@ -368,8 +392,13 @@ alien sim → visitor sim → build-mode input. `OnDrawGui`: HUD + active panel 
 - Path graph over dynamic paths, instanced-skinned visitor crowds spawn + path-follow + spend,
   ticket income, fuel/credits loop.
 
+**E4 — Atmosphere shader (§2.5-E)** *(visual identity; pairs with M5 "planet from space")*
+- `AtmosphereRenderSystem` + `atmosphere.frag` scattering pass (after lighting, before bloom),
+  parameterized per star system. Cheap analytic version first, deepen later.
+
 **M5 — Travel**
 - Star map UI, fuel-gated system travel, per-system species/civilization/disaster reshuffle.
+  Per-system atmosphere params (E4) sell the change of sky on arrival.
 
 **E3 — Particle system (§2.5-C)** *(prereq for M6 spectacle)*
 - `ParticleSystemComponent` + `ParticleRenderSystem` (instanced billboards, additive, bloom-aware):
