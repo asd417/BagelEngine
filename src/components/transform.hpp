@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
 
 #include <glm/glm.hpp>
 #include "entt.hpp"
@@ -141,5 +142,9 @@ namespace bagel {
 		glm::vec3 localTranslation = { 0.0f, 0.0f, 0.0f };
 		glm::vec3 localRotation    = { 0.0f, 0.0f, 0.0f };
 		glm::vec3 localScale       = { 1.0f, 1.0f, 1.0f };
+		// Optional: name of an attach point on the PARENT entity. When set (and the parent has a
+		// matching AttachmentComponent point), the child rides that bone-anchored point instead of
+		// the parent's root transform. Empty => normal root parenting.
+		std::string attachment;
 	};
 }

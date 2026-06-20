@@ -34,13 +34,13 @@ namespace bagel {
 			uint8_t skinIndex;
 			uint32_t materialCount;
 			std::vector<MaterialSource> sources; // only the [0, materialCount) valid slots
-			// Authored manual-pose state carried across the rebuild (skinned ModelComponents only).
-			// buildComponent re-emplaces a FRESH AnimationComponent (editPose = rest pose, no IK),
-			// so we stash the restored authored fields here and re-apply them afterward.
+			// Authored pose carried across the rebuild (skinned ModelComponents only). buildComponent
+			// re-emplaces a FRESH AnimationComponent (editPose = rest pose), so we stash the restored
+			// pose here and re-apply it afterward. IK is NOT carried — it comes from the sidecar and
+			// buildComponent re-attaches it, so we must not clobber that with stale map data.
 			bool hasAnim = false;
 			bool animManual = false;
 			Pose animEditPose;
-			std::vector<IKSetup> animIK;
 		};
 		std::vector<Recipe> recipes;
 		for (auto [e, m] : registry.view<T>().each()) {
@@ -51,7 +51,6 @@ namespace bagel {
 					r.hasAnim = true;
 					r.animManual   = a->manualPose;
 					r.animEditPose = a->editPose;
-					r.animIK       = a->ikSetups;
 				}
 			}
 			recipes.push_back(std::move(r));
@@ -60,9 +59,12 @@ namespace bagel {
 		for (auto& r : recipes) {
 			registry.remove<T>(r.e);
 			// Drop the restored AnimationComponent too, so buildComponent's emplace doesn't collide;
-			// its authored fields are saved on the recipe and re-applied below.
-			if constexpr (std::is_same_v<T, ModelComponent>)
+			// its authored fields are saved on the recipe and re-applied below. AttachmentComponent
+			// is transient (sidecar-rebuilt) — remove() is a no-op if absent, kept for safety.
+			if constexpr (std::is_same_v<T, ModelComponent>) {
 				if (r.hasAnim) registry.remove<AnimationComponent>(r.e);
+				registry.remove<AttachmentComponent>(r.e);
+			}
 		}
 
 		for (auto& r : recipes) {
@@ -76,11 +78,10 @@ namespace bagel {
 
 			// Re-apply the authored pose onto the freshly built AnimationComponent. editPose is only
 			// restored when its length matches the rebuilt skeleton's joint count (a changed asset
-			// could differ); ikSetups index-validate at solve time, so they copy unconditionally.
+			// could differ). IK setups are left as buildComponent attached them (from the sidecar).
 			if constexpr (std::is_same_v<T, ModelComponent>) {
 				if (r.hasAnim) {
 					if (auto* a = registry.try_get<AnimationComponent>(r.e)) {
-						a->ikSetups   = std::move(r.animIK);
 						a->manualPose = r.animManual;
 						if (r.animEditPose.size() == a->editPose.size())
 							a->editPose = std::move(r.animEditPose);

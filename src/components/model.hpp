@@ -234,6 +234,11 @@ namespace bagel {
 		bool         poseDirty   = true;     // re-resolve + re-upload editPose when set
 		std::vector<IKSetup> ikSetups{};     // per-armature IK chains, applied on top of editPose
 
+		// Model-space joint matrices for THIS frame (joint local -> model space), resolved from the
+		// current pose by the engine BEFORE the hierarchy pass ("resolve bones before parents") so
+		// attachment-parented children read up-to-date bone transforms. Transient (never serialized).
+		std::vector<glm::mat4> currentGlobals{};
+
 		uint32_t clipCount() const { return static_cast<uint32_t>(clipFrameBase.size()); }
 		const char* clipName(uint32_t c) const {
 			return (c < clipNames.size() && !clipNames[c].empty()) ? clipNames[c].c_str() : "(unnamed)";
@@ -251,6 +256,28 @@ namespace bagel {
 			uint32_t frame = (fps > 0.0f) ? static_cast<uint32_t>(time * fps) : 0;
 			if (frames > 0 && frame >= frames) frame = frames - 1;
 			return paletteBase + (clipFrameBase[clip] + frame) * jointCount;
+		}
+	};
+
+	// Named bone attach points baked from the model's "<model>.yaml" sidecar — the Source-engine
+	// $attachment analog. Each point is a local offset (translation + rotation) within a skeleton
+	// bone's space; its world transform is bone_world * localOffset. Transient: the model builder
+	// rebuilds it from the sidecar on load/rehydrate (not serialized — the sidecar owns it).
+	// Query via lookupAttachment() / getAttachmentWorld() in bagel_hierachy.hpp. A
+	// TransformHierachyComponent can name one of these to parent a child to the point.
+	struct AttachmentComponent {
+		struct Point {
+			std::string name;              // referenced by TransformHierachyComponent::attachment / code
+			int       joint = -1;          // skeleton joint the point rides (resolved from bone name)
+			glm::mat4 localOffset{ 1.0f }; // offset within the bone's local space
+		};
+		std::vector<Point> points;
+
+		// Attachment name -> index into points (or -1). Mirrors Source's LookupAttachment.
+		int lookup(const std::string& name) const {
+			for (size_t i = 0; i < points.size(); ++i)
+				if (points[i].name == name) return static_cast<int>(i);
+			return -1;
 		}
 	};
 }

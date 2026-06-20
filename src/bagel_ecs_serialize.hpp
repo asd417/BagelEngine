@@ -153,7 +153,7 @@ namespace bagel {
 		// identifiers (snapshot_loader), so this handle stays valid. For partial /
 		// cross-registry loads you'd remap it with entt::continuous_loader instead.
 		ar(c.parent, c.hasParent, c.depth,
-		   c.localTranslation, c.localRotation, c.localScale);
+		   c.localTranslation, c.localRotation, c.localScale, c.attachment);
 	}
 
 	template<class Archive>
@@ -210,17 +210,18 @@ namespace bagel {
 		ar(c.collisionScale);
 	}
 
-	// AnimationComponent: only the AUTHORED manual-posing state is persisted —
+	// AnimationComponent: only the AUTHORED POSE is persisted —
 	//   manualPose : whether draws read the hand-posed palette
 	//   editPose   : per-joint local TRS the gizmo authors (Pose = vector<JointTransform>)
-	//   ikSetups   : the IK chains layered on top of editPose
-	// Everything else (skeleton, baked clip tables, paletteBase/dynamicPaletteBase, jointCount,
-	// playback time) is TRANSIENT: the model builder rebuilds it on rehydrate, which then
-	// re-applies these fields onto the freshly built component (see rehydrateModelType).
-	// JointTransform and IKSetup are trivially copyable, so the vectors archive element-wise.
+	// IK setups are NOT serialized: the "<model>.yaml" sidecar is their single source of truth and
+	// the model builder re-attaches them on every load/rehydrate (see ModelLoaderBase::resolveIkSetups
+	// / bagel_model.hpp). Everything else (skeleton, baked clip tables, paletteBase/dynamicPaletteBase,
+	// jointCount, playback time) is TRANSIENT and rebuilt by the builder, which then re-applies these
+	// fields onto the freshly built component (see rehydrateModelType). JointTransform is trivially
+	// copyable, so editPose archives element-wise.
 	template<class Archive>
 	void serialize(Archive& ar, AnimationComponent& c) {
-		ar(c.manualPose, c.editPose, c.ikSetups);
+		ar(c.manualPose, c.editPose);
 	}
 
 	// JPH::BodyCreationSettings is the persisted "recipe" for a physics body (shape,

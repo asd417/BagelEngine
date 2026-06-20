@@ -1,0 +1,20 @@
+# Sidecar for ikbone.glb — defines the leg's two-bone IK chain by bone name.
+# Bones in this rig: root -> knee -> foot (deform chain), plus target/ik control bones.
+ik:
+  - {thigh:  root      # upper bone (chain start)
+    , shin:   knee      # middle bone (the bend / knee)
+    , foot:   foot      # end bone (driven onto the goal)
+    , goal:   target    # bone whose position the foot reaches for
+    , pole:   ik        # bone hinting the knee bend direction
+    , weight: 1.0
+    , enabled: true
+    }
+
+# Named attach points ($attachment analog). Parent another entity to "foot_tip" by giving its
+# TransformHierachyComponent attachment = "foot_tip" (and parent = this entity).
+attachments:
+  - {name:   foot_tip
+    , bone:   foot       # rides the foot bone
+    , offset: [0, 1, 0]  # bone-local position, a little past the foot
+    , rotate: [0, 0, 0]  # Euler XYZ in degrees
+    }

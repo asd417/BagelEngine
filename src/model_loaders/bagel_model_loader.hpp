@@ -8,7 +8,8 @@
 #include <glm/glm.hpp>
 #include "bagel_textures.hpp"
 #include "model_load_settings.hpp"
-#include "animation/bagel_animation.hpp" // JointTransform, SkeletonData, AnimationClip
+#include "model_sidecar.hpp"             // ModelSidecar::IkChain (authored IK, resolved at build)
+#include "animation/bagel_animation.hpp" // JointTransform, SkeletonData, AnimationClip, IKSetup
 
 #include <xatlas.h>
 
@@ -159,6 +160,15 @@ namespace bagel {
         std::vector<SkinInfluence>&         getSkinInfluences() { return skinInfluences; }
         const SkeletonData&                 getSkeleton()   const { return skeleton; }
         const std::vector<AnimationClip>&   getAnimations() const { return animations; }
+
+        // Resolve the sidecar's authored IK chains (bone NAMES) into IKSetups (joint INDICES) using
+        // the parsed skeleton's joint names. Call after the skeleton is parsed (skeleton.names set).
+        // Unknown bone names drop that chain with a warning. Empty when the sidecar lists no IK.
+        std::vector<IKSetup> resolveIkSetups() const;
+
+        // Resolve the sidecar's authored attachments (bone NAMES + local offset) into runtime attach
+        // points (joint INDICES + offset matrix). Same timing/rules as resolveIkSetups.
+        std::vector<AttachmentComponent::Point> resolveAttachments() const;
     protected:
         // Reserve this model's skin block and fill it. numSlots = distinct material count;
         // numSkins comes from the "<model>.yaml" sidecar ($texturegroup analog), or 1 if
@@ -190,5 +200,10 @@ namespace bagel {
         std::vector<SkinInfluence> skinInfluences{};
         SkeletonData               skeleton{};
         std::vector<AnimationClip> animations{};
+        // Authored IK chains (bone names) read from the sidecar in buildSkinBlock; resolved to
+        // joint indices later via resolveIkSetups() once skeleton.names is populated.
+        std::vector<ModelSidecar::IkChain> ikChains{};
+        // Authored attach points (bone names) from the sidecar; resolved via resolveAttachments().
+        std::vector<ModelSidecar::Attachment> attachmentDefs{};
     };
 }

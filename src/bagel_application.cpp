@@ -436,6 +436,7 @@ namespace bagel
 
 			t0 = Clock::now();
 			HierachySystem hs(registry);
+			hs.ResolveSkeletonGlobals(); // resolve bones BEFORE parents so attachments are current
 			hs.ApplyHiarchialChange();
 			recordSection(S_HIERARCHY, tMs(t0, Clock::now()));
 

@@ -226,6 +226,20 @@ namespace bagel {
 				if (anim.jointCount > 0)
 					anim.dynamicPaletteBase = pSkinManager->reservePalette(anim.jointCount);
 
+				// IK chains come from the "<model>.yaml" sidecar (bone names resolved to joint
+				// indices now that the skeleton is parsed). These are NOT serialized with the map —
+				// the sidecar is their single source of truth — so they're (re)attached on every
+				// load/rehydrate. Only the authored pose (editPose) persists in the map.
+				anim.ikSetups = activeLoader->resolveIkSetups();
+
+				// Attach points from the same sidecar (also transient / sidecar-owned). Only added
+				// when the model defines any, so unattached models stay AttachmentComponent-free.
+				auto attachPoints = activeLoader->resolveAttachments();
+				if (!attachPoints.empty()) {
+					auto& ac = registry.emplace<AttachmentComponent>(targetEnt);
+					ac.points = std::move(attachPoints);
+				}
+
 				std::cout << "Skinned model: " << infl.size() << " influences, "
 				          << baked.jointCount << " joints, " << anim.clipCount() << " clip(s)\n";
 			}
