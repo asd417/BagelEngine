@@ -9,6 +9,8 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace bagel {
@@ -32,13 +34,36 @@ namespace bagel {
 			uint8_t skinIndex;
 			uint32_t materialCount;
 			std::vector<MaterialSource> sources; // only the [0, materialCount) valid slots
+			// Authored manual-pose state carried across the rebuild (skinned ModelComponents only).
+			// buildComponent re-emplaces a FRESH AnimationComponent (editPose = rest pose, no IK),
+			// so we stash the restored authored fields here and re-apply them afterward.
+			bool hasAnim = false;
+			bool animManual = false;
+			Pose animEditPose;
+			std::vector<IKSetup> animIK;
 		};
 		std::vector<Recipe> recipes;
-		for (auto [e, m] : registry.view<T>().each())
-			recipes.push_back({ e, m.loadSettings, m.frustumCull, m.skinIndex, m.materialCount,
-			                    { m.materialSources, m.materialSources + m.materialCount } });
+		for (auto [e, m] : registry.view<T>().each()) {
+			Recipe r{ e, m.loadSettings, m.frustumCull, m.skinIndex, m.materialCount,
+			          { m.materialSources, m.materialSources + m.materialCount } };
+			if constexpr (std::is_same_v<T, ModelComponent>) {
+				if (auto* a = registry.try_get<AnimationComponent>(e)) {
+					r.hasAnim = true;
+					r.animManual   = a->manualPose;
+					r.animEditPose = a->editPose;
+					r.animIK       = a->ikSetups;
+				}
+			}
+			recipes.push_back(std::move(r));
+		}
 
-		for (auto& r : recipes) registry.remove<T>(r.e);
+		for (auto& r : recipes) {
+			registry.remove<T>(r.e);
+			// Drop the restored AnimationComponent too, so buildComponent's emplace doesn't collide;
+			// its authored fields are saved on the recipe and re-applied below.
+			if constexpr (std::is_same_v<T, ModelComponent>)
+				if (r.hasAnim) registry.remove<AnimationComponent>(r.e);
+		}
 
 		for (auto& r : recipes) {
 			T& m = builder.buildComponent<T>(r.e, r.ls.source.c_str(), r.ls);
@@ -48,6 +73,21 @@ namespace bagel {
 			// their materials are re-baked into the vertex buffer by buildComponent above).
 			for (uint32_t i = 0; i < r.sources.size() && i < ModelComponent::MAX_MATERIALS; ++i)
 				m.setMaterialSource(i, r.sources[i]);
+
+			// Re-apply the authored pose onto the freshly built AnimationComponent. editPose is only
+			// restored when its length matches the rebuilt skeleton's joint count (a changed asset
+			// could differ); ikSetups index-validate at solve time, so they copy unconditionally.
+			if constexpr (std::is_same_v<T, ModelComponent>) {
+				if (r.hasAnim) {
+					if (auto* a = registry.try_get<AnimationComponent>(r.e)) {
+						a->ikSetups   = std::move(r.animIK);
+						a->manualPose = r.animManual;
+						if (r.animEditPose.size() == a->editPose.size())
+							a->editPose = std::move(r.animEditPose);
+						a->poseDirty = true; // force a palette re-resolve from the restored pose
+					}
+				}
+			}
 		}
 	}
 
@@ -93,6 +133,11 @@ namespace bagel {
 		return util::enginePath((std::string("/maps/") + mapName(index) + ".bmap").c_str());
 	}
 
+	std::string MyApplication::mapPath(const std::string& name) const
+	{
+		return util::enginePath((std::string("/maps/") + name + ".bmap").c_str());
+	}
+
 	void MyApplication::buildScene(int index)
 	{
 		// Drop the current scene: waits for the GPU, tears down physics bodies, clears ECS.
@@ -101,7 +146,7 @@ namespace bagel {
 		// reallocate their blocks from scratch.
 		materialManager->clearSkinTable();
 		hierarchyRoot = entt::null;
-		currentMap = index;
+		currentMapName = mapName(index);
 
 		switch (index) {
 		case 0: createLights();              placeCubes();         break;
@@ -109,6 +154,7 @@ namespace bagel {
 		case 2: createLights();              buildHierarchyStack(); break;
 		case 3: createLights();              loadDragon();         break;
 		case 4: createLights();              loadMonkeyBone();     break;
+		case 5: createLights();              loadIKLeg();     break;
 		default: break;
 		}
 		CONSOLE->Log("Map", std::string("Built scene '") + mapName(index) + "'");
@@ -116,9 +162,24 @@ namespace bagel {
 
 	void MyApplication::saveCurrentMap()
 	{
-		const std::string path = mapPath(currentMap);
+		const std::string path = mapPath(currentMapName);
 		const bool ok = Map::save(registry, path);
 		CONSOLE->Log("Map", (ok ? "Saved " : "FAILED to save ") + path);
+	}
+
+	// Shared load path used by the Maps panel and the "map <name>" console command. Assumes the
+	// file exists; unloads the current scene, restores persistent data, rebuilds transient GPU state,
+	// and marks `name` active. Returns false if Map::load itself fails.
+	bool MyApplication::loadMapFromPath(const std::string& path, const std::string& name)
+	{
+		if (!Map::load(registry, path)) return false;  // unloads current scene + restores persistent data
+		// Map::load unloaded the old scene (GPU idle); reset the skin-table allocator before
+		// rehydrate rebuilds the loaded models' blocks.
+		materialManager->clearSkinTable();
+		rehydrateScene();                        // rebuild transient GPU/material state
+		hierarchyRoot = entt::null;              // loaded hierarchy is static (no live root)
+		currentMapName = name;
+		return true;
 	}
 
 	void MyApplication::loadMap(int index)
@@ -128,17 +189,21 @@ namespace bagel {
 			CONSOLE->Log("Map", "No map file (save it first): " + path);
 			return;
 		}
-		if (!Map::load(registry, path)) {       // unloads current scene + restores persistent data
+		if (!loadMapFromPath(path, mapName(index))) {
 			CONSOLE->Log("Map", "FAILED to load " + path);
 			return;
 		}
-		// Map::load unloaded the old scene (GPU idle); reset the skin-table allocator before
-		// rehydrate rebuilds the loaded models' blocks.
-		materialManager->clearSkinTable();
-		rehydrateScene();                        // rebuild transient GPU/material state
-		hierarchyRoot = entt::null;              // loaded hierarchy is static (no live root)
-		currentMap = index;
 		CONSOLE->Log("Map", std::string("Loaded map '") + mapName(index) + "'");
+	}
+
+	// "map <name>" console command: load /maps/<name>.bmap by name. Returns a status message.
+	std::string MyApplication::consoleLoadMap(const std::string& name)
+	{
+		if (name.empty()) return "map <name>: load /maps/<name>.bmap";
+		const std::string path = mapPath(name);
+		if (!Map::exists(path))               return "[error] map: not found: " + path;
+		if (!loadMapFromPath(path, name))     return "[error] map: failed to load " + path;
+		return "Loaded map '" + name + "'";
 	}
 
 	void MyApplication::rehydrateScene()
@@ -170,15 +235,17 @@ namespace bagel {
 		if (ImGui::Button("Dragon"))     buildScene(3);
 		ImGui::SameLine();
 		if (ImGui::Button("Monkey"))     buildScene(4);
+		ImGui::SameLine();
+		if (ImGui::Button("IKBone"))     buildScene(5);
 
 		ImGui::Separator();
 		if (ImGui::Button("Save as map")) saveCurrentMap();
 		ImGui::SameLine();
-		ImGui::Text("(active: %s)", mapName(currentMap));
+		ImGui::Text("(active: %s)", currentMapName.c_str());
 
 		ImGui::Separator();
 		ImGui::TextUnformatted("Load (from disk):");
-		for (int i = 0; i < 5; ++i) {
+		for (int i = 0; i < 6; ++i) {
 			const bool onDisk = Map::exists(mapPath(i));
 			std::string label = std::string("Load ") + mapName(i) + (onDisk ? "" : " (none)");
 			if (ImGui::Button(label.c_str())) loadMap(i);
@@ -373,6 +440,26 @@ namespace bagel {
 
 		ModelLoadSettings settings{};
 		builder->buildComponent<ModelComponent>(entity, "/models/monkey_bone_anim/monkeybone.glb", settings);
+
+		delete builder;
+	}
+	void MyApplication::loadIKLeg()
+	{
+		// Skinned / bone-animated test model: 1 skin (5 joints), 2 clips (action1, action2).
+		// The builder uploads its skin influences + baked palette and attaches an
+		// AnimationComponent, so it renders through the SkinnedGBufferRenderSystem.
+		auto* builder = new ModelComponentBuilder(bglDevice, registry);
+		builder->setTextureLoader(&materialManager->getTextureLoader());
+		builder->setMaterialManager(materialManager.get());
+		builder->setSkinManager(skinManager.get());
+
+		auto entity = registry.create();
+		auto& tc = registry.emplace<TransformComponent>(entity);
+		tc.setTranslation({ 0.0f, 0.0f, 0.0f });
+		tc.setScale({ 1.0f, 1.0f, 1.0f });
+
+		ModelLoadSettings settings{};
+		builder->buildComponent<ModelComponent>(entity, "/models/ikleg/ikbone.glb", settings);
 
 		delete builder;
 	}

@@ -35,6 +35,7 @@
 #include "physics/bagel_physics.hpp"
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #define CONSOLE ConsoleApp::Instance()
@@ -92,6 +93,10 @@ namespace bagel
 		void setGizmoEditMode(bool on) { poseGizmo.setEditMode(on); }
 		bool gizmoEditModeOn() const   { return poseGizmo.editModeOn(); }
 	
+		// Console "map <name>" hook: load /maps/<name>.bmap by name and rehydrate. Base is a no-op
+		// error; the derived app implements the actual load. Returns a status message for the console.
+		virtual std::string consoleLoadMap(const std::string& name) { return "[error] map: not supported in this app"; }
+
 		// Override in derived classes
 		virtual void OnSceneLoad() {}
 		virtual void OnUpdate(float dt) {}

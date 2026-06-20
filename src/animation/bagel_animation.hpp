@@ -53,6 +53,7 @@ namespace bagel {
 		std::vector<JointTransform> restPose;
 		std::vector<glm::mat4>      inverseBind;
 		std::vector<int>            parents;
+		std::vector<std::string>    names;      // glTF node name per joint (may be empty)
 		uint32_t jointCount() const { return static_cast<uint32_t>(inverseBind.size()); }
 		bool     empty()      const { return inverseBind.empty(); }
 	};
@@ -116,7 +117,7 @@ namespace bagel {
 		std::vector<uint32_t>  clipFrameBase;   // per clip: first frame row (in frames)
 		std::vector<uint32_t>  clipFrameCount;  // per clip: baked frame count
 		uint32_t               jointCount = 0;
-		float                  fps        = 30.0f;
+		float                  fps        = 60.0f;
 
 		uint32_t frameOffset(uint32_t clip, uint32_t frame) const {
 			return (clipFrameBase[clip] + frame) * jointCount;
@@ -127,7 +128,7 @@ namespace bagel {
 
 	// Bake every clip at `fps`. Done once at load; the result feeds the resident palette SSBO.
 	// Dynamic/IK entities bypass this and write their palette per frame (see evaluatePoseLive).
-	BakedAnimation bakeClips(const SkeletonData& skel, const std::vector<AnimationClip>& clips, float fps = 30.0f);
+	BakedAnimation bakeClips(const SkeletonData& skel, const std::vector<AnimationClip>& clips, float fps = 60.0f);
 
 	// ---- Dynamic / generative / inverse kinematics seam --------------------------------------
 	//
@@ -135,22 +136,42 @@ namespace bagel {
 	// difference at runtime is the palette is written into a per-frame (dynamic) region of the
 	// SSBO instead of read from the baked region.
 
-	// Two-bone (limb) IK request, the common analytic case: place `tip` on `goal` by solving the
-	// two rotations at `root` and `mid`, bending toward `pole`. Indices are skeleton joints.
+	// Two-bone (limb) IK request, the common analytic case: place `foot` on `goal` by solving the
+	// two rotations at `thigh` and `shin`, bending toward `pole`. Indices are skeleton joints.
 	struct TwoBoneIK {
-		int       root = -1;                  // upper joint  (e.g. upper arm / thigh)
-		int       mid  = -1;                  // middle joint (e.g. forearm / shin)
-		int       tip  = -1;                  // end joint    (e.g. hand / foot) — solved to reach goal
+		int       thigh = -1;                 // upper joint  (e.g. upper arm / thigh)
+		int       shin  = -1;                 // middle joint (e.g. forearm / shin)
+		int       foot  = -1;                 // end joint    (e.g. hand / foot) — solved to reach goal
 		glm::vec3 goalModelSpace{ 0.0f };     // target position in model space
 		glm::vec3 poleModelSpace{ 0.0f };     // hint controlling the bend plane
 		float     weight = 1.0f;              // 0 = no IK, 1 = full reach (blend with the sampled pose)
 	};
 
-	// Solve `ik` and write corrected local rotations for root/mid back into `pose`.
-	// NOTE: STUB — the contract and call sites are in place so the dynamic pipeline is wired,
-	// but the analytic solve is not implemented yet (the algorithm is documented in the .cpp).
-	// Until implemented this is a no-op and leaves `pose` unchanged.
+	// User-authored IK setup that references joints by index. Goal and pole are JOINTS too — their
+	// model-space positions are read each frame and fed into a TwoBoneIK to solve. An armature can
+	// hold many of these (one per limb). Edited in the registry GUI.
+	struct IKSetup {
+		int   thigh = -1, shin = -1, foot = -1; // the two-bone chain
+		int   goalJoint = -1;                 // joint whose position the foot reaches for
+		int   poleJoint = -1;                 // joint whose position hints the bend plane
+		float weight  = 1.0f;
+		bool  enabled = true;
+		bool  valid() const {
+			return enabled && thigh >= 0 && shin >= 0 && foot >= 0 && goalJoint >= 0 && poleJoint >= 0;
+		}
+	};
+
+	// Solve `ik` (analytic two-bone) and write corrected local rotations for thigh/shin into `pose`,
+	// blended by ik.weight. Goal/pole are positions in the SAME (model) space as resolveGlobals.
 	void solveTwoBoneIK(const SkeletonData& skel, const TwoBoneIK& ik, Pose& pose);
+
+	// Resolve a manual (hand-authored) pose: copy `editPose`, then apply every valid IKSetup on top.
+	// Each setup reads its goal/pole joint positions from the globals of the base pose, then solves a
+	// two-bone IK into `outPose`. This is the single source of truth shared by the GPU palette bake
+	// and the pose gizmo, so the gizmo markers track the real IK-corrected bone positions. With no
+	// valid IK setups `outPose` is just a copy of `editPose`.
+	void applyManualPose(const SkeletonData& skel, const Pose& editPose,
+	                     const std::vector<IKSetup>& iks, Pose& outPose);
 
 	// Live (dynamic) evaluation entry point for generative animation and IK. Samples `clip` at
 	// `time`, applies each IK request in order, then resolves straight to a palette the caller

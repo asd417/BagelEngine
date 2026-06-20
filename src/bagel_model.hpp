@@ -203,9 +203,21 @@ namespace bagel {
 					anim.clipNames.reserve(clips.size());
 					for (const auto& c : clips) anim.clipNames.push_back(c.name);
 				}
-				anim.paletteBase    = baked.matrices.empty()
-					? 0
-					: pSkinManager->uploadPalette(baked.matrices.data(), static_cast<uint32_t>(baked.matrices.size()));
+				// With clips, paletteBase points at the baked resident region. With NO clips, bake a
+				// single bind/rest-pose palette and point paletteBase at it — otherwise animBaseOffset()
+				// returns paletteBase=0, an unwritten palette region, and every vertex collapses to the
+				// origin (the model renders invisible). A clip-less skinned model should show its rest pose.
+				if (!baked.matrices.empty()) {
+					anim.paletteBase = pSkinManager->uploadPalette(
+						baked.matrices.data(), static_cast<uint32_t>(baked.matrices.size()));
+				} else if (anim.jointCount > 0) {
+					const SkeletonData& skel = activeLoader->getSkeleton();
+					std::vector<glm::mat4> restPalette(anim.jointCount);
+					resolvePalette(skel, skel.restPose, restPalette.data());
+					anim.paletteBase = pSkinManager->uploadPalette(restPalette.data(), anim.jointCount);
+				} else {
+					anim.paletteBase = 0;
+				}
 
 				// Manual posing: keep the skeleton at runtime, seed an editable pose from rest,
 				// and reserve a dynamic palette region the engine overwrites when manualPose is on.

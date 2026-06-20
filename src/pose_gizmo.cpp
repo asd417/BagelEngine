@@ -9,9 +9,60 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <algorithm>
 #include <cmath>
 
 namespace bagel {
+
+	bool PoseGizmo::isSelected(int j) const {
+		return std::find(selJoints.begin(), selJoints.end(), j) != selJoints.end();
+	}
+
+	// True if any ancestor of j (walking parents) is itself selected. Such a joint is skipped when
+	// batching a transform: its selected ancestor already moves the whole subtree rigidly, so
+	// transforming j again would double-apply the delta.
+	bool PoseGizmo::ancestorSelected(int j) const {
+		int p = (j >= 0 && j < static_cast<int>(parentsCache.size())) ? parentsCache[j] : -1;
+		int guard = 0;
+		while (p >= 0 && guard++ < 256) {
+			if (isSelected(p)) return true;
+			p = (p < static_cast<int>(parentsCache.size())) ? parentsCache[p] : -1;
+		}
+		return false;
+	}
+
+	void PoseGizmo::selectSingle(int j) {
+		selJoints.assign(1, j);
+		selJoint = j;
+	}
+
+	void PoseGizmo::toggleSelect(int j) {
+		auto it = std::find(selJoints.begin(), selJoints.end(), j);
+		if (it != selJoints.end()) {
+			selJoints.erase(it);
+			selJoint = selJoints.empty() ? -1 : selJoints.back();
+		} else {
+			selJoints.push_back(j);
+			selJoint = j; // newly added becomes the active member
+		}
+	}
+
+	void PoseGizmo::buildDragJoints() {
+		dragJoints.clear();
+		for (int j : selJoints) {
+			if (ancestorSelected(j)) continue; // descendants follow their selected ancestor rigidly
+			const int parent = (j < static_cast<int>(parentsCache.size())) ? parentsCache[j] : -1;
+			const glm::mat4 parentWorld = (parent >= 0 && parent < static_cast<int>(globals.size()))
+				? entityModel * globals[parent] : entityModel;
+			DragJoint dj{};
+			dj.joint         = j;
+			dj.parentWorldInv = glm::inverse(parentWorld);
+			dj.parentRot      = glm::quat_cast(glm::mat3(parentWorld));
+			dj.startWorldPos  = jointWorldPos[j];
+			dj.startWorldRot  = glm::quat_cast(glm::mat3(jointWorldMat[j]));
+			dragJoints.push_back(dj);
+		}
+	}
 
 	static glm::vec3 axisVec(int i) {
 		return (i == 0) ? glm::vec3(1, 0, 0) : (i == 1) ? glm::vec3(0, 1, 0) : glm::vec3(0, 0, 1);
@@ -95,7 +146,7 @@ namespace bagel {
 
 	void PoseGizmo::refreshTarget()
 	{
-		target = entt::null; selJoint = -1; dragAxis = -1; hoverAxis = -1;
+		target = entt::null; selJoint = -1; selJoints.clear(); dragAxis = -1; hoverAxis = -1;
 		auto view = registry.view<TransformComponent, ModelComponent, AnimationComponent>();
 		for (auto [e, tc, mc, anim] : view.each()) {
 			if (!mc.isSkinned) continue;
@@ -139,8 +190,9 @@ namespace bagel {
 
 	int PoseGizmo::pickAxis(const glm::vec3& o, const glm::vec3& d, glm::vec3& outHit, float& outAxisCoord) const
 	{
-		if (selJoint < 0) return -1;
-		const glm::vec3 c = selJointWorldPos;
+		if (selJoints.empty()) return -1;
+		const glm::vec3 c = selCenter; // handles live at the selection centroid
+
 		if (gmode == GizmoMode::Translate) {
 			float bestDist = gizmoScale * 0.18f; int best = -1;
 			for (int i = 0; i < 3; ++i) {
@@ -167,20 +219,20 @@ namespace bagel {
 
 	void PoseGizmo::applyDrag(const glm::vec3& o, const glm::vec3& d)
 	{
-		if (selJoint < 0 || dragAxis < 0) return;
+		if (dragAxis < 0 || dragJoints.empty()) return;
 		auto& anim = registry.get<AnimationComponent>(target);
-		const int parent = anim.skeleton.parents[selJoint];
-		const glm::mat4 parentWorld = (parent >= 0 && parent < static_cast<int>(globals.size()))
-			? entityModel * globals[parent] : entityModel;
-		const glm::mat3 parentRotInv = glm::inverse(glm::mat3(parentWorld));
 		const glm::vec3 axis = dragStartAxis;   // FIXED world-space axis captured at mouse-down
-		const glm::vec3 c = dragStartCenter;    // FIXED origin captured at mouse-down (see header)
+		const glm::vec3 c = dragStartCenter;    // FIXED pivot (selection centroid) captured at mouse-down
 
 		if (gmode == GizmoMode::Translate) {
 			float s; glm::vec3 ap, rp;
 			if (!closestOnAxis(o, d, c, axis, s, ap, rp)) return;
 			const glm::vec3 worldDelta = (s - dragStartAxisCoord) * axis;
-			anim.editPose[selJoint].translation = dragStartTrans + parentRotInv * worldDelta;
+			// Shift every batched joint by the same world delta; orientation is untouched.
+			for (const DragJoint& dj : dragJoints) {
+				const glm::vec3 wp = dj.startWorldPos + worldDelta;
+				anim.editPose[dj.joint].translation = glm::vec3(dj.parentWorldInv * glm::vec4(wp, 1.0f));
+			}
 		} else {
 			glm::vec3 hit;
 			if (!rayPlane(o, d, c, axis, hit)) return;
@@ -190,8 +242,15 @@ namespace bagel {
 			v0 = glm::normalize(v0); v1 = glm::normalize(v1);
 			float ang = std::acos(glm::clamp(glm::dot(v0, v1), -1.0f, 1.0f));
 			if (glm::dot(glm::cross(v0, v1), axis) < 0.0f) ang = -ang;
-			const glm::vec3 localAxis = glm::normalize(parentRotInv * axis);
-			anim.editPose[selJoint].rotation = glm::normalize(glm::angleAxis(ang, localAxis) * dragStartRot);
+			const glm::quat Qw = glm::angleAxis(ang, glm::normalize(axis)); // world-space rotation about the pivot
+			// Orbit each batched joint around the pivot (position) and co-rotate its orientation.
+			// For a single selection the pivot is the joint itself, so this reduces to spin-in-place.
+			for (const DragJoint& dj : dragJoints) {
+				const glm::vec3 wp = c + Qw * (dj.startWorldPos - c);
+				const glm::quat wr = Qw * dj.startWorldRot;
+				anim.editPose[dj.joint].translation = glm::vec3(dj.parentWorldInv * glm::vec4(wp, 1.0f));
+				anim.editPose[dj.joint].rotation    = glm::normalize(glm::inverse(dj.parentRot) * wr);
+			}
 		}
 		anim.poseDirty = true;
 	}
@@ -227,36 +286,61 @@ namespace bagel {
 		auto& anim = registry.get<AnimationComponent>(target);
 		if (anim.jointCount == 0 || anim.skeleton.empty()) return;
 
-		// Resolve joint world positions for this frame.
+		// Resolve joint world positions for this frame from the IK-corrected pose (editPose + IK),
+		// the same final pose the GPU palette bakes — so markers/handles sit on the bones' actual
+		// posed positions, not the pre-IK authored ones.
 		entityModel = tc.mat4();
-		resolveGlobals(anim.skeleton, anim.editPose, globals);
+		Pose displayPose;
+		applyManualPose(anim.skeleton, anim.editPose, anim.ikSetups, displayPose);
+		resolveGlobals(anim.skeleton, displayPose, globals);
 		const int n = static_cast<int>(anim.jointCount);
 		jointWorldPos.resize(n);
-		for (int j = 0; j < n; ++j) jointWorldPos[j] = glm::vec3(entityModel * globals[j][3]);
+		jointWorldMat.resize(n);
+		for (int j = 0; j < n; ++j) {
+			jointWorldMat[j] = entityModel * globals[j];
+			jointWorldPos[j] = glm::vec3(jointWorldMat[j][3]);
+		}
 		parentsCache = anim.skeleton.parents; // expose hierarchy to the render system (bone lines)
-		if (selJoint >= n) selJoint = -1;
+
+		// Drop any selections that fell out of range (e.g. target swap), then recompute the batch
+		// pivot as the centroid of the selected joints' world positions.
+		selJoints.erase(std::remove_if(selJoints.begin(), selJoints.end(),
+			[&](int j) { return j < 0 || j >= n; }), selJoints.end());
+		if (selJoint >= n || !isSelected(selJoint)) selJoint = selJoints.empty() ? -1 : selJoints.back();
 		if (selJoint >= 0) selJointWorldPos = jointWorldPos[selJoint];
+		if (selJoints.empty()) {
+			selCenter = glm::vec3(entityModel[3]);
+		} else {
+			glm::vec3 sum{ 0.0f };
+			for (int j : selJoints) sum += jointWorldPos[j];
+			selCenter = sum / static_cast<float>(selJoints.size());
+		}
 
 		const glm::vec3 camPos = camera.getPosition();
-		const glm::vec3 center = (selJoint >= 0) ? selJointWorldPos : glm::vec3(entityModel[3]);
+		const glm::vec3 center = selJoints.empty() ? glm::vec3(entityModel[3]) : selCenter;
 		gizmoScale = glm::max(0.05f, glm::length(camPos - center) * 0.12f);
+
+		const bool shiftDown = !io.WantCaptureKeyboard &&
+			(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)  == GLFW_PRESS ||
+			 glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
 
 		glm::vec3 ro, rd; makeRay(window, camera, vpW, vpH, ro, rd);
 		const bool mouseLeft = !io.WantCaptureMouse && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
 
 		if (mouseLeft && !mouseLeftPrev) {
 			// Mouse down: grab an axis handle if one is under the cursor, otherwise select a joint.
+			// Shift+click toggles a joint in/out of the multi-selection; a plain click replaces it.
 			glm::vec3 hit; float axisCoord = 0.0f;
-			const int axis = (selJoint >= 0) ? pickAxis(ro, rd, hit, axisCoord) : -1;
+			const int axis = !selJoints.empty() ? pickAxis(ro, rd, hit, axisCoord) : -1;
 			if (axis >= 0) {
 				dragAxis = axis;
-				dragStartAxis = axisDir(axis); dragStartCenter = selJointWorldPos; dragStartHit = hit;
+				dragStartAxis = axisDir(axis); dragStartCenter = selCenter; dragStartHit = hit;
 				dragStartAxisCoord = axisCoord;
-				dragStartTrans = anim.editPose[selJoint].translation;
-				dragStartRot   = anim.editPose[selJoint].rotation;
+				buildDragJoints(); // snapshot the top-level selected joints for the whole drag
 			} else {
 				const int j = pickJoint(ro, rd);
-				if (j >= 0) { selJoint = j; selJointWorldPos = jointWorldPos[j]; }
+				if (j >= 0) { if (shiftDown) toggleSelect(j); else selectSingle(j); }
+				else if (!shiftDown) selJoints.clear(), selJoint = -1; // plain click on empty clears
 				dragAxis = -1;
 			}
 		} else if (mouseLeft && dragAxis >= 0) {
@@ -264,9 +348,13 @@ namespace bagel {
 		} else if (!mouseLeft) {
 			dragAxis = -1;
 			glm::vec3 hit; float axisCoord = 0.0f;
-			hoverAxis = (selJoint >= 0) ? pickAxis(ro, rd, hit, axisCoord) : -1;
+			hoverAxis = !selJoints.empty() ? pickAxis(ro, rd, hit, axisCoord) : -1;
 		}
 		mouseLeftPrev = mouseLeft;
+
+		// Cache the selected bone's name for the overlay/UI.
+		selJointName = (selJoint >= 0 && selJoint < static_cast<int>(anim.skeleton.names.size()))
+			? anim.skeleton.names[selJoint] : std::string{};
 	}
 
 } // namespace bagel

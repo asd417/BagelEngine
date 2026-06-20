@@ -260,6 +260,9 @@ namespace bagel
 		skeleton.inverseBind.assign(jointCount, glm::mat4(1.0f));
 		skeleton.restPose.resize(jointCount);
 		skeleton.parents.assign(jointCount, -1);
+		skeleton.names.resize(jointCount);
+		for (size_t j = 0; j < jointCount; j++)
+			skeleton.names[j] = model.nodes[skin.joints[j]].name; // bone name = joint node name
 
 		// glTF node index -> joint index (= position within skin.joints), the space the
 		// per-vertex JOINTS_0 values and the palette use.
@@ -420,6 +423,18 @@ namespace bagel
 			materials[i].normalMap     = tryLoadGLTFTexture(model, modelDir, mat.normalTexture.index,             VK_FORMAT_R8G8B8A8_UNORM);
 			materials[i].metalRoughMap = tryLoadGLTFTexture(model, modelDir, pbr.metallicRoughnessTexture.index, VK_FORMAT_R8G8B8A8_UNORM);
 			materials[i].emissionMap   = tryLoadGLTFTexture(model, modelDir, mat.emissiveTexture.index,           VK_FORMAT_R8G8B8A8_SRGB);
+		}
+
+		// Some glTFs (e.g. quick Blender exports) carry geometry but declare no materials, so
+		// every primitive references material -1. Without a material slot the vertices fall back
+		// to slot 0 = the all-unused entry, which the shader renders as the bare vertex-color/grid.
+		// Synthesize one default material (neutral mid-gray albedo) so such models shade normally.
+		if (materials.empty())
+		{
+			std::cout << "\tno materials in file — applying default material\n";
+			BGLModel::Material def{};
+			def.albedoMap = solidColorAlbedo({ 0.8, 0.8, 0.8, 1.0 });
+			materials.push_back(def);
 		}
 		// Build this model's skin block before building vertices (reads the "<model>.yaml"
 		// sidecar), so each vertex can store its local material slot (see buildPrimitiveVertices).

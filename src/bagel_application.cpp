@@ -529,14 +529,20 @@ namespace bagel
 				// deformed mesh by a frame (or render the bind pose entirely).
 				for (auto [animEnt, anim] : registry.view<AnimationComponent>().each())
 				{
-					// Manual posing: resolve the authored pose into the dynamic palette region
-					// (only when it changed) and skip clip playback entirely for this entity.
+					// Manual posing: resolve the authored pose (plus any IK setups) into the dynamic
+					// palette region, and skip clip playback entirely for this entity. Re-runs when
+					// the pose changed or any IK is active (IK goal/pole joints may move each frame).
 					if (anim.manualPose)
 					{
-						if (anim.poseDirty && anim.jointCount > 0)
+						bool hasIK = false;
+						for (const IKSetup& s : anim.ikSetups) if (s.valid()) { hasIK = true; break; }
+						if ((anim.poseDirty || hasIK) && anim.jointCount > 0)
 						{
+							// editPose + IK -> final pose (same helper the gizmo uses to place markers).
+							Pose finalPose;
+							applyManualPose(anim.skeleton, anim.editPose, anim.ikSetups, finalPose);
 							std::vector<glm::mat4> palette(anim.jointCount);
-							resolvePalette(anim.skeleton, anim.editPose, palette.data());
+							resolvePalette(anim.skeleton, finalPose, palette.data());
 							skinManager->writePalette(anim.dynamicPaletteBase, palette.data(), anim.jointCount);
 							anim.poseDirty = false;
 						}
@@ -757,6 +763,7 @@ namespace bagel
 		CONSOLE->AddCommandWithArg("R_MIPBIAS", this, ConsoleCommand::SetMipBias);
 		CONSOLE->AddCommand("R_SMAA", this, ConsoleCommand::ToggleSmaa);
 		CONSOLE->AddCommandWithArg("EDITMODE", this, ConsoleCommand::SetEditMode);
+		CONSOLE->AddCommandWithArg("MAP", this, ConsoleCommand::LoadMap);
 	}
 
 	void Application::setTextureMipBias(float bias)
@@ -830,6 +837,15 @@ namespace bagel
 			ImGui::TextUnformatted("Edit mode active. Press T for transform mode, R for rotation mode");
 			ImGui::Text("Press L to toggle local/global space (now: %s)",
 				poseGizmo.localSpaceOn() ? "local" : "global");
+			ImGui::TextUnformatted("Shift+click bones to multi-select (batched transform/rotate)");
+			if (poseGizmo.selectedJoint() >= 0) {
+				const char* bn = poseGizmo.selectedJointName();
+				const size_t nSel = poseGizmo.selectedJoints().size();
+				if (nSel > 1)
+					ImGui::Text("Active bone: %s  (+%d more selected)", (bn && bn[0]) ? bn : "(unnamed)", (int)nSel - 1);
+				else
+					ImGui::Text("Selected bone: %s", (bn && bn[0]) ? bn : "(unnamed)");
+			}
 			ImGui::End();
 		}
 		// Let the derived app draw its own panels and mutate the scene/registry

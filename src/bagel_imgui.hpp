@@ -79,9 +79,12 @@ namespace bagel {
         };
 
         for (auto entity : registry.storage<entt::entity>()) {
-            const uint32_t id = static_cast<uint32_t>(entt::to_integral(entity));
-            ImGui::PushID(static_cast<int>(id));
-            if (ImGui::TreeNode("ent", "Entity %u", id)) {
+            // Show the recycled index (low bits) rather than the packed identifier, whose high
+            // bits hold the version that climbs every time a slot is destroyed and reused.
+            const uint32_t idx = static_cast<uint32_t>(entt::entt_traits<entt::entity>::to_entity(entity));
+            const uint32_t ver = static_cast<uint32_t>(entt::entt_traits<entt::entity>::to_version(entity));
+            ImGui::PushID(static_cast<int>(entt::to_integral(entity))); // unique across versions
+            if (ImGui::TreeNode("ent", "Entity %u (v%u)", idx, ver)) {
                 if (registry.all_of<Transient>(entity))
                     ImGui::TextColored(ImVec4(1.f, 0.7f, 0.2f, 1.f), "[Transient] (excluded from maps)");
 
@@ -145,6 +148,44 @@ namespace bagel {
                         if (ImGui::SliderFloat("Time", &a->time, 0.0f, dur > 0.0f ? dur : 1.0f))
                             a->playing = false; // scrubbing pauses playback
                     }
+
+                    // ---- IK setups (applied on top of editPose while Manual pose is on) ----
+                    ImGui::Separator();
+                    ImGui::Text("IK setups (active while Manual pose is on)");
+                    auto boneCombo = [&](const char* label, int& ref) {
+                        const char* cur = "(none)";
+                        if (ref >= 0 && ref < (int)a->skeleton.names.size())
+                            cur = a->skeleton.names[ref].empty() ? "(unnamed)" : a->skeleton.names[ref].c_str();
+                        if (ImGui::BeginCombo(label, cur)) {
+                            if (ImGui::Selectable("(none)", ref < 0)) ref = -1;
+                            for (int j = 0; j < (int)a->jointCount; ++j) {
+                                ImGui::PushID(j);
+                                const char* nm = (j < (int)a->skeleton.names.size() && !a->skeleton.names[j].empty())
+                                    ? a->skeleton.names[j].c_str() : "(unnamed)";
+                                if (ImGui::Selectable(nm, j == ref)) ref = j;
+                                ImGui::PopID();
+                            }
+                            ImGui::EndCombo();
+                        }
+                    };
+                    int ikRemove = -1;
+                    for (size_t i = 0; i < a->ikSetups.size(); ++i) {
+                        ImGui::PushID((int)(1000 + i));
+                        IKSetup& s = a->ikSetups[i];
+                        ImGui::Text("IK %d", (int)i);
+                        ImGui::Checkbox("Enabled", &s.enabled);
+                        boneCombo("Thigh", s.thigh);
+                        boneCombo("Shin",  s.shin);
+                        boneCombo("Foot",  s.foot);
+                        boneCombo("Goal", s.goalJoint);
+                        boneCombo("Pole", s.poleJoint);
+                        ImGui::SliderFloat("Weight", &s.weight, 0.0f, 1.0f);
+                        if (ImGui::SmallButton("Remove")) ikRemove = (int)i;
+                        ImGui::Separator();
+                        ImGui::PopID();
+                    }
+                    if (ikRemove >= 0) a->ikSetups.erase(a->ikSetups.begin() + ikRemove);
+                    if (ImGui::Button("Add IK setup")) a->ikSetups.push_back(IKSetup{});
                 }
                 if (auto* w = registry.try_get<WireframeComponent>(entity))      drawModel("Wireframe", *w);
                 if (auto* c = registry.try_get<CollisionModelComponent>(entity)) drawModel("CollisionModel", *c);

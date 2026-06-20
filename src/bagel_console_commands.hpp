@@ -131,6 +131,15 @@ namespace ConsoleCommand {
 		app->smaaEnabled = !app->smaaEnabled;
 		return app->smaaEnabled ? "SMAA enabled" : "SMAA disabled (passthrough)";
 	}
+	// map <name>  — load /maps/<name>.bmap by name (unloads current scene + rehydrates GPU state).
+	char* LoadMap(void* ptr, const char* args)
+	{
+		static char response[256];
+		Application* app = static_cast<Application*>(ptr);
+		const std::string msg = app->consoleLoadMap(args ? args : "");
+		snprintf(response, sizeof(response), "%s", msg.c_str());
+		return response;
+	}
 	// editmode <0|1>  — toggle the bone-posing gizmo edit mode (same as the G hotkey).
 	char* SetEditMode(void* ptr, const char* args)
 	{

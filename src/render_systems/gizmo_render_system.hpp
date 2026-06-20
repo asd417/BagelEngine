@@ -34,7 +34,8 @@ namespace bagel {
 		// Shared unit meshes (positions only, LINE_LIST).
 		VkBuffer       arrowVB  = VK_NULL_HANDLE; VkDeviceMemory arrowMem  = VK_NULL_HANDLE; uint32_t arrowCount  = 0;
 		VkBuffer       ringVB   = VK_NULL_HANDLE; VkDeviceMemory ringMem   = VK_NULL_HANDLE; uint32_t ringCount   = 0;
-		VkBuffer       markerVB = VK_NULL_HANDLE; VkDeviceMemory markerMem = VK_NULL_HANDLE; uint32_t markerCount = 0;
+		VkBuffer       markerVB = VK_NULL_HANDLE; VkDeviceMemory markerMem = VK_NULL_HANDLE; uint32_t markerCount = 0; // pointy bone: connected joints
+		VkBuffer       diamondVB= VK_NULL_HANDLE; VkDeviceMemory diamondMem= VK_NULL_HANDLE; uint32_t diamondCount= 0; // symmetric octahedron: disconnected (parent-less) joints
 		VkBuffer       segVB    = VK_NULL_HANDLE; VkDeviceMemory segMem    = VK_NULL_HANDLE; uint32_t segCount    = 0; // unit X segment for bone lines
 
 		void drawMesh(VkCommandBuffer cmd, VkBuffer vb, uint32_t vertCount,

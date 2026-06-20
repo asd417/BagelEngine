@@ -210,6 +210,19 @@ namespace bagel {
 		ar(c.collisionScale);
 	}
 
+	// AnimationComponent: only the AUTHORED manual-posing state is persisted —
+	//   manualPose : whether draws read the hand-posed palette
+	//   editPose   : per-joint local TRS the gizmo authors (Pose = vector<JointTransform>)
+	//   ikSetups   : the IK chains layered on top of editPose
+	// Everything else (skeleton, baked clip tables, paletteBase/dynamicPaletteBase, jointCount,
+	// playback time) is TRANSIENT: the model builder rebuilds it on rehydrate, which then
+	// re-applies these fields onto the freshly built component (see rehydrateModelType).
+	// JointTransform and IKSetup are trivially copyable, so the vectors archive element-wise.
+	template<class Archive>
+	void serialize(Archive& ar, AnimationComponent& c) {
+		ar(c.manualPose, c.editPose, c.ikSetups);
+	}
+
 	// JPH::BodyCreationSettings is the persisted "recipe" for a physics body (shape,
 	// mass, motion type, layer, ...). It is NOT trivially copyable — it owns a
 	// ref-counted Shape — so it can't go through the raw archive. Serialize it the Jolt
@@ -291,6 +304,7 @@ namespace bagel {
 		saveComponent<ModelComponent>(snap, ar, registry);
 		saveComponent<WireframeComponent>(snap, ar, registry);
 		saveComponent<CollisionModelComponent>(snap, ar, registry);
+		saveComponent<AnimationComponent>(snap, ar, registry);
 		saveComponent<JoltPhysicsComponent>(snap, ar, registry);
 		saveComponent<JoltKinematicComponent>(snap, ar, registry);
 		saveComponent<InfoComponent>(snap, ar, registry);
@@ -308,6 +322,7 @@ namespace bagel {
 			.get<ModelComponent>(ar)
 			.get<WireframeComponent>(ar)
 			.get<CollisionModelComponent>(ar)
+			.get<AnimationComponent>(ar)
 			.get<JoltPhysicsComponent>(ar)
 			.get<JoltKinematicComponent>(ar)
 			.get<InfoComponent>(ar)

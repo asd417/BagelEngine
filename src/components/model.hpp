@@ -207,7 +207,7 @@ namespace bagel {
 		// Baked layout (shared identity of the model's animation set).
 		uint32_t paletteBase = 0; // matrix index of (clip 0, frame 0) in the global palette SSBO
 		uint32_t jointCount  = 0;
-		float    fps         = 30.0f;
+		float    fps         = 60.0f;
 		std::vector<uint32_t> clipFrameBase{};  // per clip: first frame row (in frames)
 		std::vector<uint32_t> clipFrameCount{}; // per clip: baked frame count
 		std::vector<std::string> clipNames{};   // per clip: glTF animation name (parallel to clipFrameBase)
@@ -218,17 +218,21 @@ namespace bagel {
 		bool     playing = true;
 		bool     loop    = true;
 
-		// ---- Manual posing (live, no disk persistence) -------------------------------------
+		// ---- Manual posing -----------------------------------------------------------------
 		// When manualPose is set, draws read from a dedicated dynamic palette region
 		// (dynamicPaletteBase) that the engine fills each frame by resolving `editPose`,
 		// instead of from a baked clip frame. The skeleton (kept from load) is needed to
 		// resolve a local pose into skinning matrices; editPose is the per-joint TRS the
 		// gizmo authors. poseDirty gates the (re-)resolve+upload so we only do it on change.
+		// The AUTHORED fields here — manualPose, editPose, ikSetups — are serialized with the
+		// map (see bagel_ecs_serialize.hpp) and re-applied after the model builder rebuilds the
+		// rest (skeleton / palette / dynamicPaletteBase) on rehydrate. The rest is transient.
 		SkeletonData skeleton{};             // restPose / parents / inverseBind, retained for runtime resolve
 		Pose         editPose{};             // per-joint local TRS being authored
 		bool         manualPose = false;     // route draws to the dynamic region when true
 		uint32_t     dynamicPaletteBase = 0; // base of the reserved jointCount-matrix scratch region
 		bool         poseDirty   = true;     // re-resolve + re-upload editPose when set
+		std::vector<IKSetup> ikSetups{};     // per-armature IK chains, applied on top of editPose
 
 		uint32_t clipCount() const { return static_cast<uint32_t>(clipFrameBase.size()); }
 		const char* clipName(uint32_t c) const {
