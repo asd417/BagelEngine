@@ -214,14 +214,23 @@ engine** for the building system:
     `PlanetSurface` interface so gameplay code stays surface-agnostic. (Build/test it first in M0.)
 - **Atmosphere:** each planet/system has its own sky and limb glow via the custom atmosphere
   shader pass (§2.5-E); scattering params are per star system and can shift with disasters.
-- **Boosters:** visual + a `BoosterComponent` (thrust level, fuel burn rate). Mostly
-  cosmetic/economic in v1 — they gate travel via fuel.
-- **Star map:** a separate UI/overlay (`OnDrawGui`) listing reachable star systems, each with:
-  distance (fuel cost), available alien species, civilization(s), and disaster risk profile.
-- **Travel:** select destination → consume fuel → time-skip / transit sequence → arrive at a
-  new system that reshuffles available aliens, visitors, and the disaster table.
-- **Resources:** `Fuel`, `Credits`, `Power`, `LifeSupport` (planet-wide sim values held in a
-  singleton `PlanetState`).
+- **Boosters:** visual + a `BoosterComponent` (thrust level, fuel burn rate). Gate **local travel**
+  via fuel.
+- **Two travel tiers:**
+  1. **Local travel (fuel):** the boosters move the planet between nearby/connected systems within
+     a reachable region. Routine, repeatable, gated by **Fuel** (a regular resource you refill).
+  2. **Inter-system jump (special credit):** a long leap to a *new region* of the galaxy that the
+     boosters can't reach. Consumes a scarce **Jump Core** (working name) — *not* purchasable with
+     regular Credits and *not* refuelable. Jump Cores are **earned through progression**: campaign
+     objectives and/or achievements (§3.6). This makes reaching new regions a milestone, not a grind.
+- **Star map:** a separate UI/overlay (`OnDrawGui`) showing reachable star systems and, beyond
+  them, **locked jump destinations**. Each entry lists: travel tier (fuel cost *or* Jump Core +
+  unlock requirement), available alien species, civilization(s), and disaster risk profile.
+- **Travel:** select destination → spend the right resource (Fuel for local, a Jump Core for a
+  jump) → transit sequence (the skybox destination grows, §2.5-F) → arrive at a system that
+  reshuffles available aliens, visitors, atmosphere, and the disaster table.
+- **Resources:** `Fuel`, `Credits`, `Power`, `LifeSupport`, and `JumpCores` (the special,
+  progression-only currency) — planet-wide sim values held in a singleton `PlanetState`.
 
 ### 3.2 Alien Collection
 - **Species data** is *content*, authored in a data file (JSON/YAML) — not hardcoded:
@@ -310,6 +319,27 @@ A detailed, creative editor that runs **in-game**, reusing engine pieces.
 - Pieces are catalog entries (data file) → spawn a `ModelComponent` via the loader +
   optional `CollisionModelComponent` + functional component(s).
 
+### 3.6 Progression: Campaign & Achievements (source of Jump Cores)
+
+The special inter-system **Jump Core** currency (§3.1) is *earned*, not bought — so the game needs
+a progression layer that grants it:
+- **Campaign objectives:** a scripted spine of goals ("house 5 distinct biomes", "reach reputation
+  X with the Vorn", "survive a meteor shower with zero animal losses"). Completing a campaign
+  beat awards Jump Cores (and unlocks the next region's jump destination on the star map). This is
+  the primary, authored progression path.
+- **Achievements:** open-ended milestones (collection completeness, build/visitor/economy
+  thresholds, disaster feats) that grant Jump Cores or other rewards. Secondary, replay-friendly.
+- **Why gate jumps this way:** it turns "explore a new region" into a *reward for mastering the
+  current one*, pacing content and preventing players from skipping ahead with raw money.
+- **Implementation:** an `ObjectiveSystem` evaluating data-driven objective/achievement definitions
+  (predicates over `PlanetState`, registry views, and event hooks) against game state each tick,
+  emitting completion events that credit `PlanetState.jumpCores` and flip star-map unlock flags.
+  Definitions live in `assets/campaign/*.json` + `assets/achievements/*.json`. Progress is
+  serialized with the save (new `ProgressionState` in the snapshot).
+
+> **Open scope question (§7):** is jump-currency tied to the **campaign**, **achievements**, or
+> **both**? Default assumption: campaign is the main faucet, achievements a bonus faucet.
+
 ---
 
 ## 4. New ECS components (game layer)
@@ -323,7 +353,10 @@ All serialized ones follow the rehydrate discipline (§2). Names provisional.
 - `VisitorComponent` — credits, satisfaction, target habitat, path progress, lifetime.
 - `BuildingFunctionComponent` — type (heater/cooler/feeder/shield/power/lifesupport), power draw, radius, active.
 - `BoosterComponent` — thrust, fuel rate (planet-level, few instances).
-- `PlanetState` (singleton/context) — credits, fuel, power, life-support, current system, date.
+- `PlanetState` (singleton/context) — credits, **fuel**, **jumpCores** (special travel currency),
+  power, life-support, current system, date.
+- `ProgressionState` (singleton/context, serialized) — completed campaign beats, unlocked
+  achievements, star-map jump unlocks; the ledger the `ObjectiveSystem` reads/writes (§3.6).
 - `DisasterState` (singleton/context) — active events, timers, risk table for current system.
 - `PathNodeComponent` / path graph — connectivity for visitor navigation.
 
@@ -365,24 +398,29 @@ src/game/
     visitor_system.*               # spawn, path-follow, spending
     economy_system.*               # credits/fuel/power tick
     disaster_director.*            # event scheduling + area effects
-    travel_system.*                # star map, fuel cost, system transitions
+    travel_system.*                # star map, fuel (local) + Jump Core (jump) transitions
+    objective_system.*             # campaign/achievement eval -> grants Jump Cores (§3.6)
   data/
     species_db.*  catalog_db.*  civilization_db.*  star_map.*
+    campaign_db.*  achievement_db.*                # objective/achievement definitions
   ui/
-    star_map_panel.*  build_panel.*  hud_panel.*   # OnDrawGui ImGui panels
+    star_map_panel.*  build_panel.*  hud_panel.*  objectives_panel.*  # OnDrawGui ImGui panels
   game_components.hpp              # the new ECS components above
 assets/
   species/*.json  catalog/*.json  systems/*.json   # authored content
+  campaign/*.json  achievements/*.json             # progression definitions (§3.6)
 docs/space_zoo_plan.md            # this file
 maps/                             # save games + blueprints (.bmap), already gitignored-ish
 ```
 
 **Console commands** (Source-style, added to `ConsoleCommand`): `give_credits`, `give_fuel`,
-`spawn_alien <species>`, `travel <system>`, `trigger <disaster>`, `buildmode <0|1>`,
+`give_jumpcore`, `spawn_alien <species>`, `travel <system>`, `jump <system>`,
+`complete_objective <id>` (debug-grant progression), `trigger <disaster>`, `buildmode <0|1>`,
 `save_zoo <name>` / `load_zoo <name>` (wrap `Map::save/load` + rehydrate).
 
 **Update flow** in `SpaceZooApplication::OnUpdate(dt)`: economy tick → disaster director →
-alien sim → visitor sim → build-mode input. `OnDrawGui`: HUD + active panel (star map / build).
+alien sim → visitor sim → objective/achievement eval → build-mode input. `OnDrawGui`: HUD
+(credits/fuel/Jump Cores) + active panel (star map / build / objectives).
 
 ---
 
@@ -427,9 +465,10 @@ alien sim → visitor sim → build-mode input. `OnDrawGui`: HUD + active panel 
   bloom (skybox → atmosphere → bloom → composite). Per-star-system params. A flat starfield can
   land first; galaxies, nearby bodies, and the approaching destination planet follow.
 
-**M5 — Travel**
-- Star map UI, fuel-gated system travel, per-system species/civilization/disaster reshuffle.
-  Per-system atmosphere params (E4) sell the change of sky on arrival.
+**M5 — Travel (local tier)**
+- Star map UI, **fuel-gated local** system travel, per-system species/civilization/disaster
+  reshuffle. Per-system atmosphere params (E4) sell the change of sky on arrival. Jump
+  destinations show as **locked** here (unlocked in M8).
 
 **E3 — Particle system (§2.5-C)** *(prereq for M6 spectacle)*
 - `ParticleSystemComponent` + `ParticleRenderSystem` (instanced billboards, additive, bloom-aware):
@@ -438,6 +477,12 @@ alien sim → visitor sim → build-mode input. `OnDrawGui`: HUD + active panel 
 **M6 — Disasters** *(uses E3)*
 - Disaster director with meteor + radiation events, particle spectacle, warning UI, defensive
   buildings that mitigate.
+
+**M8 — Progression & inter-system jumps (§3.6)**
+- `ObjectiveSystem` + data-driven campaign/achievement definitions; objectives award **Jump Cores**
+  and flip star-map jump unlocks; the **jump** travel tier spends a Jump Core to reach a new region.
+  `ProgressionState` serialized with the save. (Depends on M5 + a few systems to write objectives
+  against, hence late; an early debug `give_jumpcore`/`jump` exists from M5 for testing.)
 
 **M7 — Polish**
 - Civilization reputation/rewards, more content, balancing, audio/vfx, save-slot UX.
@@ -459,6 +504,9 @@ alien sim → visitor sim → build-mode input. `OnDrawGui`: HUD + active panel 
    star-map fast-travel abstraction for v1?
 6. **Camera scheme** — fully free orbit around the sphere, or a constrained "over-the-shoulder of
    the surface" cam? (Freeform building on a sphere makes camera control a usability risk.)
+7. **Jump-currency faucet (§3.6)** — are Jump Cores earned via the **campaign**, **achievements**,
+   or **both**? Working default: campaign is the primary faucet, achievements a secondary bonus.
+   (Also: is there a *fully sandbox* mode where jumps are unlocked/free?)
 
 ---
 
