@@ -102,6 +102,24 @@ sprites. None exists today.
 These three share one backbone — **per-instance data in a bindless SSBO** — so build the
 instancing foundation once (A) and B/C reuse it.
 
+**D. Planet-horizon culling — a tiny-planet advantage to exploit.**
+Because the whole world wraps a sphere, the planet body **occludes everything on its far side**, so
+visibility is far cheaper to compute than in a flat world — and this is *occlusion* culling, which
+the engine's frustum test (`Frustum::testAABB`) does **not** provide.
+- *Test:* for planet center `C`, radius `R`, camera at `P` with `d = |P - C|`, a surface point `S`
+  is over the horizon (cull it) when `dot(normalize(S - C), normalize(P - C)) < R / d`. One
+  dot-product per object — cheaper than a frustum AABB test, and it removes the entire back
+  hemisphere that frustum culling would still process. Add a small bias for object height/radius so
+  tall things near the limb aren't clipped early. Lives in `PlanetSurface` (e.g.
+  `visibleFromCamera(point, height)`).
+- *Synergy with A:* the per-instance SSBO is rebuilt on the CPU each frame anyway, so apply the
+  horizon test there to **compact crowds to the visible hemisphere before upload** — fewer
+  instances drawn *and* a smaller buffer, roughly halving crowd cost for free. Combine with frustum
+  culling (horizon first — it's cheaper and kills more) for the final visible set.
+- *Caveat:* it's a surface-occlusion heuristic, not a depth test — it won't cull objects hidden
+  behind *near-side* hills/buildings (leave that to the existing depth buffer). Tall structures and
+  raised paths on the limb need the height bias to avoid popping.
+
 ### Key constraints to respect
 - `ModelComponent` is **move-only** (owns Vk buffers) — never copy; transfer or share via the
   loader's dedup path.
@@ -143,7 +161,8 @@ engine** for the building system:
   - Position on the surface is a point on the sphere; **"up" is the surface normal** (radial
     direction) at that point, and an object's orientation is built from that normal + a tangent
     heading. Centralize this in a `PlanetSurface` helper (`pointToNormal`, `surfaceBasis`,
-    `project/raycast onto sphere`) so every system shares one convention.
+    `project/raycast onto sphere`, `visibleFromCamera` horizon test — §2.5-D) so every system
+    shares one convention.
   - Camera orbits/pans around the sphere; gravity points toward the planet center.
   - **Why this is the hard part:** snapping, footprints, path graphs, and enclosure flood-fill
     all have to work in spherical/tangent space rather than on a plane. Keep that math behind the
@@ -399,4 +418,6 @@ alien sim → visitor sim → build-mode input. `OnDrawGui`: HUD + active panel 
   per milestone to limit version thrash, and keep rehydrate centralized. Dynamic meshes/particles
   persist their *recipe*, never raw GPU buffers.
 - **Sim performance** — visitors + aliens + per-frame happiness could grow; budget with simple v1
-  algorithms and revisit only if profiling (`showProfile`) flags it.
+  algorithms and revisit only if profiling (`showProfile`) flags it. The tiny-planet **horizon cull
+  (§2.5-D)** is the cheapest big lever for crowd render cost — apply it during per-instance SSBO
+  build so off-side agents cost nothing to draw.
