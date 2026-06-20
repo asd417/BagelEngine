@@ -106,6 +106,12 @@ sprites. None exists today.
 These three share one backbone — **per-instance data in a bindless SSBO** — so build the
 instancing foundation once (A) and B/C reuse it.
 
+*LOD note (PA-scale zoom):* because the camera zooms from surface level to whole-planet (§3.1),
+buildings and crowds need **level-of-detail / impostors** at distance — swap skinned crowd
+instances for cheap billboard impostors and structures for low-poly/merged proxies when small on
+screen. Fold this into the instanced path (A) and particle billboards (C) rather than building a
+separate LOD system; the horizon cull (D) already removes the far side first.
+
 **D. Planet-horizon culling — a tiny-planet advantage to exploit.**
 Because the whole world wraps a sphere, the planet body **occludes everything on its far side**, so
 visibility is far cheaper to compute than in a flat world — and this is *occlusion* culling, which
@@ -160,7 +166,7 @@ system — is rendered **entirely in a shader** rather than from cubemap texture
     that visibly grows as you approach** during transit.
 - *Gameplay synergy:* the sky is **data-driven per star system** (which bodies/galaxy are visible),
   so travel (§3.1, M5) genuinely changes the view — and the destination looming larger is the
-  "planet visibly flying" payoff (resolves open question §7.5 toward the cinematic option, cheaply).
+  "planet visibly flying" payoff (leans open question §7.7 toward the cinematic option, cheaply).
 - *Why shader, not cubemap:* infinite resolution, zero texture memory/streaming, trivially
   animated/parameterized per system, and the moving destination planet can't be a static cubemap.
   Reuses `ubo.glsl` and the full-screen plumbing shared with E.
@@ -201,6 +207,19 @@ engine** for the building system:
 ## 3. Game systems
 
 ### 3.1 The Planet & Travel
+- **Scale — inspired by Planetary Annihilation: Titans, but a slightly *smaller* planet.**
+  - The whole planet is a small sphere with **pronounced curvature**: the player can zoom out to see
+    the *entire* planet on screen and zoom in to surface level near a building. The far side is
+    always hidden by the body (so horizon culling §2.5-D is very effective — the visible set is a
+    real fraction of the world).
+  - Structures/animals are **large relative to the surface** (PA-style), so only a compact zoo fits
+    on one planet. This is a feature: surface area is a **soft cap**, and the game grows by
+    **acquiring more planets / traveling** (§3.1 travel, §3.6 jumps), not by making one planet huge.
+    It also keeps crowd/build counts — and thus the instanced-render budget (§2.5-A) — bounded.
+  - **Camera:** a **PA-style free orbit** camera around the sphere (orbit + zoom from whole-planet to
+    surface), with gravity toward the center. This resolves open question §7 toward free-orbit.
+  - **Pick a concrete planet radius + piece base size in M0** and treat them as a tuning constant;
+    everything surface-relative reads it from `PlanetSurface`.
 - **Surface model:** **curved spherical planet from v1.** The zoo is built on the surface of a
   small sphere ("tiny planet"). All placement, camera, and gravity are surface-relative:
   - Position on the surface is a point on the sphere; **"up" is the surface normal** (radial
@@ -508,13 +527,13 @@ alien sim → visitor sim → objective/achievement eval → build-mode input. `
    can't hold a uniform square grid; pieces store surface position + tangent heading and snap to
    neighbors. Optional cube-sphere "soft grid" snap target may be layered on later, not as the
    data model.
+5. **Scale & camera** — ✅ **PA: Titans-inspired, slightly smaller planet** (§3.1): strong curvature,
+   whole planet viewable, growth via more planets not bigger ones, and a **free-orbit camera**.
 
 **Still open (confirm before/at M1):**
-5. **Art pipeline** — author placeholder primitives/generated models first, or source GLTF assets early?
-6. **Scope of "planet moves"** — full transit sequence with the planet visibly flying, or a
+6. **Art pipeline** — author placeholder primitives/generated models first, or source GLTF assets early?
+7. **Scope of "planet moves"** — full transit sequence with the planet visibly flying, or a
    star-map fast-travel abstraction for v1?
-7. **Camera scheme** — fully free orbit around the sphere, or a constrained "over-the-shoulder of
-   the surface" cam? (Freeform building on a sphere makes camera control a usability risk.)
 8. **Jump-currency faucet (§3.6)** — are Jump Cores earned via the **campaign**, **achievements**,
    or **both**? Working default: campaign is the primary faucet, achievements a secondary bonus.
    (Also: is there a *fully sandbox* mode where jumps are unlocked/free?)
