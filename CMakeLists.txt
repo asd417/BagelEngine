@@ -78,6 +78,9 @@ file(GLOB MATH		"${PROJECT_SOURCE_DIR}/src/math/*.cpp" "${PROJECT_SOURCE_DIR}/sr
 file(GLOB MODEL_LOADERS "${PROJECT_SOURCE_DIR}/src/model_loaders/*.cpp" "${PROJECT_SOURCE_DIR}/src/model_loaders/*.hpp")
 file(GLOB ANIMATION 	"${PROJECT_SOURCE_DIR}/src/animation/*.cpp" "${PROJECT_SOURCE_DIR}/src/animation/*.hpp")
 file(GLOB SMAA		"${PROJECT_SOURCE_DIR}/src/smaa/*.cpp" "${PROJECT_SOURCE_DIR}/src/smaa/*.hpp")
+file(GLOB COMPONENTS	"${PROJECT_SOURCE_DIR}/src/components/*.cpp" "${PROJECT_SOURCE_DIR}/src/components/*.hpp")
+file(GLOB GAME		"${PROJECT_SOURCE_DIR}/src/game/*.cpp" "${PROJECT_SOURCE_DIR}/src/game/*.hpp")
+file(GLOB MAP		"${PROJECT_SOURCE_DIR}/src/map/*.cpp" "${PROJECT_SOURCE_DIR}/src/map/*.hpp")
 
 file(GLOB IMGUI_SRC "${IMGUI}/*.cpp" "${IMGUI}/*.h")
 file(GLOB IMGUI_BCKEND_vk ${IMGUI}/backends/imgui_impl_vulkan.*)
@@ -95,6 +98,9 @@ add_executable(${PROJECT_NAME}
 	${MODEL_LOADERS}
 	${ANIMATION}
 	${SMAA}
+	${COMPONENTS}
+	${GAME}
+	${MAP}
 	${IMGUI_SRC}
 	${IMGUI_BCKEND_vk}
 	${IMGUI_BCKEND_glfw}
@@ -107,6 +113,9 @@ source_group("Physics"		FILES ${PHYSICS})
 source_group("Math"		FILES ${MATH})
 source_group("Model Loaders"	FILES ${MODEL_LOADERS})
 source_group("Animation"	FILES ${ANIMATION})
+source_group("Components"	FILES ${COMPONENTS})
+source_group("Game"		FILES ${GAME})
+source_group("Map"		FILES ${MAP})
 source_group("Imgui"            FILES ${IMGUI_SRC} ${IMGUI_BCKEND_vk} ${IMGUI_BCKEND_glfw})
 source_group("xatlas"           FILES ${XATLAS_SRC})
 

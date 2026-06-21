@@ -32,6 +32,12 @@
 
 namespace bagel {
 
+	// Forward-declared (used by rehydrate() below as references only). The full definitions
+	// pull in heavy model/material headers, so they live in bagel_map_io.cpp — this header is
+	// included widely (via components/tag.hpp) and must stay light to avoid a circular include.
+	class BGLMaterialManager; // bagel_material.hpp
+	class BGLSkinManager;     // animation/bagel_skin_manager.hpp
+
 	struct Map {
 		static constexpr char     MAGIC[4] = { 'B', 'M', 'A', 'P' };
 		static constexpr std::uint32_t VERSION = 4; // v4: per-entity skinIndex in the model recipe
@@ -102,6 +108,13 @@ namespace bagel {
 			LoadRegistry(registry, is);
 			return static_cast<bool>(is) || is.eof();
 		}
+
+		// Rebuild the TRANSIENT state that load() leaves at defaults: re-cook every model
+		// component's GPU buffers + materials from its serialized recipe, and reissue Jolt
+		// bodies from their restored creation settings. Call once after a successful load().
+		// Defined in bagel_map_io.cpp (needs ModelComponentBuilder / the material+skin managers).
+		static void rehydrate(entt::registry& registry, BGLDevice& bglDevice,
+		                      BGLMaterialManager& materialManager, BGLSkinManager& skinManager);
 	};
 
 } // namespace bagel

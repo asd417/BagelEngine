@@ -4,6 +4,7 @@
 #include "map/bagel_map_io.hpp"
 #include "bagel_util.hpp"
 #include "bagel_imgui.hpp"   // ImGui + ConsoleApp (CONSOLE)
+#include "model_loaders/bagel_model_loader.hpp" // BGLModel::Vertex (planet wire upload)
 
 #include <iostream>
 #include <cmath>
@@ -15,91 +16,22 @@
 
 namespace bagel {
 
-	// ---- rehydrate helper ---------------------------------------------------
-	// Rebuild the GPU geometry (and generated-model materials) for every entity that
-	// carries model component T. LoadRegistry restored only loadSettings/frustumCull/
-	// materialSources; the VkBuffers + submeshes must be re-cooked from the recipe.
-	//
-	// Ordering matters: we COLLECT every recipe, REMOVE T from all of them, and only
-	// THEN rebuild. buildComponent dedups by scanning live components for a matching
-	// loadSettings.source and borrows the original's VkBuffers — if we rebuilt in place
-	// it could match a not-yet-rebuilt component that has only VK_NULL_HANDLE buffers.
-	template<class T>
-	static void rehydrateModelType(entt::registry& registry, ModelComponentBuilder& builder)
+	// rehydrateModelType<T> + the scene rehydrate pass moved to map/bagel_map_io.{hpp,cpp}
+	// (Map::rehydrate). Called from loadMapFromPath after Map::load.
+	MyApplication::MyApplication() : Application(), pcs(bglDevice,registry)
 	{
-		struct Recipe {
-			entt::entity e;
-			ModelLoadSettings ls;
-			bool frustumCull;
-			uint8_t skinIndex;
-			uint32_t materialCount;
-			std::vector<MaterialSource> sources; // only the [0, materialCount) valid slots
-			// Authored pose carried across the rebuild (skinned ModelComponents only). buildComponent
-			// re-emplaces a FRESH AnimationComponent (editPose = rest pose), so we stash the restored
-			// pose here and re-apply it afterward. IK is NOT carried — it comes from the sidecar and
-			// buildComponent re-attaches it, so we must not clobber that with stale map data.
-			bool hasAnim = false;
-			bool animManual = false;
-			Pose animEditPose;
-		};
-		std::vector<Recipe> recipes;
-		for (auto [e, m] : registry.view<T>().each()) {
-			Recipe r{ e, m.loadSettings, m.frustumCull, m.skinIndex, m.materialCount,
-			          { m.materialSources, m.materialSources + m.materialCount } };
-			if constexpr (std::is_same_v<T, ModelComponent>) {
-				if (auto* a = registry.try_get<AnimationComponent>(e)) {
-					r.hasAnim = true;
-					r.animManual   = a->manualPose;
-					r.animEditPose = a->editPose;
-				}
-			}
-			recipes.push_back(std::move(r));
-		}
 
-		for (auto& r : recipes) {
-			registry.remove<T>(r.e);
-			// Drop the restored AnimationComponent too, so buildComponent's emplace doesn't collide;
-			// its authored fields are saved on the recipe and re-applied below. AttachmentComponent
-			// is transient (sidecar-rebuilt) — remove() is a no-op if absent, kept for safety.
-			if constexpr (std::is_same_v<T, ModelComponent>) {
-				if (r.hasAnim) registry.remove<AnimationComponent>(r.e);
-				registry.remove<AttachmentComponent>(r.e);
-			}
-		}
-
-		for (auto& r : recipes) {
-			T& m = builder.buildComponent<T>(r.e, r.ls.source.c_str(), r.ls);
-			m.frustumCull = r.frustumCull;
-			m.setSkin(r.skinIndex); // re-apply the saved skin (numSkins came back from the sidecar)
-			// Restore the generated-material source paths (OBJ/GLTF have materialCount == 0;
-			// their materials are re-baked into the vertex buffer by buildComponent above).
-			for (uint32_t i = 0; i < r.sources.size() && i < ModelComponent::MAX_MATERIALS; ++i)
-				m.setMaterialSource(i, r.sources[i]);
-
-			// Re-apply the authored pose onto the freshly built AnimationComponent. editPose is only
-			// restored when its length matches the rebuilt skeleton's joint count (a changed asset
-			// could differ). IK setups are left as buildComponent attached them (from the sidecar).
-			if constexpr (std::is_same_v<T, ModelComponent>) {
-				if (r.hasAnim) {
-					if (auto* a = registry.try_get<AnimationComponent>(r.e)) {
-						a->manualPose = r.animManual;
-						if (r.animEditPose.size() == a->editPose.size())
-							a->editPose = std::move(r.animEditPose);
-						a->poseDirty = true; // force a palette re-resolve from the restored pose
-					}
-				}
-			}
-		}
 	}
-
 	void MyApplication::OnSceneLoad()
 	{
-		buildScene(1); // start on Sponza
+		buildScene(6); // start on the geodesic-CDLOD planet (wireframe)
 	}
 
 	void MyApplication::OnUpdate(float dt)
 	{
-		if (hierarchyRoot == entt::null) return;
+		pcs.update(cameraWorldPos); // rebuild the planet LOD cut if the camera moved
+		if (hierarchyRoot == entt::null)
+			return;
 		stackAngle += dt;
 
 		auto& tc = registry.get<TransformComponent>(hierarchyRoot);
@@ -125,6 +57,7 @@ namespace bagel {
 		case 2:  return "hierarchy";
 		case 3:  return "dragon";
 		case 4:  return "monkey";
+		case 6:  return "planet";
 		default: return "map";
 		}
 	}
@@ -147,6 +80,7 @@ namespace bagel {
 		// reallocate their blocks from scratch.
 		materialManager->clearSkinTable();
 		hierarchyRoot = entt::null;
+		
 		currentMapName = mapName(index);
 
 		switch (index) {
@@ -156,6 +90,7 @@ namespace bagel {
 		case 3: createLights();              loadDragon();         break;
 		case 4: createLights();              loadMonkeyBone();     break;
 		case 5: createLights();              loadIKLeg();     break;
+		case 6: createLights();              loadPlanet();         break;
 		default: break;
 		}
 		CONSOLE->Log("Map", std::string("Built scene '") + mapName(index) + "'");
@@ -177,7 +112,8 @@ namespace bagel {
 		// Map::load unloaded the old scene (GPU idle); reset the skin-table allocator before
 		// rehydrate rebuilds the loaded models' blocks.
 		materialManager->clearSkinTable();
-		rehydrateScene();                        // rebuild transient GPU/material state
+		// rebuild transient GPU/material/physics state (moved to map/bagel_map_io.*)
+		Map::rehydrate(registry, bglDevice, *materialManager, *skinManager);
 		hierarchyRoot = entt::null;              // loaded hierarchy is static (no live root)
 		currentMapName = name;
 		return true;
@@ -207,21 +143,6 @@ namespace bagel {
 		return "Loaded map '" + name + "'";
 	}
 
-	void MyApplication::rehydrateScene()
-	{
-		auto builder = std::make_unique<ModelComponentBuilder>(bglDevice, registry);
-		builder->setTextureLoader(&materialManager->getTextureLoader());
-		builder->setMaterialManager(materialManager.get());
-		builder->setSkinManager(skinManager.get());
-		rehydrateModelType<ModelComponent>(registry, *builder);
-		rehydrateModelType<WireframeComponent>(registry, *builder);
-		rehydrateModelType<CollisionModelComponent>(registry, *builder);
-
-		// Rebuild live Jolt bodies from the restored BodyCreationSettings; this reissues
-		// the transient BodyIDs (the loaded ones are meaningless).
-		BGLJolt::GetInstance()->RehydratePhysicsBodies();
-	}
-
 	void MyApplication::OnDrawGui()
 	{
 		ImGui::Begin("Maps");
@@ -238,6 +159,8 @@ namespace bagel {
 		if (ImGui::Button("Monkey"))     buildScene(4);
 		ImGui::SameLine();
 		if (ImGui::Button("IKBone"))     buildScene(5);
+		ImGui::SameLine();
+		if (ImGui::Button("Planet"))     buildScene(6);
 
 		ImGui::Separator();
 		if (ImGui::Button("Save as map")) saveCurrentMap();
@@ -295,7 +218,6 @@ namespace bagel {
 
 		delete modelBuilder;
 	}
-
 	void MyApplication::placePurpleCube()
 	{
 		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
@@ -315,7 +237,6 @@ namespace bagel {
 
 		delete modelBuilder;
 	}
-
 	void MyApplication::buildHierarchyStack()
 	{
 		const int   COUNT        = 1000;
@@ -351,7 +272,6 @@ namespace bagel {
 
 		delete builder;
 	}
-
 	void MyApplication::createLights()
 	{
 		std::vector<glm::vec3> lightColors{
@@ -381,7 +301,6 @@ namespace bagel {
 		sun.shadowBiasMin = 0.0f;
 		sun.shadowBiasSlope = 0.0f;
 	}
-
 	void MyApplication::loadSponza()
 	{
 		auto* builder = new ModelComponentBuilder(bglDevice, registry);
@@ -403,7 +322,6 @@ namespace bagel {
 
 		delete builder;
 	}
-
 	void MyApplication::loadDragon()
 	{
 		auto* builder = new ModelComponentBuilder(bglDevice, registry);
@@ -423,7 +341,6 @@ namespace bagel {
 
 		delete builder;
 	}
-
 	void MyApplication::loadMonkeyBone()
 	{
 		// Skinned / bone-animated test model: 1 skin (5 joints), 2 clips (action1, action2).
@@ -463,6 +380,21 @@ namespace bagel {
 		builder->buildComponent<ModelComponent>(entity, "/models/ikleg/ikbone.glb", settings);
 
 		delete builder;
+	}
+	void MyApplication::loadPlanet()
+	{
+		// Planet: radius 64, tessellation ranging from a uniform level-2 floor (far side)
+		// to level 8 near the camera.
+		planet::TerrainConfig cfg{};
+		cfg.radius      = 64.0f;
+		cfg.minLevel    = 2;
+		cfg.maxLevel    = 8;
+		cfg.splitFactor = 2.5f;
+		pcs.createPlanet({0, 0, 0}, cfg);
+		// Default free-fly spawn ({0,-3,0}) is inside the radius-64 body — frame it from
+		// outside (~2.5 radii out, within the 300-unit far plane).
+		setSpawnCameraPos({ 0.0f, 0.0f, cfg.radius * 2.5f });
+		CONSOLE->Log("Planet", "Geodesic-CDLOD icosphere — orbit/zoom to watch it subdivide.");
 	}
 
 } // namespace bagel

@@ -88,6 +88,17 @@ namespace bagel
 		bool vsync = false;
 		bool vsyncDirty = false;
 		float exposure = 0.0075f;
+		// Camera perspective controls (the "close"/"far" view distances + vertical FOV),
+		// live-tunable from the Settings panel. Far must reach past the planet (radius 64,
+		// spawn ~160 out). cameraFovDegrees feeds both the projection and the shadow-cascade
+		// frustum math in updateDirectionalUBO (keep them in sync).
+		float cameraNear = 0.1f;
+		float cameraFar  = 300.0f;
+		// HORIZONTAL FOV in degrees. Vertical FOV is derived from this + the aspect ratio
+		// (fovY = 2*atan(tan(fovX/2)/aspect)) so horizontal framing is stable across window
+		// sizes. ~60 keeps rectilinear edge distortion mild; the engine previously hardcoded
+		// a very wide 100 (as vertical, which got even wider horizontally on non-square views).
+		float cameraFovDegrees = 60.0f;
 
 		// Bone-posing gizmo edit mode (console: editmode 0/1; also the G hotkey).
 		void setGizmoEditMode(bool on) { poseGizmo.setEditMode(on); }
@@ -107,6 +118,18 @@ namespace bagel
 
 	protected:
 		uint32_t fallbackAlbedoMap = 0;
+
+		// World-space camera position for the current frame, refreshed in run() right
+		// before OnUpdate(dt). Lets a derived app drive camera-relative work (e.g. the
+		// planet LOD cut) without threading the camera through the OnUpdate signature.
+		glm::vec3 cameraWorldPos{ 0.0f };
+
+		// Request the free-fly camera be teleported to a position (consumed once by run()).
+		// A scene (OnSceneLoad / a build button) calls this to frame itself — e.g. the
+		// radius-64 planet needs the camera outside the body, not at the default spawn.
+		void setSpawnCameraPos(const glm::vec3& p) { spawnCameraPos = p; spawnCameraPosDirty = true; }
+		glm::vec3 spawnCameraPos{ 0.0f };
+		bool spawnCameraPosDirty = false;
 
 		// Engine subsystems — accessible to derived application classes
 		// IMPORTANT: bglDevice must outlive registry (ModelComponent destructors call vkDestroyBuffer).

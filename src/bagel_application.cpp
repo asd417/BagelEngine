@@ -94,8 +94,10 @@ namespace bagel
 			glm::vec3 v{-s1 * s2, -c2, -c1 * s2};
 			glm::vec3 w{-c2 * s1, s2, -c1 * c2};
 
-			float tanY = tanf(glm::radians(100.0f) * 0.5f); // must match setPerspectiveProjection above
-			float tanX = tanY * aspect;
+			// cameraFovDegrees is HORIZONTAL; derive vertical from aspect (must match the
+			// projection in run()).
+			float tanX = tanf(glm::radians(cameraFovDegrees) * 0.5f);
+			float tanY = tanX / aspect;
 			float k = tanX * tanX + tanY * tanY;
 
 			float sliceNear = 0.1f; // camera near plane
@@ -414,13 +416,23 @@ namespace bagel
 			totalTime += frameTime;
 
 			t0 = Clock::now();
+			// A scene can request a one-shot camera teleport (e.g. to frame the planet).
+			if (spawnCameraPosDirty) {
+				viewerObject.transform.setTranslation(spawnCameraPos);
+				spawnCameraPosDirty = false;
+			}
 			if (freeFly)
 				cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime, viewerObject, 0);
 			camera.setViewYXZ(viewerObject.transform.getTranslation(), viewerObject.transform.getRotation());
 			glm::vec3 camPos = viewerObject.transform.getTranslation();
+			cameraWorldPos = camPos; // expose to OnUpdate (planet LOD, etc.)
 			glm::vec3 camFwd = -glm::vec3(camera.getInverseView()[2]); // camera images along -w of its basis
 			float aspect = bglRenderer.getAspectRatio(); //aspect ratio might change due to window resize
-			camera.setPerspectiveProjection(glm::radians(100.0f), aspect, 0.1f, 300.0f);
+			// cameraFovDegrees is HORIZONTAL; derive vertical from the aspect ratio so the
+			// horizontal framing stays fixed as the window/aspect changes.
+			float fovX = glm::radians(cameraFovDegrees);
+			float fovY = 2.0f * atanf(tanf(fovX * 0.5f) / aspect);
+			camera.setPerspectiveProjection(fovY, aspect, cameraNear, cameraFar);
 			recordSection(S_CAMERA, tMs(t0, Clock::now()));
 
 			// Bone-posing gizmo input/logic (G toggles edit mode; W/E switch translate/rotate).
@@ -858,6 +870,14 @@ namespace bagel
 		ConsoleApp::Instance()->Draw("Console", nullptr);
 		ImGui::Begin("Settings");
 		ImGui::SliderFloat("Mouse Sensitivity", &cameraController.mouseSensitivity, 0.05f, 0.3f);
+		ImGui::Separator();
+		ImGui::Text("Camera");
+		ImGui::SliderFloat("FOV (horizontal)", &cameraFovDegrees, 20.0f, 120.0f, "%.0f deg");
+		ImGui::SliderFloat("Near (close)",   &cameraNear, 0.01f, 10.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Far",            &cameraFar,  50.0f, 5000.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+		// Keep them sane and strictly ordered (near < far) so the projection stays valid.
+		if (cameraNear < 0.001f)             cameraNear = 0.001f;
+		if (cameraFar  <= cameraNear + 1.0f) cameraFar  = cameraNear + 1.0f;
 		ImGui::Separator();
 		{
 			auto dirView = registry.view<DirectionalLightComponent>();
