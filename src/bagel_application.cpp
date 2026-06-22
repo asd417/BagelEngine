@@ -408,6 +408,11 @@ namespace bagel
 				gravePrev = graveDown;
 			}
 
+			// Keybinds: fire each bound console command on its key's press edge (Source-style
+			// `bind`). Suppressed while an ImGui text field is focused so typing doesn't fire binds.
+			keybinds.poll(bglWindow.getGLFWWindow(), ImGui::GetIO().WantTextInput,
+				[](const char* cmd) { ConsoleApp::Instance()->Run(cmd); });
+
 			auto newTime = t1;
 			float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
 			currentTime = newTime;
@@ -765,6 +770,18 @@ namespace bagel
 		CONSOLE->AddCommand("R_SMAA", this, ConsoleCommand::ToggleSmaa);
 		CONSOLE->AddCommandWithArg("EDITMODE", this, ConsoleCommand::SetEditMode);
 		CONSOLE->AddCommandWithArg("MAP", this, ConsoleCommand::LoadMap);
+		// Keybinds (Source-style): bind/unbind any console command to a key. No default binds —
+		// the grave/UI-toggle stays hard-coded in run() so it's always available. (TOGGLEUI is
+		// still registered so it can be bound to a *different* key if desired.)
+		CONSOLE->AddCommand("TOGGLEUI", this, ConsoleCommand::ToggleUI);
+		CONSOLE->AddCommandWithArg("BIND", this, ConsoleCommand::Bind);
+		CONSOLE->AddCommandWithArg("UNBIND", this, ConsoleCommand::Unbind);
+		CONSOLE->AddCommand("UNBINDALL", this, ConsoleCommand::UnbindAll);
+
+		// Persist binds across runs: a Source-style config that's re-exec'd on startup. Binds
+		// auto-save on every change; load replays the file now that BIND is registered.
+		keybinds.setConfigPath(util::enginePath("/keybinds.cfg"));
+		keybinds.load([](const char* cmd) { ConsoleApp::Instance()->Run(cmd); });
 	}
 
 	void Application::setTextureMipBias(float bias)
