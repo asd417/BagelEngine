@@ -8,6 +8,24 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <iostream>
+#include <cstdlib>
+
+// Single engine-wide definition. Every Vulkan TU already includes this header (VK_CHECK
+// wraps calls that use BGLDevice::device()), so the macro lives here instead of being
+// re-#defined per file.
+#ifndef VK_CHECK
+#define VK_CHECK(x)                                                     \
+	do                                                                  \
+	{                                                                   \
+		VkResult err = x;                                               \
+		if (err)                                                        \
+		{                                                               \
+			std::cout <<"Detected Vulkan error: " << err << std::endl;  \
+			abort();                                                    \
+		}                                                               \
+	} while (0)
+#endif
 
 namespace bagel {
     struct SwapChainSupportDetails {

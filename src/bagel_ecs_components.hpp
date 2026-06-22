@@ -12,8 +12,6 @@
 //   components/physics.hpp      - JoltPhysics / JoltKinematic
 //   components/tag.hpp          - Info / Transient (tag & marker components)
 
-#define COLLIDER_PER_ENT 32
-
 #include "components/data_buffer.hpp"
 #include "components/transform.hpp"
 #include "components/light.hpp"

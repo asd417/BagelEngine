@@ -3,6 +3,7 @@
 #include "bagel_engine_device.hpp"
 #include "bagel_buffer.hpp"
 #include "bagel_engine_swap_chain.hpp"
+#include "bagel_engine_config.hpp"
 //#include "bagel_renderer.hpp"
 //#include "bagel_frame_info.hpp"
 
@@ -12,19 +13,6 @@
 #include <vector>
 #include <array>
 #include <iostream>
-
-#define GLOBAL_UBO_COUNT 10
-
-#define VK_CHECK(x)                                                     \
-	do                                                                  \
-	{                                                                   \
-		VkResult err = x;                                               \
-		if (err)                                                        \
-		{                                                               \
-			std::cout <<"Detected Vulkan error: " << err << std::endl;  \
-			abort();                                                    \
-		}                                                               \
-	} while (0)
 
 namespace bagel {
     class BGLDescriptorSetLayout {
@@ -198,6 +186,12 @@ namespace bagel {
         VkDescriptorSetLayout getDescriptorSetLayout() const { return bindlessSetLayout; }
         VkDescriptorSet getDescriptorSet(int i) const { return bindlessDescriptorSet[i]; }
 
+        // Bindless slot usage, for diagnostics. Capacity is the per-binding array size
+        // (GLOBAL_DESCRIPTOR_COUNT) the descriptor set was created with.
+        uint32_t textureSlotsUsed() const { return static_cast<uint32_t>(textures.size()); }
+        uint32_t bufferSlotsUsed()  const { return static_cast<uint32_t>(buffers.size()); }
+        uint32_t descriptorCapacity() const { return capacity; }
+
     private:
         BGLDevice& bglDevice;
         BGLDescriptorPool& globalPool;
@@ -215,6 +209,7 @@ namespace bagel {
         std::unordered_map<std::string, uint32_t> bufferIndexMap;
         std::unordered_map<std::string, uint32_t> textureIndexMap;
 
+        uint32_t capacity = 0; // per-binding bindless array size (set in createBindlessDescriptorSet)
         VkDescriptorSetLayout bindlessSetLayout = nullptr;
         std::array<VkDescriptorSet, BGLSwapChain::MAX_FRAMES_IN_FLIGHT> bindlessDescriptorSet = std::array<VkDescriptorSet, BGLSwapChain::MAX_FRAMES_IN_FLIGHT>();
     };

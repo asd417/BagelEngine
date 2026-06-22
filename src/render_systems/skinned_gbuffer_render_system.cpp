@@ -31,13 +31,6 @@ namespace bagel {
 			BGLPipeline::setupGBufferPipeline);
 	}
 
-	static void SendSkinnedPush(VkCommandBuffer cmd, VkPipelineLayout layout, SkinnedGBufferPushConstantData& push)
-	{
-		vkCmdPushConstants(cmd, layout,
-			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-			0, sizeof(SkinnedGBufferPushConstantData), &push);
-	}
-
 	void SkinnedGBufferRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
 		Frustum frustum;
@@ -76,7 +69,9 @@ namespace bagel {
 			push.animBaseOffset    = anim.animBaseOffset();
 			push.materialRowBase   = model.skinBase + model.skinIndex * model.numSlots;
 			push.fallbackAlbedoMap = frameInfo.fallbackAlbedoMap;
-			SendSkinnedPush(frameInfo.commandBuffer, pipelineLayout, push);
+			vkCmdPushConstants(frameInfo.commandBuffer, pipelineLayout,
+				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+				0, sizeof(SkinnedGBufferPushConstantData), &push);
 
 			// Solid submeshes only — transparent skinned submeshes are out of scope for now.
 			for (const ModelComponent::Submesh& sm : model.solidSubmeshes()) {

@@ -12,17 +12,6 @@
 #include <stdexcept>
 #include <cassert>
 
-#define VK_CHECK(x)                                                     \
-	do                                                                  \
-	{                                                                   \
-		VkResult err = x;                                               \
-		if (err)                                                        \
-		{                                                               \
-			std::cout <<"Detected Vulkan error: " << err << std::endl;  \
-			abort();                                                    \
-		}                                                               \
-	} while (0)
-
 
 namespace bagel {
     BGLSwapChain::BGLSwapChain(BGLDevice &deviceRef, VkExtent2D extent)

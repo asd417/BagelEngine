@@ -5,10 +5,6 @@
 
 namespace bagel {
 namespace util {
-	std::string enginePathString(std::string path) {
-		return std::string(ENGINE_BASE_PATH) + path;
-	}
-
 	std::string enginePath(const char* path) {
 		return std::string(ENGINE_BASE_PATH).append(path);
 	}

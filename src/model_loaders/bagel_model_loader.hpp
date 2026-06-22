@@ -63,32 +63,8 @@ namespace bagel {
 			// Index into the global material table (BGLMaterialManager). The vertex shader
 			// resolves it to the actual bindless texture handles. 0 = the all-unused material.
 			uint16_t materialIndex = 0;
-
 			static std::vector<VkVertexInputBindingDescription> getBindingDescriptions();
 			static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
-
-			bool operator=(const Vertex& other) const {
-				return std::tie(
-					position.x,position.y,position.z,
-					normal.x,normal.y,normal.z) 
-					== std::tie(other.position.x, other.position.y, other.position.z,
-						other.normal.x, other.normal.y, other.normal.z);
-			}
-			bool operator<(const Vertex& other) const {
-				return std::tie(
-					position.x, position.y, position.z,
-					normal.x, normal.y, normal.z)
-					< std::tie(other.position.x, other.position.y, other.position.z,
-						other.normal.x, other.normal.y, other.normal.z);
-			}
-			bool operator>(const Vertex& other) const {
-				return std::tie(
-					position.x, position.y, position.z,
-					normal.x, normal.y, normal.z)
-					> std::tie(other.position.x, other.position.y, other.position.z,
-						other.normal.x, other.normal.y, other.normal.z);
-			}
-			
 		};
 		
 		struct VertexHasher

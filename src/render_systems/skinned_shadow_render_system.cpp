@@ -28,13 +28,6 @@ namespace bagel {
 			BGLPipeline::setupShadowMapPipeline);
 	}
 
-	static void sendSkinnedShadowPush(VkCommandBuffer cmd, VkPipelineLayout layout, SkinnedShadowPushData& push)
-	{
-		vkCmdPushConstants(cmd, layout,
-			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-			0, sizeof(SkinnedShadowPushData), &push);
-	}
-
 	void SkinnedShadowRenderSystem::renderShadowCasters(FrameInfo& frameInfo, uint32_t cascadeIndex)
 	{
 		bglPipeline->bind(frameInfo.commandBuffer);
@@ -63,7 +56,9 @@ namespace bagel {
 			push.skinVertexBase = model.skinVertexBase;
 			push.animBaseOffset = anim.animBaseOffset();
 			push.cascadeIndex   = cascadeIndex;
-			sendSkinnedShadowPush(frameInfo.commandBuffer, pipelineLayout, push);
+			vkCmdPushConstants(frameInfo.commandBuffer, pipelineLayout,
+				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+				0, sizeof(SkinnedShadowPushData), &push);
 
 			// Whole mesh casts (all submeshes, opaque depth).
 			for (uint32_t i = 0; i < model.submeshCount; i++) {

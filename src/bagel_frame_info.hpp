@@ -6,7 +6,7 @@
 #include <vulkan/vulkan.h>
 #include <cstddef>
 #include "entt.hpp"
-#define MAX_LIGHTS 10
+#include "bagel_engine_config.hpp"
 #define MAX_MODELS
 
 namespace bagel {

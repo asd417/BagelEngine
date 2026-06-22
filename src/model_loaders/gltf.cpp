@@ -186,30 +186,17 @@ namespace bagel
 		const tinygltf::Accessor&   idxAcc = model.accessors[prim.indices];
 		const tinygltf::BufferView& idxView = model.bufferViews[idxAcc.bufferView];
 		const tinygltf::Buffer&     idxBuf  = model.buffers[idxView.buffer];
+		const unsigned char* idxData = &idxBuf.data[idxAcc.byteOffset + idxView.byteOffset];
 
+		auto pushIndices = [&](auto* buf) {
+			for (size_t i = 0; i < idxAcc.count; i++)
+				indices.push_back(static_cast<uint32_t>(buf[i]) + vertexStart);
+		};
 		switch (idxAcc.componentType)
 		{
-		case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:
-		{
-			const uint32_t* buf = reinterpret_cast<const uint32_t*>(&idxBuf.data[idxAcc.byteOffset + idxView.byteOffset]);
-			for (size_t i = 0; i < idxAcc.count; i++)
-				indices.push_back(buf[i] + vertexStart);
-			break;
-		}
-		case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT:
-		{
-			const uint16_t* buf = reinterpret_cast<const uint16_t*>(&idxBuf.data[idxAcc.byteOffset + idxView.byteOffset]);
-			for (size_t i = 0; i < idxAcc.count; i++)
-				indices.push_back(static_cast<uint32_t>(buf[i]) + vertexStart);
-			break;
-		}
-		case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE:
-		{
-			const uint8_t* buf = reinterpret_cast<const uint8_t*>(&idxBuf.data[idxAcc.byteOffset + idxView.byteOffset]);
-			for (size_t i = 0; i < idxAcc.count; i++)
-				indices.push_back(static_cast<uint32_t>(buf[i]) + vertexStart);
-			break;
-		}
+		case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:   pushIndices(reinterpret_cast<const uint32_t*>(idxData)); break;
+		case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT: pushIndices(reinterpret_cast<const uint16_t*>(idxData)); break;
+		case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE:  pushIndices(reinterpret_cast<const uint8_t*>(idxData));  break;
 		default:
 			std::cerr << "Unsupported index component type: " << idxAcc.componentType << "\n";
 			break;
