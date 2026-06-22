@@ -3,6 +3,7 @@
 #include "bagel_material.hpp"
 #include "game/planet_terrain.hpp"   // geodesic-CDLOD planet (workstream G)
 #include "components/planet.hpp"
+#include "model_loaders/model_load_settings.hpp" // ModelLoadSettings (loadModel default arg)
 #include <memory>
 
 namespace bagel {
@@ -18,9 +19,11 @@ namespace bagel {
 	private:
 		// Scene content (each builds its own lights so it stands alone after a clear)
 		void placeCubes();
-		void placePurpleCube();
 		void createLights();   // point lights — common to every scene
 		void buildHierarchyStack();
+		// One entity at origin from a single model asset (gltf/glb/obj). Shared by every
+		// single-model scene below; settings carries per-model tweaks (e.g. submesh merge).
+		void loadModel(const char* path, float scale, ModelLoadSettings settings = {});
 		void loadSponza();
 		void loadDragon();
 		void loadMonkeyBone();   // skinned/bone-animated test model
@@ -40,6 +43,7 @@ namespace bagel {
 		void saveCurrentMap();          // serialize current registry to maps/<name>.bmap
 		void loadMap(int index);        // load from disk (if it exists) + rehydrate
 		bool loadMapFromPath(const std::string& path, const std::string& name); // shared load+rehydrate
+		void logDescriptorUsage();      // print bindless slot usage after a scene loads
 		static const char* mapName(int index);
 		std::string        mapPath(int index) const;
 		std::string        mapPath(const std::string& name) const;

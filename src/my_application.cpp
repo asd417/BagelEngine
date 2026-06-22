@@ -94,6 +94,18 @@ namespace bagel {
 		default: break;
 		}
 		CONSOLE->Log("Map", std::string("Built scene '") + mapName(index) + "'");
+		logDescriptorUsage();
+	}
+
+	// Report how much of the bindless descriptor capacity the just-loaded scene consumes.
+	void MyApplication::logDescriptorUsage()
+	{
+		const uint32_t cap  = descriptorManager->descriptorCapacity();
+		const uint32_t tex  = descriptorManager->textureSlotsUsed();
+		const uint32_t buf  = descriptorManager->bufferSlotsUsed();
+		CONSOLE->Log("Descriptors",
+			"textures " + std::to_string(tex) + "/" + std::to_string(cap) +
+			", buffers " + std::to_string(buf) + "/" + std::to_string(cap));
 	}
 
 	void MyApplication::saveCurrentMap()
@@ -116,6 +128,7 @@ namespace bagel {
 		Map::rehydrate(registry, bglDevice, *materialManager, *skinManager);
 		hierarchyRoot = entt::null;              // loaded hierarchy is static (no live root)
 		currentMapName = name;
+		logDescriptorUsage();
 		return true;
 	}
 
@@ -184,7 +197,7 @@ namespace bagel {
 
 	void MyApplication::placeCubes()
 	{
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
+		ModelComponentBuilder modelBuilder(bglDevice, registry);
 
 		// Texture sources are recorded on each generated cube so the brick look
 		// survives a save/load round trip (generated models carry no asset material).
@@ -211,31 +224,10 @@ namespace bagel {
 			auto& tfc = registry.emplace<TransformComponent>(entity);
 			tfc.setTranslation(def.pos);
 			tfc.setScale(def.scale);
-			auto& model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/cube.obj", ComponentBuildMode::FACES);
+			auto& model = modelBuilder.buildComponent<ModelComponent>(entity, "/models/cube.obj", ComponentBuildMode::FACES);
 			// Record the material source so the brick look survives a save/load round trip.
 			model.setMaterialSource(0, bricksSrc);
 		}
-
-		delete modelBuilder;
-	}
-	void MyApplication::placePurpleCube()
-	{
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
-
-		MaterialSource purpleSrc{
-			"/materials/purple_albedo.png",
-			"", "",
-			"/materials/purple_emission.png" };
-
-		auto entity = registry.create();
-		auto& tfc = registry.emplace<TransformComponent>(entity);
-		tfc.setTranslation({ 0.0f, 0.0f, 0.0f });
-		tfc.setScale({ 0.3f, 0.3f, 0.3f });
-		ModelLoadSettings settings{};
-		auto &model = modelBuilder->buildComponent<ModelComponent>(entity, "/models/cube.obj", settings);
-		model.setMaterialSource(0, purpleSrc);
-
-		delete modelBuilder;
 	}
 	void MyApplication::buildHierarchyStack()
 	{
@@ -244,7 +236,7 @@ namespace bagel {
 		const float localYOffset = 1.5f;   // in parent-local units; world offset = cubeScale * 1.5 = 0.3
 		const float twistPerLevel = glm::radians(8.0f);
 
-		auto* builder = new ModelComponentBuilder(bglDevice, registry);
+		ModelComponentBuilder builder(bglDevice, registry);
 		HierachySystem hs(registry);
 
 		ModelLoadSettings settings{};
@@ -255,7 +247,7 @@ namespace bagel {
 			entt::entity e = registry.create();
 			auto& tc = registry.emplace<TransformComponent>(e);
 			tc.setScale({ cubeScale, cubeScale, cubeScale });
-			builder->buildComponent<ModelComponent>(e, "/models/cube.obj", settings);
+			builder.buildComponent<ModelComponent>(e, "/models/cube.obj", settings);
 
 			if (i == 0) {
 				tc.setTranslation({ 8.0f, 0.0f, 0.0f });
@@ -269,8 +261,6 @@ namespace bagel {
 			}
 			prev = e;
 		}
-
-		delete builder;
 	}
 	void MyApplication::createLights()
 	{
@@ -301,86 +291,34 @@ namespace bagel {
 		sun.shadowBiasMin = 0.0f;
 		sun.shadowBiasSlope = 0.0f;
 	}
-	void MyApplication::loadSponza()
+	// One textured/skinned entity at origin. Skinned models (glb with JOINTS_0/WEIGHTS_0) get
+	// their skin influences + baked palette uploaded and an AnimationComponent attached by the
+	// builder, so they render through the SkinnedGBufferRenderSystem automatically.
+	void MyApplication::loadModel(const char* path, float scale, ModelLoadSettings settings)
 	{
-		auto* builder = new ModelComponentBuilder(bglDevice, registry);
-		builder->setTextureLoader(&materialManager->getTextureLoader());
-		builder->setMaterialManager(materialManager.get());
-		builder->setSkinManager(skinManager.get());
+		ModelComponentBuilder builder(bglDevice, registry);
+		builder.setTextureLoader(&materialManager->getTextureLoader());
+		builder.setMaterialManager(materialManager.get());
+		builder.setSkinManager(skinManager.get());
 
 		auto entity = registry.create();
-		auto& tc = registry.emplace<TransformComponent>(entity);
-		tc.setTranslation({ 0.0f, 0.0f, 0.0f });
-		tc.setScale({ 0.01f, 0.01f, 0.01f });
-
+		registry.emplace<TransformComponent>(entity).setScale({ scale, scale, scale });
+		builder.buildComponent<ModelComponent>(entity, path, settings);
+	}
+	void MyApplication::loadSponza()
+	{
 		ModelLoadSettings settings{};
 		// Sponza is large: keep each source mesh's solid geometry as its own submesh
 		// (instead of merging into one) so per-submesh frustum culling can skip
 		// off-screen chunks. Set to true to merge back into a single opaque submesh.
 		settings.mergeSolidSubmeshes = false;
-		builder->buildComponent<ModelComponent>(entity, "/models/sponza/Sponza.gltf", settings);
-
-		delete builder;
+		loadModel("/models/sponza/Sponza.gltf", 0.01f, settings);
 	}
-	void MyApplication::loadDragon()
-	{
-		auto* builder = new ModelComponentBuilder(bglDevice, registry);
-		builder->setTextureLoader(&materialManager->getTextureLoader());
-		builder->setMaterialManager(materialManager.get());
-		builder->setSkinManager(skinManager.get());
-
-		// Text glTF with a base64-embedded buffer and solid-color (baseColorFactor) materials.
-		// ~14x6x10 units; scale it down so it sits comfortably in view.
-		auto entity = registry.create();
-		auto& tc = registry.emplace<TransformComponent>(entity);
-		tc.setTranslation({ 0.0f, 0.0f, 0.0f });
-		tc.setScale({ 0.3f, 0.3f, 0.3f });
-
-		ModelLoadSettings settings{};
-		builder->buildComponent<ModelComponent>(entity, "/models/chinesedragon.gltf", settings);
-
-		delete builder;
-	}
-	void MyApplication::loadMonkeyBone()
-	{
-		// Skinned / bone-animated test model: 1 skin (5 joints), 2 clips (action1, action2).
-		// The builder uploads its skin influences + baked palette and attaches an
-		// AnimationComponent, so it renders through the SkinnedGBufferRenderSystem.
-		auto* builder = new ModelComponentBuilder(bglDevice, registry);
-		builder->setTextureLoader(&materialManager->getTextureLoader());
-		builder->setMaterialManager(materialManager.get());
-		builder->setSkinManager(skinManager.get());
-
-		auto entity = registry.create();
-		auto& tc = registry.emplace<TransformComponent>(entity);
-		tc.setTranslation({ 0.0f, 0.0f, 0.0f });
-		tc.setScale({ 1.0f, 1.0f, 1.0f });
-
-		ModelLoadSettings settings{};
-		builder->buildComponent<ModelComponent>(entity, "/models/monkey_bone_anim/monkeybone.glb", settings);
-
-		delete builder;
-	}
-	void MyApplication::loadIKLeg()
-	{
-		// Skinned / bone-animated test model: 1 skin (5 joints), 2 clips (action1, action2).
-		// The builder uploads its skin influences + baked palette and attaches an
-		// AnimationComponent, so it renders through the SkinnedGBufferRenderSystem.
-		auto* builder = new ModelComponentBuilder(bglDevice, registry);
-		builder->setTextureLoader(&materialManager->getTextureLoader());
-		builder->setMaterialManager(materialManager.get());
-		builder->setSkinManager(skinManager.get());
-
-		auto entity = registry.create();
-		auto& tc = registry.emplace<TransformComponent>(entity);
-		tc.setTranslation({ 0.0f, 0.0f, 0.0f });
-		tc.setScale({ 1.0f, 1.0f, 1.0f });
-
-		ModelLoadSettings settings{};
-		builder->buildComponent<ModelComponent>(entity, "/models/ikleg/ikbone.glb", settings);
-
-		delete builder;
-	}
+	// Text glTF with a base64-embedded buffer and solid-color (baseColorFactor) materials.
+	// ~14x6x10 units; scaled down so it sits comfortably in view.
+	void MyApplication::loadDragon()    { loadModel("/models/chinesedragon.gltf", 0.3f); }
+	void MyApplication::loadMonkeyBone(){ loadModel("/models/monkey_bone_anim/monkeybone.glb", 1.0f); }
+	void MyApplication::loadIKLeg()     { loadModel("/models/ikleg/ikbone.glb", 1.0f); }
 	void MyApplication::loadPlanet()
 	{
 		// Planet: radius 64, tessellation ranging from a uniform level-2 floor (far side)

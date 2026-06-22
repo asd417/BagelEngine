@@ -36,10 +36,9 @@
 #include "physics/bagel_jolt.hpp"
 #include "math/bagel_math.hpp"
 #include "smaa/smaa_textures.hpp"
+#include "bagel_engine_config.hpp"
 
 #include "Jolt/Jolt.h"
-
-#define GLOBAL_DESCRIPTOR_COUNT 1000
 
 namespace bagel
 {
@@ -393,7 +392,7 @@ namespace bagel
 			hFpsTimer = CreateWaitableTimerW(nullptr, FALSE, nullptr); // fallback for older Windows 10
 #endif
 
-		bool gravePrev = false; // edge-detect the ` key for the ImGui toggle
+		bool gravePrev = false; // edge-detect the hard-coded ` UI-toggle key
 		while (!bglWindow.shouldClose())
 		{
 			auto t0 = Clock::now();
@@ -401,8 +400,9 @@ namespace bagel
 			auto t1 = Clock::now();
 			recordSection(S_POLL, tMs(t0, t1));
 
-			// ` (grave) toggles all ImGui panels. Edge-detected so one tap flips it, and
-			// ignored while an ImGui text field is focused so it doesn't eat the keystroke.
+			// ` (grave) toggles all ImGui panels — kept HARD-CODED on purpose: it must always
+			// work (never rebindable or clearable via `unbindall`) so you can't lock yourself out
+			// of the UI/console. Edge-detected; ignored while an ImGui text field is focused.
 			{
 				bool graveDown = glfwGetKey(bglWindow.getGLFWWindow(), GLFW_KEY_GRAVE_ACCENT) == GLFW_PRESS;
 				if (graveDown && !gravePrev && !ImGui::GetIO().WantTextInput)
@@ -410,9 +410,13 @@ namespace bagel
 				gravePrev = graveDown;
 			}
 
-			auto newTime = t1;
-			float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
-			currentTime = newTime;
+			// Keybinds: fire each bound console command on its key's press edge (Source-style
+			// `bind`). Suppressed while an ImGui text field is focused so typing doesn't fire binds.
+			keybinds.poll(bglWindow.getGLFWWindow(), ImGui::GetIO().WantTextInput,
+				[](const char* cmd) { ConsoleApp::Instance()->Run(cmd); });
+
+			float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(t1 - currentTime).count();
+			currentTime = t1;
 			totalTime += frameTime;
 
 			t0 = Clock::now();
@@ -738,7 +742,7 @@ namespace bagel
 			if (maxFps > 0)
 			{
 				double targetMs = 1000.0 / maxFps;
-				double elapsedMs = tMs(newTime, Clock::now());
+				double elapsedMs = tMs(t1, Clock::now());
 				double sleepMs = targetMs - elapsedMs;
 				if (sleepMs > 0.5)
 				{
@@ -777,6 +781,18 @@ namespace bagel
 		CONSOLE->AddCommand("R_SMAA", this, ConsoleCommand::ToggleSmaa);
 		CONSOLE->AddCommandWithArg("EDITMODE", this, ConsoleCommand::SetEditMode);
 		CONSOLE->AddCommandWithArg("MAP", this, ConsoleCommand::LoadMap);
+		// Keybinds (Source-style): bind/unbind any console command to a key. No default binds —
+		// the grave/UI-toggle stays hard-coded in run() so it's always available. (TOGGLEUI is
+		// still registered so it can be bound to a *different* key if desired.)
+		CONSOLE->AddCommand("TOGGLEUI", this, ConsoleCommand::ToggleUI);
+		CONSOLE->AddCommandWithArg("BIND", this, ConsoleCommand::Bind);
+		CONSOLE->AddCommandWithArg("UNBIND", this, ConsoleCommand::Unbind);
+		CONSOLE->AddCommand("UNBINDALL", this, ConsoleCommand::UnbindAll);
+
+		// Persist binds across runs: a Source-style config that's re-exec'd on startup. Binds
+		// auto-save on every change; load replays the file now that BIND is registered.
+		keybinds.setConfigPath(util::enginePath("/keybinds.cfg"));
+		keybinds.load([](const char* cmd) { ConsoleApp::Instance()->Run(cmd); });
 	}
 
 	void Application::setTextureMipBias(float bias)

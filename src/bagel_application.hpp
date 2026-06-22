@@ -6,6 +6,7 @@
 #include "bagel_window.hpp"
 #include "bagel_engine_device.hpp"
 #include "bagel_renderer.hpp"
+#include "bagel_keybinds.hpp"   // Source-style key -> console-command bindings
 
 #include "render_systems/point_light_render_system.hpp"
 #include "render_systems/wireframe_render_system.hpp"
@@ -103,6 +104,10 @@ namespace bagel
 		// Bone-posing gizmo edit mode (console: editmode 0/1; also the G hotkey).
 		void setGizmoEditMode(bool on) { poseGizmo.setEditMode(on); }
 		bool gizmoEditModeOn() const   { return poseGizmo.editModeOn(); }
+
+		// Source-style keybinds (key -> console command). Driven by the bind/unbind console
+		// commands and polled each frame in run().
+		KeyBindManager& getKeybinds() { return keybinds; }
 	
 		// Console "map <name>" hook: load /maps/<name>.bmap by name and rehydrate. Base is a no-op
 		// error; the derived app implements the actual load. Returns a status message for the console.
@@ -144,6 +149,8 @@ namespace bagel
 		entt::registry registry;
 		// Declared after registry (constructed after it; holds only a reference to it).
 		PoseGizmo poseGizmo{ registry };
+		// Key -> console-command table; polled each frame in run() (see bagel_keybinds.hpp).
+		KeyBindManager keybinds;
 
 	private:
 		std::unique_ptr<BGLDescriptorSetLayout> modelSetLayout;
