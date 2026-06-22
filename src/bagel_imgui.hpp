@@ -240,6 +240,11 @@ namespace bagel {
             callbackMapWithArgs.emplace(name, std::pair{ obj, callback });
         }
 
+        // Execute a command line programmatically (e.g. from a keybind). Unlike typing into
+        // the console, this does NOT echo the input line or push to history — only the
+        // command's own response is logged. Returns true if a command matched.
+        bool Run(const char* command_line) { return Dispatch(command_line); }
+
         void ClearLog()
         {
             for (int i = 0; i < Items.Size; i++)
@@ -419,7 +424,17 @@ namespace bagel {
                 }
             History.push_back(Strdup(command_line));
 
-            // Split into command name and optional argument
+            Dispatch(command_line);
+
+            // On command input, we scroll to bottom even if AutoScroll==false
+            ScrollToBottom = true;
+        }
+
+        // Parse `command_line` into name + optional argument and invoke the matching command,
+        // logging its response. Shared by the console input (ExecCommand) and programmatic
+        // execution (Run / keybinds). Returns true if a command matched.
+        bool Dispatch(const char* command_line)
+        {
             char cmdBuf[256];
             strncpy_s(cmdBuf, sizeof(cmdBuf), command_line, sizeof(cmdBuf) - 1);
             cmdBuf[sizeof(cmdBuf) - 1] = '\0';
@@ -448,10 +463,8 @@ namespace bagel {
                     }
                 }
             }
-            if(!ran) AddLog("Unknown command: '%s'\n", command_line);
-
-            // On command input, we scroll to bottom even if AutoScroll==false
-            ScrollToBottom = true;
+            if (!ran) AddLog("Unknown command: '%s'\n", command_line);
+            return ran;
         }
 
         // In C++11 you'd be better off using lambdas for this sort of forwarding callbacks

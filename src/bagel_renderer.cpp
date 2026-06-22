@@ -8,17 +8,7 @@
 #include <array>
 #include <iostream>
 
-#define VK_CHECK(x)                                                     \
-	do                                                                  \
-	{                                                                   \
-		VkResult err = x;                                               \
-		if (err)                                                        \
-		{                                                               \
-			std::cout <<"Detected Vulkan error: " << err << std::endl;  \
-			abort();                                                    \
-		}                                                               \
-	} while (0)
-/// 
+///
 /// Implementing deferred rendering
 /// 1. Create descriptor bindings
 ///     Create a completely new descriptor set just for the composition stage

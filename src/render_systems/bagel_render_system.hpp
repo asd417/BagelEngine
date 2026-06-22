@@ -32,7 +32,6 @@ namespace bagel {
 
 		std::unique_ptr<BGLPipeline> bglPipeline;
 		VkPipelineLayout pipelineLayout;
-		std::unique_ptr <BGLBuffer> objDataBuffer;
 	};
 
 }

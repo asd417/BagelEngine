@@ -8,24 +8,12 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
-#include <time.h>
 #include <cstdio>
 #include <cstdarg>
 
 
 namespace bagel
 {
-	class Stopwatch
-	{
-	public:
-		Stopwatch() { reset(); }
-		void reset() { m_start = clock(); }
-		double elapsed() const { return (clock() - m_start) * 1000.0 / CLOCKS_PER_SEC; }
-
-	private:
-		clock_t m_start;
-	};
-
 	static int xatlasPrint(const char *format, ...)
 	{
 		va_list args;

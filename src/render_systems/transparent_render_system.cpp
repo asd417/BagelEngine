@@ -32,13 +32,6 @@ namespace bagel {
 			BGLPipeline::setupTransparentPipeline);
 	}
 
-	static void SendTransparentPush(VkCommandBuffer cmd, VkPipelineLayout layout, TransparentPushConstantData& push)
-	{
-		vkCmdPushConstants(cmd, layout,
-			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-			0, sizeof(TransparentPushConstantData), &push);
-	}
-
 	void TransparentRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
 		// Gather transparent entities and sort back-to-front by camera distance so the
@@ -84,7 +77,9 @@ namespace bagel {
 			push.modelMatrix = transform.mat4();
 			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
 			push.materialRowBase = model.skinBase + model.skinIndex * model.numSlots;
-			SendTransparentPush(frameInfo.commandBuffer, pipelineLayout, push);
+			vkCmdPushConstants(frameInfo.commandBuffer, pipelineLayout,
+				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+				0, sizeof(TransparentPushConstantData), &push);
 
 			for (const ModelComponent::Submesh& sm : model.transparentSubmeshes()) {
 				if (model.indexCount > 0)

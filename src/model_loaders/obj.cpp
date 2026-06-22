@@ -131,6 +131,37 @@ namespace bagel {
 				    && isTransparent(m[matID]);
 			};
 
+			// Emit one submesh holding every face of `shape` that matches `wantTransparent`.
+			// Skips (emits nothing) if the shape has no matching face.
+			auto emitShapeSubmesh = [&](const tinyobj::shape_t& shape, bool wantTransparent)
+			{
+				bool hasMatch = false;
+				for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++)
+					if (matIsTransparent(shape.mesh.material_ids[f]) == wantTransparent) { hasMatch = true; break; }
+				if (!hasMatch) return;
+
+				SubmeshInfo sm{};
+				sm.firstIndex  = static_cast<uint32_t>(indices.size());
+				sm.firstVertex = static_cast<uint32_t>(vertices.size());
+				sm.transparentMaterial = wantTransparent;
+
+				VertexMap vmap{};
+				uint32_t vint = static_cast<uint32_t>(vertices.size());
+				size_t index_offset = 0;
+				for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++)
+				{
+					size_t fv         = shape.mesh.num_face_vertices[f];
+					int    materialID = shape.mesh.material_ids[f];
+					if (matIsTransparent(materialID) == wantTransparent)
+						appendFace(shape, f, index_offset, fv, static_cast<uint32_t>(materialID), vmap, vint);
+					index_offset += fv;
+				}
+
+				sm.indexCount  = static_cast<uint32_t>(indices.size()) - sm.firstIndex;
+				sm.vertexCount = static_cast<uint32_t>(vertices.size()) - sm.firstVertex;
+				submeshes.push_back(sm);
+			};
+
 			// Pass 1: solid/opaque faces.
 			if (parms.mergeSolidSubmeshes)
 			{
@@ -161,67 +192,11 @@ namespace bagel {
 			else
 			{
 				// Keep each shape's opaque faces as its own submesh.
-				for (const tinyobj::shape_t& shape : shapes)
-				{
-					bool hasOpaque = false;
-					for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++)
-						if (!matIsTransparent(shape.mesh.material_ids[f])) { hasOpaque = true; break; }
-					if (!hasOpaque) continue;
-
-					SubmeshInfo osm{};
-					osm.firstIndex  = static_cast<uint32_t>(indices.size());
-					osm.firstVertex = static_cast<uint32_t>(vertices.size());
-					osm.transparentMaterial = false;
-
-					VertexMap opaqueMap{};
-					uint32_t opaqueVint = static_cast<uint32_t>(vertices.size());
-
-					size_t index_offset = 0;
-					for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++)
-					{
-						size_t fv       = shape.mesh.num_face_vertices[f];
-						int    materialID = shape.mesh.material_ids[f];
-						if (!matIsTransparent(materialID))
-							appendFace(shape, f, index_offset, fv, static_cast<uint32_t>(materialID), opaqueMap, opaqueVint);
-						index_offset += fv;
-					}
-
-					osm.indexCount  = static_cast<uint32_t>(indices.size()) - osm.firstIndex;
-					osm.vertexCount = static_cast<uint32_t>(vertices.size()) - osm.firstVertex;
-					submeshes.push_back(osm);
-				}
+				for (const tinyobj::shape_t& shape : shapes) emitShapeSubmesh(shape, false);
 			}
 
 			// Pass 2: one submesh per shape for its transparent faces
-			for (const tinyobj::shape_t& shape : shapes)
-			{
-				bool hasTransparent = false;
-				for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++)
-					if (matIsTransparent(shape.mesh.material_ids[f])) { hasTransparent = true; break; }
-				if (!hasTransparent) continue;
-
-				SubmeshInfo tsm{};
-				tsm.firstIndex  = static_cast<uint32_t>(indices.size());
-				tsm.firstVertex = static_cast<uint32_t>(vertices.size());
-				tsm.transparentMaterial = true;
-
-				VertexMap transparentMap{};
-				uint32_t transparentVint = static_cast<uint32_t>(vertices.size());
-
-				size_t index_offset = 0;
-				for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++)
-				{
-					size_t fv       = shape.mesh.num_face_vertices[f];
-					int    materialID = shape.mesh.material_ids[f];
-					if (matIsTransparent(materialID))
-						appendFace(shape, f, index_offset, fv, static_cast<uint32_t>(materialID), transparentMap, transparentVint);
-					index_offset += fv;
-				}
-
-				tsm.indexCount  = static_cast<uint32_t>(indices.size()) - tsm.firstIndex;
-				tsm.vertexCount = static_cast<uint32_t>(vertices.size()) - tsm.firstVertex;
-				submeshes.push_back(tsm);
-			}
+			for (const tinyobj::shape_t& shape : shapes) emitShapeSubmesh(shape, true);
 		}
 		else
 		{

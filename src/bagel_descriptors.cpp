@@ -1,19 +1,6 @@
 #include "bagel_descriptors.hpp"
+#include "bagel_engine_config.hpp"
 #include <limits>
-
-// ---- file-local constants / config ----
-#define GLOBAL_DESCRIPTOR_COUNT 1000
-
-#define VK_CHECK(x)                                                     \
-	do                                                                  \
-	{                                                                   \
-		VkResult err = x;                                               \
-		if (err)                                                        \
-		{                                                               \
-			std::cout <<"Detected Vulkan error: " << err << std::endl;  \
-			abort();                                                    \
-		}                                                               \
-	} while (0)
 
 // std
 #include <iostream>
@@ -232,6 +219,7 @@ namespace bagel {
 
     void BGLBindlessDescriptorManager::createBindlessDescriptorSet(uint32_t descriptorCount)
     {
+        capacity = descriptorCount;
         // One descriptorSet per swapchain count
         // Create three bindings: storage buffer,
         // uniform buffer, and combined image sampler

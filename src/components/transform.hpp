@@ -8,8 +8,7 @@
 #include "entt.hpp"
 
 #include "components/data_buffer.hpp"
-
-#define MAX_TRANSFORM_PER_ENT 1000
+#include "bagel_engine_config.hpp"
 
 namespace bagel {
 	// Forward declarations so the structs below can befriend their serialization

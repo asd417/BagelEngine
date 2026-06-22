@@ -267,7 +267,6 @@ namespace bagel {
 
 	template<class Archive>
 	void serialize(Archive& ar, InfoComponent& c) {
-		ar(c.a);
 	}
 
 	// ---- whole-registry save / load -----------------------------------------

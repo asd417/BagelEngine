@@ -1,6 +1,7 @@
 #pragma once
 #include "bagel_application.hpp"
 #include <cstdlib>
+#include <string>
 namespace bagel {
 namespace ConsoleCommand {
 	//Console Callbacks
@@ -179,6 +180,71 @@ namespace ConsoleCommand {
 		};
 		snprintf(response, sizeof(response), "GBuffer view: %s", names[mode]);
 		return response;
+	}
+
+	// ---- Keybinds (Source-style) -------------------------------------------
+	// bind <key> <command...>  — run a console command on key press. With no args, lists binds.
+	//   e.g.  bind G EDITMODE 1     bind F5 R_DRAWMODE 1     bind GRAVE TOGGLEUI
+	char* Bind(void* ptr, const char* args)
+	{
+		static char response[256];
+		Application* app = static_cast<Application*>(ptr);
+		std::string a = args ? args : "";
+		// trim leading spaces
+		size_t b = a.find_first_not_of(' ');
+		if (b == std::string::npos) {
+			auto binds = app->getKeybinds().list();
+			if (binds.empty()) return "bind <key> <command>: no binds set";
+			static char listBuf[1024];
+			int n = snprintf(listBuf, sizeof(listBuf), "%d bind(s):", (int)binds.size());
+			for (auto& kv : binds) {
+				if (n >= (int)sizeof(listBuf) - 1) break;
+				n += snprintf(listBuf + n, sizeof(listBuf) - n, "\n  %s -> %s", kv.first.c_str(), kv.second.c_str());
+			}
+			return listBuf;
+		}
+		a = a.substr(b);
+		const size_t sp = a.find(' ');
+		if (sp == std::string::npos)
+			return "bind <key> <command>: specify a command to bind";
+		const std::string key = a.substr(0, sp);
+		std::string cmd = a.substr(sp + 1);
+		if (size_t c = cmd.find_first_not_of(' '); c != std::string::npos) cmd = cmd.substr(c);
+		if (!app->getKeybinds().bind(key, cmd)) {
+			snprintf(response, sizeof(response), "[error] bind: unknown key '%s'", key.c_str());
+			return response;
+		}
+		snprintf(response, sizeof(response), "Bound %s -> %s", key.c_str(), cmd.c_str());
+		return response;
+	}
+	// unbind <key>
+	char* Unbind(void* ptr, const char* args)
+	{
+		static char response[128];
+		Application* app = static_cast<Application*>(ptr);
+		if (!args || args[0] == '\0') return "unbind <key>";
+		std::string key(args);
+		if (size_t sp = key.find(' '); sp != std::string::npos) key = key.substr(0, sp); // first token only
+		if (!app->getKeybinds().unbind(key)) {
+			snprintf(response, sizeof(response), "[error] unbind: unknown key '%s'", key.c_str());
+			return response;
+		}
+		snprintf(response, sizeof(response), "Unbound %s", key.c_str());
+		return response;
+	}
+	// unbindall
+	char* UnbindAll(void* ptr)
+	{
+		Application* app = static_cast<Application*>(ptr);
+		app->getKeybinds().unbindAll();
+		return "All keybinds cleared";
+	}
+	// toggleui — show/hide all ImGui panels (default-bound to GRAVE). Bindable like any command.
+	char* ToggleUI(void* ptr)
+	{
+		Application* app = static_cast<Application*>(ptr);
+		app->showImgui = !app->showImgui;
+		return app->showImgui ? "UI shown" : "UI hidden";
 	}
 }
 }

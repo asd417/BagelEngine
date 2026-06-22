@@ -6,6 +6,7 @@
 #include "bagel_engine_swap_chain.hpp"
 #include "bagel_util.hpp"
 #include "bagel_imgui.hpp"
+#include "bagel_engine_config.hpp"
 
 // vulkan headers
 #include <vulkan/vulkan.h>
@@ -16,22 +17,8 @@
 #include <limits>
 #include <vector>
 
-// ---- file-local constants ----
-#define GLOBAL_DESCRIPTOR_COUNT 1000
-
 #include "bagel_imgui.hpp"
 #define CONSOLE ConsoleApp::Instance()
-
-#define VK_CHECK(x)                                                     \
-	do                                                                  \
-	{                                                                   \
-		VkResult err = x;                                               \
-		if (err)                                                        \
-		{                                                               \
-			std::cout <<"Detected Vulkan error: " << err << std::endl;  \
-			abort();                                                    \
-		}                                                               \
-	} while (0)
 
 //https://github.com/KhronosGroup/Vulkan-Samples/blob/main/samples/api/texture_loading/texture_loading.cpp
 namespace bagel {
