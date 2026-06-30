@@ -720,34 +720,41 @@ namespace bagel
 			bglRenderer.getDRNormalView(),
 			bglRenderer.getDRAlbedoView(),
 			bglRenderer.getDREmissionView());
-		descriptorManager->storeTexture(
+		// First call appends each render target and captures the bindless handle it was
+		// assigned; later calls (after a gbuffer/window-resize recreate) overwrite those same
+		// slots in place via the designated-handle path. The handles aren't valid until the
+		// first append, so the initial registration MUST use designated=false — otherwise
+		// storeTexture indexes a slot that doesn't exist yet (vector subscript out of range).
+		const bool reuse = renderTargetsRegistered;
+		radiosityHandle = descriptorManager->storeTexture(
 			bglRenderer.getRadiosityImageInfo(),
 			bglRenderer.getRadiosityMemory(),
 			bglRenderer.getRadiosityImage(),
-			"RadiosityBuffer", true, radiosityHandle, false);
-		descriptorManager->storeTexture(
+			"RadiosityBuffer", reuse, radiosityHandle, false);
+		smaaEdgeHandle = descriptorManager->storeTexture(
 			bglRenderer.getSmaaEdgeImageInfo(),
 			bglRenderer.getSmaaEdgeMemory(),
 			bglRenderer.getSmaaEdgeImage(),
-			"SmaaEdges", true, smaaEdgeHandle, false);
-		descriptorManager->storeTexture(
+			"SmaaEdges", reuse, smaaEdgeHandle, false);
+		smaaWeightHandle = descriptorManager->storeTexture(
 			bglRenderer.getSmaaWeightImageInfo(),
 			bglRenderer.getSmaaWeightMemory(),
 			bglRenderer.getSmaaWeightImage(),
-			"SmaaWeights", true, smaaWeightHandle, false);
-		descriptorManager->storeTexture(
+			"SmaaWeights", reuse, smaaWeightHandle, false);
+		compositeHandle = descriptorManager->storeTexture(
 			bglRenderer.getCompositeImageInfo(),
 			bglRenderer.getCompositeMemory(),
 			bglRenderer.getCompositeImage(),
-			"CompositeLDR", true, compositeHandle, false);
+			"CompositeLDR", reuse, compositeHandle, false);
 		for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++)
 		{
-			descriptorManager->storeTexture(
+			bloomMipHandles[i] = descriptorManager->storeTexture(
 				bglRenderer.getBloomMipImageInfo(i),
 				bglRenderer.getBloomMipMemory(i),
 				bglRenderer.getBloomMipImage(i),
-				"BloomMip", true, bloomMipHandles[i], false);
+				"BloomMip", reuse, bloomMipHandles[i], false);
 		}
+		renderTargetsRegistered = true;
 	}
 	void Application::reregisterDescriptorEntries()
 	{

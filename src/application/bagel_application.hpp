@@ -205,11 +205,14 @@ namespace bagel
 		std::unique_ptr<BGLDescriptorSetLayout> modelSetLayout;
 
 		// Render Handles
-		// can be recreated
-		uint32_t radiosityHandle;
-		uint32_t smaaEdgeHandle;
-		uint32_t smaaWeightHandle;
-		uint32_t compositeHandle;
-		uint32_t bloomMipHandles[BGLRenderer::BLOOM_MIPS];
+		// Bindless handles for the engine's internal render targets. Assigned on the first
+		// registerDescriptorEntries() call (append) and reused in place on resize. Initialized
+		// so the first call never passes an indeterminate value as a designated handle.
+		uint32_t radiosityHandle = 0;
+		uint32_t smaaEdgeHandle = 0;
+		uint32_t smaaWeightHandle = 0;
+		uint32_t compositeHandle = 0;
+		uint32_t bloomMipHandles[BGLRenderer::BLOOM_MIPS]{};
+		bool renderTargetsRegistered = false; // false until the handles above are appended once
 	};
 }

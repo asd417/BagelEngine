@@ -433,6 +433,13 @@ namespace bagel {
         if (useDesignatedHandle) {
             std::cout << "Using designated handle. Destroying existing textures\n";
             handle = _handle;
+            // A designated handle must refer to a slot that was already appended (mirrors the
+            // bounds guard in updateTextureSampler above). If it's out of range the caller never
+            // appended this texture — bail instead of indexing past the end (subscript crash).
+            if (handle >= textures.size()) {
+                assert(false && "storeTexture: designated handle out of range (slot was never appended)");
+                return static_cast<uint32_t>(handle);
+            }
             //Destroy existing data at the _handle index (only if owned)
             if (textures[handle].isOwned) {
                 vkDestroyImageView(BGLDevice::device(), textures[handle].imageInfo.imageView, nullptr);
