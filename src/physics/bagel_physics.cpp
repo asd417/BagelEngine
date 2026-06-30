@@ -7,10 +7,10 @@ namespace Physics {
 		for (int ai = 0; ai < cA.colliderCount; ai++) {
 			for (int bi = 0; bi < cB.colliderCount; bi++) {
 				//depth is vector from cA to cB
-				glm::vec3 worldCenterA = tA.mat4() * glm::vec4(cA.center[ai], 1.0);
+				glm::vec3 worldCenterA = tA.computeMat4() * glm::vec4(cA.center[ai], 1.0);
 				//glm::vec3 worldCenterA = tA.translation + cA.center[ai];
 				//glm::vec3 worldCenterB = tA.translation + cA.center[ai];
-				glm::vec3 worldCenterB = tB.mat4() * glm::vec4(cB.center[bi], 1.0);
+				glm::vec3 worldCenterB = tB.computeMat4() * glm::vec4(cB.center[bi], 1.0);
 				glm::vec3 depth = worldCenterA - worldCenterB;
 				std::cout << "worldCenterA: " << worldCenterA.x << " " << worldCenterA.y << " " << worldCenterA.z << "\n";
 				std::cout << "worldCenterB: " << worldCenterB.x << " " << worldCenterB.y << " " << worldCenterB.z << "\n";

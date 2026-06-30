@@ -389,6 +389,94 @@ namespace bagel {
 		return buildAndStoreFromMemory(name, imageFormat, designatedIndex, storedIndex);
 	}
 
+	uint32_t BGLTextureLoader::updateTextureFromMemory(const char* name, const uint8_t* rgba, uint32_t w, uint32_t h, VkFormat imageFormat)
+	{
+		uint32_t storedIndex = descriptorManager.searchTextureName(name);
+		if (storedIndex == std::numeric_limits<uint32_t>::max())
+			return loadTextureFromMemory(name, rgba, w, h, imageFormat); // not created yet -> first upload
+
+		// Overwriting the designated slot destroys the old image/view; make sure no in-flight
+		// frame still references it. (Demo-grade, matches the planet mesh rebuild's wait.)
+		vkDeviceWaitIdle(BGLDevice::device());
+		loadPixelDataInStagingBuffer(rgba, w, h, bytesPerTexel(imageFormat));
+		return buildAndStoreFromMemory(name, imageFormat, /*designatedIndex*/ true, storedIndex);
+	}
+
+	BGLTextureLoader::HostVisibleImage BGLTextureLoader::createHostVisibleTexture(const char* name, uint32_t w, uint32_t h, VkFormat imageFormat)
+	{
+		HostVisibleImage result{};
+
+		// Linear-tiled host-visible images can only be sampled if the format advertises it.
+		VkFormatProperties fp{};
+		vkGetPhysicalDeviceFormatProperties(bglDevice.getPhysicalDevice(), imageFormat, &fp);
+		if (!(fp.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT))
+			return result; // ok == false -> caller falls back to the staged (recreate) path
+
+		// Overwrite in place if this name already has a slot (e.g. map reload). storeTexture frees
+		// the old image/view; wait for idle first so no in-flight frame still references it.
+		uint32_t storedIndex = descriptorManager.searchTextureName(name);
+		bool designated = (storedIndex != std::numeric_limits<uint32_t>::max());
+		if (designated) vkDeviceWaitIdle(BGLDevice::device());
+
+		VkImageCreateInfo ici{};
+		ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		ici.imageType = VK_IMAGE_TYPE_2D;
+		ici.format = imageFormat;
+		ici.extent = { w, h, 1 };
+		ici.mipLevels = 1;
+		ici.arrayLayers = 1;
+		ici.samples = VK_SAMPLE_COUNT_1_BIT;
+		ici.tiling = VK_IMAGE_TILING_LINEAR;          // host-writable, sampled in place
+		ici.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+		ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		VkImage image;
+		VkDeviceMemory memory;
+		bglDevice.createImageWithInfo(ici, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, image, memory);
+
+		// Row pitch of the single mip/layer; the CPU must honor it (it may exceed w*bpp).
+		VkImageSubresource sub{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 0 };
+		VkSubresourceLayout sl{};
+		vkGetImageSubresourceLayout(BGLDevice::device(), image, &sub, &sl);
+
+		void* mapped = nullptr;
+		vkMapMemory(BGLDevice::device(), memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+
+		// UNDEFINED -> GENERAL once; GENERAL allows both host writes and shader sampling, so no
+		// further transitions are ever needed (the CPU just writes the mapped memory each edit).
+		VkCommandBuffer cmd = bglDevice.beginSingleTimeCommands();
+		VkImageMemoryBarrier b{};
+		b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		b.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		b.image = image;
+		b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		b.srcAccessMask = 0;
+		b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			0, 0, nullptr, 0, nullptr, 1, &b);
+		bglDevice.endSingleTimeCommands(cmd);
+
+		mipLvl = 1;                                      // single mip for the linear image
+		generateImageViewCreateInfo(imageFormat, image); // builds imageViewCreateInfo with levelCount = mipLvl
+		VkImageView imageView;
+		VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageViewCreateInfo, nullptr, &imageView));
+
+		uint32_t handle = descriptorManager.storeTexture(
+			{ sharedSampler, imageView, VK_IMAGE_LAYOUT_GENERAL },
+			memory, image, name, designated, designated ? storedIndex : 0);
+		if (std::find(contentTextureHandles.begin(), contentTextureHandles.end(), handle) == contentTextureHandles.end())
+			contentTextureHandles.push_back(handle);
+
+		result.handle = handle;
+		result.mapped = static_cast<uint8_t*>(mapped) + sl.offset;
+		result.rowPitch = sl.rowPitch;
+		result.ok = true;
+		return result;
+	}
+
 	uint32_t BGLTextureLoader::loadCombinedMetalRough(const char* roughPath, const char* metalPath)
 	{
 		std::string name = std::string("__mr_") + roughPath + "_" + metalPath;

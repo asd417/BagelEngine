@@ -18,7 +18,10 @@ struct VS_OUT {
 	uint normalMap;
 	uint metalRoughMap;
 	uint emissionMap;
+	uint isOcean;        // 1 when the material is the ocean sentinel (procedural water)
 };
+
+const uint OCEAN_MAT = 0xFFFFFFFFu; // matches bagel::OCEAN_MATERIAL_SENTINEL
 
 layout(location=0) out vec3 fragPosWorld;
 layout(location=1) out vec2 fragUV;
@@ -79,10 +82,11 @@ void main() {
 	fragNormalWorld = normalize(normalMatrix * normal);
 
 	uvec4 mat = skinTable.entries[push.materialRowBase + in_materialIndex];
-	vs_out.albedoMap     = mat.x;
-	vs_out.normalMap     = mat.y;
-	vs_out.metalRoughMap = mat.z;
-	vs_out.emissionMap   = mat.w;
+	vs_out.isOcean = (mat.x == OCEAN_MAT) ? 1u : 0u;
+	// Ocean has no real textures; zero the handles so the fragment never samples an invalid
+	// (sentinel) descriptor index — it takes the procedural water path instead.
+	if (vs_out.isOcean != 0u) mat = uvec4(0u);
+	vs_out.albedoMap = mat.x; vs_out.normalMap = mat.y; vs_out.metalRoughMap = mat.z; vs_out.emissionMap = mat.w;
 
 	// When no albedo texture is bound, repurpose fragTangent to carry vertex color.
 	if (vs_out.albedoMap == 0) {

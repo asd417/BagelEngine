@@ -25,6 +25,12 @@ if errorlevel 1 (echo [FAIL] gbuffer_fill.vert       & set /a ERRORS+=1) else ec
 "%GLSLC%" "%S%\gbuffer_fill.frag"       -o "%S%\gbuffer_fill.frag.spv"
 if errorlevel 1 (echo [FAIL] gbuffer_fill.frag       & set /a ERRORS+=1) else echo [OK] gbuffer_fill.frag
 
+"%GLSLC%" "%S%\planet_gbuffer.vert"     -o "%S%\planet_gbuffer.vert.spv"
+if errorlevel 1 (echo [FAIL] planet_gbuffer.vert     & set /a ERRORS+=1) else echo [OK] planet_gbuffer.vert
+
+"%GLSLC%" "%S%\planet_gbuffer.frag"     -o "%S%\planet_gbuffer.frag.spv"
+if errorlevel 1 (echo [FAIL] planet_gbuffer.frag     & set /a ERRORS+=1) else echo [OK] planet_gbuffer.frag
+
 "%GLSLC%" "%S%\deferred_lighting.vert"  -o "%S%\deferred_lighting.vert.spv"
 if errorlevel 1 (echo [FAIL] deferred_lighting.vert  & set /a ERRORS+=1) else echo [OK] deferred_lighting.vert
 

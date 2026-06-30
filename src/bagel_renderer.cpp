@@ -1229,12 +1229,29 @@ namespace bagel {
 		auto sc = bglSwapChain->getSwapChainExtent();
 		const uint32_t baseW = std::max(sc.width  / 4, 8u);
 		const uint32_t baseH = std::max(sc.height / 4, 8u);
+
+		// Bloom is a positive-HDR blur with no alpha and no need for 16-bit precision, so
+		// R11G11B10F (32bpp) halves bandwidth/memory vs RGBA16F (64bpp). Fall back to RGBA16F
+		// if the device can't use it as a linear-filterable, color-blendable attachment.
+		VkFormat bloomFormat = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+		{
+			VkFormatProperties fp{};
+			vkGetPhysicalDeviceFormatProperties(bglDevice.getPhysicalDevice(), bloomFormat, &fp);
+			const VkFormatFeatureFlags need =
+				VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
+				VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT |
+				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+				VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+			if ((fp.optimalTilingFeatures & need) != need)
+				bloomFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+		}
+
 		for (uint32_t i = 0; i < BLOOM_MIPS; i++) {
 			BloomBuffer& buf = bloomMips[i];
 			buf.width  = std::max(baseW >> i, 1u);
 			buf.height = std::max(baseH >> i, 1u);
 
-			createAttachment(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &buf.color, buf.width, buf.height);
+			createAttachment(bloomFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &buf.color, buf.width, buf.height);
 
 			VkAttachmentReference colorRef{ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
 
@@ -1265,11 +1282,12 @@ namespace bagel {
 			rpInfo.dependencyCount = static_cast<uint32_t>(deps.size());
 			rpInfo.pDependencies   = deps.data();
 
-			// CLEAR render pass — for downsample (overwrites the mip)
+			// Downsample render pass: the fullscreen triangle overwrites every texel, so the
+			// previous contents are discarded (DONT_CARE) rather than cleared — no clear write.
 			VkAttachmentDescription clearDesc{};
-			clearDesc.format         = VK_FORMAT_R16G16B16A16_SFLOAT;
+			clearDesc.format         = bloomFormat;
 			clearDesc.samples        = VK_SAMPLE_COUNT_1_BIT;
-			clearDesc.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			clearDesc.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			clearDesc.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
 			clearDesc.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			clearDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;

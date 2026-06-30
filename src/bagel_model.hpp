@@ -55,7 +55,7 @@ namespace bagel {
 			assert(saveNextNormalData == true && "Save next normal data not set, can not retrieve normal data");
 			saveNextNormalData = false;
 			WireframeComponent& comp = registry.emplace<WireframeComponent>(targetEnt);
-			createVertexBufferInputData(sizeof(BGLModel::Vertex) * normalDataVertices.size(), (void*) normalDataVertices.data(), comp.vertexBuffer, comp.vertexMemory);
+			createVertexBuffer(sizeof(BGLModel::Vertex) * normalDataVertices.size(), (void*) normalDataVertices.data(), comp.vertexBuffer, comp.vertexMemory);
 
 			comp.submeshes[comp.submeshCount++] = ModelComponent::Submesh{};
 			comp.vertexCount = static_cast<uint32_t>(normalDataVertices.size());
@@ -106,6 +106,8 @@ namespace bagel {
 				newComp.indexBuffer  = comp.indexBuffer;
 				newComp.vertexMemory = comp.vertexMemory;
 				newComp.indexMemory  = comp.indexMemory;
+				newComp.mappedVB = comp.mappedVB;
+				newComp.mappedIB = comp.mappedIB;
 				// indexCount/vertexCount drive the indexed-vs-nonindexed draw path —
 				// must be copied or duplicates render the vertex buffer in raw order.
 				newComp.indexCount   = comp.indexCount;
@@ -144,10 +146,11 @@ namespace bagel {
 			}
 
 			std::cout << "Creating Vertex Buffer\n";
-			createVertexBuffer(sizeof(BGLModel::Vertex) * vertices.size(), comp.vertexBuffer, comp.vertexMemory);
+			// the assumption is that if the faces can be regenerated, the vertices will usually be regenerated as well
+			comp.mappedVB = createVertexBuffer(sizeof(BGLModel::Vertex) * vertices.size(), comp.vertexBuffer, comp.vertexMemory, buildSettings.isDeformable || buildSettings.isDynamic);
 			if (indices.size() > 0) {
 				std::cout << "Model has Index Buffer. Allocating...\n";
-				createIndexBuffer(sizeof(uint32_t) * indices.size(), comp.indexBuffer, comp.indexMemory);
+				comp.mappedIB = createIndexBuffer(sizeof(uint32_t) * indices.size(), comp.indexBuffer, comp.indexMemory, buildSettings.isDynamic);
 			}
 			bool seenTransparent = false;
 			for (auto& smi : submeshes) {
@@ -264,12 +267,18 @@ namespace bagel {
 	protected:
 		void loadModel(const char* filename, ModelLoadSettings buildSettings);
 
-		//Creates vertex buffer with any given set of BGLModel::Vertex
-		void createVertexBufferInputData(size_t bufferSize, void* bufferSrc, VkBuffer& bufferDst, VkDeviceMemory& memoryDst);
-		//Creates vertex buffer with generated vertices
-		void createVertexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst);
-		void createIndexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst);
-
+		void* createVertexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst, bool useHostVisible = false);
+		void* createVertexBuffer(size_t bufferSize, void* bufferSrc, VkBuffer& bufferDst, VkDeviceMemory& memoryDst, bool useHostVisible = false);
+		void createVertexBufferDeviceLocal(size_t bufferSize, void *bufferSrc, VkBuffer &bufferDst, VkDeviceMemory &memoryDst);
+		void* createVertexBufferHostVisible(size_t bufferSize, void *bufferSrc, VkBuffer &bufferDst, VkDeviceMemory &memoryDst);
+		
+		void* createIndexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst, bool useHostVisible = false);
+		void createIndexBufferDeviceLocal(size_t bufferSize, void *bufferSrc, VkBuffer &bufferDst, VkDeviceMemory &memoryDst);
+		void* createIndexBufferHostVisible(size_t bufferSize, void *bufferSrc, VkBuffer &bufferDst, VkDeviceMemory &memoryDst);
+		// Allocate a host-mappable buffer in the BAR window (DEVICE_LOCAL|HOST_VISIBLE), falling
+		// back to plain HOST_VISIBLE system memory (logged via CONSOLE) if that's unavailable.
+		// `tag` names the buffer ("vertex"/"index") in the fallback log line.
+		void createHostVisibleBuffer(size_t bufferSize, VkBufferUsageFlags usage, const char* tag, VkBuffer& bufferDst, VkDeviceMemory& memoryDst);
 		bool saveNextNormalData = false;
 
 		std::unique_ptr<ModelLoaderBase> activeLoader;

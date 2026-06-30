@@ -92,6 +92,11 @@ namespace bagel
 		else if (strcmp(filename, "/models/wirecube.obj") == 0) genName = "wirecube";
 		else if (strcmp(filename, "/models/wiresphere.obj")== 0) genName = "wiresphere";
 		else if (strcmp(filename, "/models/axis.obj")     == 0) genName = "axis";
+		else if (strcmp(filename, "planet") == 0){
+			// planets will dynamically recreate geometry for its LOD system
+			// this planet must allocate a vertex buffer of some size that can comfortably fit most planet
+			// but we dont want max subdivision because that will take up too much space.
+		}
 
 		if (genName) {
 			buildSettings.source = genName;
@@ -113,7 +118,7 @@ namespace bagel
 	}
 
 
-	void ModelComponentBuilder::createVertexBufferInputData(size_t bufferSize, void *bufferSrc, VkBuffer &bufferDst, VkDeviceMemory &memoryDst)
+	void ModelComponentBuilder::createVertexBufferDeviceLocal(size_t bufferSize, void *bufferSrc, VkBuffer &bufferDst, VkDeviceMemory &memoryDst)
 	{
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingMemory;
@@ -146,37 +151,113 @@ namespace bagel
 		mapped = nullptr;
 	}
 
-	void ModelComponentBuilder::createVertexBuffer(size_t bufferSize, VkBuffer &bufferDst, VkDeviceMemory &memoryDst)
+	// Allocate a host-mappable buffer, preferring the BAR window (DEVICE_LOCAL | HOST_VISIBLE):
+	// CPU-writable VRAM the GPU reads at full speed. If that's unavailable — no such memory type
+	// (no ReBAR) or the BAR window is too small for bufferSize — fall back to plain HOST_VISIBLE
+	// system RAM (slower GPU fetches over PCIe) and log it. createBuffer() throws on either
+	// failure, leaving a created-but-unbound VkBuffer; destroy it before retrying so it doesn't leak.
+	void ModelComponentBuilder::createHostVisibleBuffer(size_t bufferSize, VkBufferUsageFlags usage, const char* tag, VkBuffer &bufferDst, VkDeviceMemory &memoryDst)
 	{
-		createVertexBufferInputData(bufferSize, (void *)activeLoader->getVertices().data(), bufferDst, memoryDst);
+		try {
+			bglDevice.createBuffer(
+				bufferSize, usage,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				bufferDst, memoryDst);
+		} catch (const std::exception&) {
+			vkDestroyBuffer(BGLDevice::device(), bufferDst, nullptr);
+			bufferDst = VK_NULL_HANDLE;
+			CONSOLE->Log("ModelComponentBuilder",
+				"BAR (DEVICE_LOCAL|HOST_VISIBLE) allocation of " + std::to_string(bufferSize) + "-byte " + tag +
+				" buffer failed; allocating in HOST_VISIBLE system memory instead");
+			bglDevice.createBuffer(
+				bufferSize, usage,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				bufferDst, memoryDst);
+		}
 	}
 
-	void ModelComponentBuilder::createIndexBuffer(size_t bufferSize, VkBuffer &bufferDst, VkDeviceMemory &memoryDst)
+	void* ModelComponentBuilder::createVertexBufferHostVisible(size_t bufferSize, void *bufferSrc, VkBuffer &bufferDst, VkDeviceMemory &memoryDst)
+	{
+		void *mapped;
+		createHostVisibleBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, "vertex", bufferDst, memoryDst);
+		vkMapMemory(BGLDevice::device(), memoryDst, 0, VK_WHOLE_SIZE, 0, &mapped);
+		// Write vertex data straight into the mapped (host-visible) buffer
+		assert(mapped && "Cannot copy to unmapped buffer");
+		memcpy(mapped, bufferSrc, bufferSize);
+		return mapped;
+	}
+
+	void ModelComponentBuilder::createIndexBufferDeviceLocal(size_t bufferSize, void *bufferSrc, VkBuffer &bufferDst, VkDeviceMemory &memoryDst)
 	{
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingMemory;
 		void *mapped;
-		bglDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
+		bglDevice.createBuffer(
+			bufferSize,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			stagingBuffer,
+			stagingMemory);
 		vkMapMemory(BGLDevice::device(), stagingMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
 		// Write Index data to stagingBuffer
-		std::cout << "Writing Index data to stagingBuffer\n";
 		assert(mapped && "Cannot copy to unmapped buffer");
-		memcpy(mapped, (void *)activeLoader->getIndices().data(), bufferSize);
+		memcpy(mapped, bufferSrc, bufferSize);
 
-		bglDevice.createBuffer(bufferSize,
-							   VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-							   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-							   bufferDst,
-							   memoryDst);
+		bglDevice.createBuffer(
+			bufferSize,
+			VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			bufferDst,
+			memoryDst);
 
-		// Map index buffer to staging buffer inside device
+		// Copy staging buffer into the device-local index buffer
 		bglDevice.copyBuffer(stagingBuffer, bufferDst, bufferSize);
 
-		// Finished Mapping device staging buffer to device index buffer due to VK_BUFFER_USAGE_TRANSFER_DST_BIT. Destroy staging buffer.
+		// Finished Mapping device staging buffer to device index buffer. Destroy staging buffer.
 		vkUnmapMemory(BGLDevice::device(), stagingMemory);
 		vkDestroyBuffer(BGLDevice::device(), stagingBuffer, nullptr);
 		vkFreeMemory(BGLDevice::device(), stagingMemory, nullptr);
 		mapped = nullptr;
 	}
 
+	void* ModelComponentBuilder::createIndexBufferHostVisible(size_t bufferSize, void *bufferSrc, VkBuffer &bufferDst, VkDeviceMemory &memoryDst)
+	{
+		void *mapped;
+		createHostVisibleBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, "index", bufferDst, memoryDst);
+		vkMapMemory(BGLDevice::device(), memoryDst, 0, VK_WHOLE_SIZE, 0, &mapped);
+		// Write index data straight into the mapped (host-visible) buffer
+		assert(mapped && "Cannot copy to unmapped buffer");
+		memcpy(mapped, bufferSrc, bufferSize);
+		return mapped;
+	}
+
+	void* ModelComponentBuilder::createVertexBuffer(size_t bufferSize, VkBuffer &bufferDst, VkDeviceMemory &memoryDst, bool useHostVisible)
+	{
+		if(useHostVisible)
+		{
+			return createVertexBufferHostVisible(bufferSize, (void *)activeLoader->getVertices().data(), bufferDst, memoryDst);
+		}
+		else createVertexBufferDeviceLocal(bufferSize, (void *)activeLoader->getVertices().data(), bufferDst, memoryDst);
+		return nullptr;
+	}
+
+	void* ModelComponentBuilder::createVertexBuffer(size_t bufferSize, void* bufferSrc, VkBuffer &bufferDst, VkDeviceMemory &memoryDst, bool useHostVisible)
+	{
+		if(useHostVisible)
+		{
+			return createVertexBufferHostVisible(bufferSize, bufferSrc, bufferDst, memoryDst);
+		}
+		else createVertexBufferDeviceLocal(bufferSize, bufferSrc, bufferDst, memoryDst);
+		return nullptr;
+	}
+
+	void* ModelComponentBuilder::createIndexBuffer(size_t bufferSize, VkBuffer &bufferDst, VkDeviceMemory &memoryDst, bool useHostVisible)
+	{
+		if(useHostVisible)
+		{
+			return createIndexBufferHostVisible(bufferSize, (void *)activeLoader->getIndices().data(), bufferDst, memoryDst);
+		}
+		else createIndexBufferDeviceLocal(bufferSize, (void *)activeLoader->getIndices().data(), bufferDst, memoryDst);
+		return nullptr;
+	}
 }

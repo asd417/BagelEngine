@@ -2,6 +2,7 @@
 
 #include "bagel_gameobject.hpp"
 #include "bagel_window.hpp"
+#include "bagel_engine_config.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -26,9 +27,9 @@ namespace bagel {
 		bool moveInPlaneXZ(GLFWwindow* window, float dt, BGLGameObject& gameObject, uint32_t transformIndex);
 
 		KeyMappings keys{};
-		float moveSpeed{ 10.0f };
+		float moveSpeed{ cfg::kMoveSpeed };
 		float lookSpeed{ 1.5f };
-		float mouseSensitivity{ 0.1f };
+		float mouseSensitivity{ cfg::kMouseSensitivity };
 
 	private:
 		bool fpsMode{ false };

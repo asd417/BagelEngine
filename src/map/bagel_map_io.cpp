@@ -39,6 +39,12 @@ namespace bagel {
 		};
 		std::vector<Recipe> recipes;
 		for (auto [e, m] : registry.view<T>().each()) {
+			// Planet entities carry a ModelComponent (source "planet") whose geometry is rebuilt
+			// from the LOD cut by PlanetComponentSystem, NOT from a model asset — skip it here so
+			// the builder doesn't try to load a non-existent "planet" model.
+			if constexpr (std::is_same_v<T, ModelComponent>) {
+				if (registry.all_of<PlanetComponent>(e)) continue;
+			}
 			Recipe r{ e, m.loadSettings, m.frustumCull, m.skinIndex, m.materialCount,
 			          { m.materialSources, m.materialSources + m.materialCount } };
 			if constexpr (std::is_same_v<T, ModelComponent>) {

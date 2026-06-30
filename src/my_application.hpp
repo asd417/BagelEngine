@@ -1,5 +1,5 @@
 #pragma once
-#include "bagel_application.hpp"
+#include "application/bagel_application.hpp"
 #include "bagel_material.hpp"
 #include "game/planet_terrain.hpp"   // geodesic-CDLOD planet (workstream G)
 #include "components/planet.hpp"

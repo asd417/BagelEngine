@@ -23,7 +23,7 @@ namespace bagel {
 			if (p.joint >= 0 && p.joint < static_cast<int>(anim->currentGlobals.size()))
 				boneGlobal = anim->currentGlobals[p.joint];
 
-		outWorld = tc->mat4() * boneGlobal * p.localOffset; // entityWorld * boneGlobal * localOffset
+		outWorld = tc->computeMat4() * boneGlobal * p.localOffset; // entityWorld * boneGlobal * localOffset
 		return true;
 	}
 

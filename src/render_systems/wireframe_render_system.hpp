@@ -38,6 +38,10 @@ namespace bagel {
 			BGLDevice& device);
 
 		void renderEntities(FrameInfo& frameInfo);
+		// Overlay the scene's solid geometry (every non-skinned ModelComponent, the planet
+		// included) as a wireframe. Reuses the model vertex/index buffers directly — no
+		// per-entity WireframeComponent — drawn with a TRIANGLE_LIST polygon-line pipeline.
+		void renderModelsWireframe(FrameInfo& frameInfo);
 		void renderBBoxes(FrameInfo& frameInfo);
 		~WireframeRenderSystem();
 	private:
@@ -45,6 +49,11 @@ namespace bagel {
 		std::unique_ptr<BGLBuffer> uboBuffer;
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;
 		BGLDevice& device;
+
+		// Second pipeline (the base's bglPipeline is the LINE_LIST one used by the normal-viz /
+		// bbox paths). This one is TRIANGLE_LIST + VK_POLYGON_MODE_LINE so it can draw ordinary
+		// triangle meshes as wireframe via the same shader + pipeline layout.
+		std::unique_ptr<BGLPipeline> modelWirePipeline;
 
 		bool drawCollision = true;
 

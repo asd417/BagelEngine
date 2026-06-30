@@ -54,7 +54,7 @@ namespace bagel {
 		for (auto [entity, transform, model, anim] : view.each()) {
 			if (!model.isSkinned) continue;
 
-			glm::mat4 modelMatrix = transform.mat4();
+			glm::mat4 modelMatrix = transform.getMat4();
 			// NOTE: AABB cull skipped — the model-space AABB is the bind pose, not the deformed
 			// pose, so it can wrongly cull an animated mesh. A skinned-bounds pass is future work.
 

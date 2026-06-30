@@ -74,9 +74,10 @@ namespace bagel {
 
 			TransparentPushConstantData push{};
 			push.UsesBufferedTransform = 0;
-			push.modelMatrix = transform.mat4();
+			push.modelMatrix = transform.getMat4();
 			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
 			push.materialRowBase = model.skinBase + model.skinIndex * model.numSlots;
+			push.time = frameInfo.time;
 			vkCmdPushConstants(frameInfo.commandBuffer, pipelineLayout,
 				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 				0, sizeof(TransparentPushConstantData), &push);

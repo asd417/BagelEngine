@@ -13,8 +13,7 @@ layout(push_constant) uniform Push {
 } push;
 
 vec3 sampleSrc(vec2 uv) {
-    vec3 v = texture(samplerColor[push.inputHandle], uv).rgb;
-    return (any(isnan(v)) || any(isinf(v))) ? vec3(0.0) : v;
+    return texture(samplerColor[push.inputHandle], uv).rgb;
 }
 
 void main() {
@@ -35,5 +34,8 @@ void main() {
                 + (b + d + f + h) * (2.0 / 16.0)
                 + e               * (4.0 / 16.0);
 
-    outColor = vec4(result * push.weight, 1.0);
+    // Single firefly/NaN guard on the result (was per-tap).
+    result *= push.weight;
+    if (any(isnan(result)) || any(isinf(result))) result = vec3(0.0);
+    outColor = vec4(result, 1.0);
 }

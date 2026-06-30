@@ -35,16 +35,6 @@ layout(push_constant)uniform Push{
 	uint fallbackAlbedoMap;
 }push;
 
-vec2 signNotZero(vec2 v){
-	return vec2(v.x>=0.?1.:-1.,v.y>=0.?1.:-1.);
-}
-vec2 octEncode(vec3 n){
-	float l1=abs(n.x)+abs(n.y)+abs(n.z);
-	vec2 p=n.xy/l1;
-	if(n.z<0.)p=(1.-abs(p.yx))*signNotZero(p);
-	return p*.5+.5;
-}
-
 void main(){
 	// Albedo: per-surface texture → fallback grid → vertex color
 	uint effectiveAlbedo=(fs_in.albedoMap!=0)?fs_in.albedoMap:push.fallbackAlbedoMap;

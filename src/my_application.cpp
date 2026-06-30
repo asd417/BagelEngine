@@ -29,7 +29,7 @@ namespace bagel {
 
 	void MyApplication::OnUpdate(float dt)
 	{
-		pcs.update(cameraWorldPos); // rebuild the planet LOD cut if the camera moved
+		pcs.update(cameraWorldPos, materialManager->getTextureLoader()); // rebuild LOD cut + push paint edits
 		if (hierarchyRoot == entt::null)
 			return;
 		stackAngle += dt;
@@ -126,6 +126,17 @@ namespace bagel {
 		materialManager->clearSkinTable();
 		// rebuild transient GPU/material/physics state (moved to map/bagel_map_io.*)
 		Map::rehydrate(registry, bglDevice, *materialManager, *skinManager);
+		// Planets aren't model-type entities, so rebuild their transient state here from the
+		// loaded recipe: reconstruct the terrain tree from cfg, re-bind + fold in the painted
+		// cube-map, re-upload the 6 R16 faces, and let the next pcs.update() rebuild the mesh.
+		for (auto [e, pc] : registry.view<PlanetComponent>().each()) {
+			pc.terrain = std::make_unique<planet::PlanetTerrain>(pc.cfg);
+			pc.terrain->bindPaint(pc.paint.data());
+			pc.terrain->recomputeRadii();
+			pcs.allocatePaintTextures(e, pc, materialManager->getTextureLoader());
+			pcs.setupOceanMaterial(registry.get<ModelComponent>(e), *materialManager); // re-reserve ocean skin slot
+			pc.planetLastRebuildCam = glm::vec3(1e9f); // force LOD mesh rebuild next frame
+		}
 		hierarchyRoot = entt::null;              // loaded hierarchy is static (no live root)
 		currentMapName = name;
 		logDescriptorUsage();
@@ -186,6 +197,58 @@ namespace bagel {
 			const bool onDisk = Map::exists(mapPath(i));
 			std::string label = std::string("Load ") + mapName(i) + (onDisk ? "" : " (none)");
 			if (ImGui::Button(label.c_str())) loadMap(i);
+		}
+
+		// Live LOD + procedural-height control for any planet in the scene. Editing any
+		// value forces a fresh LOD cut next frame via the planetLastRebuildCam sentinel.
+		for (auto [ent, pc] : registry.view<PlanetComponent>().each()) {
+			if (!pc.terrain) continue;
+			const auto& cfg = pc.terrain->config();
+			ImGui::Separator();
+			ImGui::TextUnformatted("Planet LOD");
+			// "px size": higher splitFactor subdivides from farther away -> smaller
+			// on-screen triangles. Logarithmic so the wide range stays usable.
+			float sf = cfg.splitFactor;
+			if (ImGui::SliderFloat("Split distance", &sf, 0.1f, 512.0f, "%.2f x edge",
+			                       ImGuiSliderFlags_Logarithmic)) {
+				pc.terrain->setSplitFactor(sf);
+				pc.planetLastRebuildCam = glm::vec3(1e9f); // sentinel -> force rebuild
+			}
+
+			ImGui::TextUnformatted("Planet Noise");
+			float    amp     = cfg.noiseAmplitude;
+			float    freq    = cfg.noiseFrequency;
+			int      oct     = cfg.noiseOctaves;
+			float    lac     = cfg.noiseLacunarity;
+			float    gain    = cfg.noiseGain;
+			float    sea     = cfg.sealevel;
+			int      seed    = static_cast<int>(cfg.seed);
+			bool     changed = false;
+			changed |= ImGui::SliderFloat("Amplitude", &amp, 0.0f, 64.0f, "%.2f");
+			changed |= ImGui::SliderFloat("Scaling",   &freq, 0.1f, 64.0f, "%.2f",
+			                              ImGuiSliderFlags_Logarithmic);
+			changed |= ImGui::SliderInt  ("Detailing", &oct, 1, 10);
+			changed |= ImGui::SliderFloat("Lacunarity", &lac, 1.0f, 4.0f, "%.2f");
+			changed |= ImGui::SliderFloat("Gain", &gain, 0.0f, 1.0f, "%.2f");
+			// Sea level caps surface radius; range = the planet's natural height band.
+			changed |= ImGui::SliderFloat("Sea level", &sea, cfg.radius - amp, cfg.radius + amp, "%.2f");
+			changed |= ImGui::InputInt   ("Seed", &seed);
+			if (changed) {
+				if (oct < 1) oct = 1;
+				if (seed < 0) seed = 0;
+				pc.terrain->setNoise(amp, freq, oct, lac, gain, sea, static_cast<uint32_t>(seed));
+				pc.planetLastRebuildCam = glm::vec3(1e9f); // sentinel -> force rebuild
+			}
+
+			// Height painting (B also toggles; LMB-drag on the surface paints).
+			ImGui::TextUnformatted("Planet Paint");
+			auto& paint = getPlanetPaint();
+			bool paintOn = paint.editModeOn();
+			if (ImGui::Checkbox("Paint mode (B)", &paintOn)) paint.setEditMode(paintOn);
+			ImGui::SliderFloat("Brush radius", &paint.brushRadiusDeg, 1.0f, 45.0f, "%.1f deg");
+			ImGui::SliderFloat("Brush strength", &paint.strength, 0.05f, 8.0f, "%.2f");
+			ImGui::SliderInt("Brush detail", &paint.targetLevel, 2, cfg.maxLevel);
+			ImGui::Checkbox("Carve (lower)", &paint.lower);
 		}
 
 		ImGui::End();
@@ -327,8 +390,12 @@ namespace bagel {
 		cfg.radius      = 64.0f;
 		cfg.minLevel    = 2;
 		cfg.maxLevel    = 8;
-		cfg.splitFactor = 2.5f;
-		pcs.createPlanet({0, 0, 0}, cfg);
+		cfg.splitFactor = 5.0f;
+		cfg.noiseAmplitude = 11.0f;
+		cfg.noiseFrequency = 2.0f;  // "scaling"
+		cfg.noiseOctaves   = 3;     // "detailing"
+		cfg.sealevel       = 64.0f; // = base radius: floor at sea level, full noise band pokes above
+		pcs.createPlanet({0, 0, 0}, cfg, *materialManager);
 		// Default free-fly spawn ({0,-3,0}) is inside the radius-64 body — frame it from
 		// outside (~2.5 radii out, within the 300-unit far plane).
 		setSpawnCameraPos({ 0.0f, 0.0f, cfg.radius * 2.5f });

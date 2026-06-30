@@ -13,8 +13,7 @@ layout(push_constant) uniform Push {
 } push;
 
 vec3 sampleSrc(vec2 uv) {
-    vec3 v = texture(samplerColor[push.inputHandle], uv).rgb;
-    return (any(isnan(v)) || any(isinf(v))) ? vec3(0.0) : v;
+    return texture(samplerColor[push.inputHandle], uv).rgb;
 }
 
 vec3 applyThreshold(vec3 c) {
@@ -76,5 +75,9 @@ void main() {
         result += (G + H + M + L) * 0.03125;
     }
 
-    outColor = vec4(result * push.intensity, 1.0);
+    // Single firefly/NaN guard on the result (was per-tap): a non-finite HDR source texel
+    // poisons the average, so drop the whole output texel instead of 13 per-tap checks.
+    result *= push.intensity;
+    if (any(isnan(result)) || any(isinf(result))) result = vec3(0.0);
+    outColor = vec4(result, 1.0);
 }

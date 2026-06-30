@@ -20,6 +20,7 @@ namespace bagel {
 		uint32_t UsesBufferedTransform   = 0;
 		uint32_t materialRowBase = 0; // skinBase + skinIndex*numSlots; skinTable row for this draw
 		float emissionLux = 1.0f;
+		float time = 0.0f;            // cumulative seconds, for animated ocean waves
 	};
 
 	// Forward, alpha-blended pass for transparent submeshes. Runs in the swapchain render pass

@@ -52,7 +52,7 @@ namespace bagel {
 				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			SkinnedShadowPushData push{};
-			push.modelMatrix    = transform.mat4();
+			push.modelMatrix    = transform.getMat4();
 			push.skinVertexBase = model.skinVertexBase;
 			push.animBaseOffset = anim.animBaseOffset();
 			push.cascadeIndex   = cascadeIndex;

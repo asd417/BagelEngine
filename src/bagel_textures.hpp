@@ -67,6 +67,21 @@ namespace bagel {
 		uint32_t loadTextureFromMemory(const char* name, const uint8_t* rgba, uint32_t w, uint32_t h,
 		                               VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM);
 
+		// Re-upload pixels to an EXISTING generated texture (keyed by 'name'), keeping its
+		// bindless handle. Unlike loadTextureFromMemory (which dedups and returns without
+		// re-uploading), this overwrites the slot's image. Falls back to loadTextureFromMemory
+		// if the name isn't bound yet. Waits for GPU idle before freeing the old image.
+		// Used for live-painted textures (planet height cube-map).
+		uint32_t updateTextureFromMemory(const char* name, const uint8_t* rgba, uint32_t w, uint32_t h,
+		                                 VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM);
+
+		// A persistently-mapped, HOST_VISIBLE linear texture: the CPU writes straight into
+		// `mapped` (respecting `rowPitch`) and the shader samples it with no re-upload/recreate.
+		// `ok` is false if the format can't be linearly sampled on this GPU (caller should fall
+		// back to updateTextureFromMemory). 1 mip, GENERAL layout, shared sampler.
+		struct HostVisibleImage { uint32_t handle = 0; void* mapped = nullptr; size_t rowPitch = 0; bool ok = false; };
+		HostVisibleImage createHostVisibleTexture(const char* name, uint32_t w, uint32_t h, VkFormat imageFormat);
+
 		// Combine separate grayscale roughness and metallic maps into a single ORM texture
 		// (R=255, G=roughness, B=metallic) and upload it. Both paths are engine-relative.
 		uint32_t loadCombinedMetalRough(const char* roughPath, const char* metalPath);

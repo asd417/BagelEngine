@@ -4,6 +4,7 @@
 #extension GL_GOOGLE_include_directive:require
 #include "pbr.glsl"
 #include "data_transform.glsl"
+#include "noise.glsl"   // perlin4 for animated ocean waves
 
 struct VS_OUT{
 	int isInstancedTransform;
@@ -11,6 +12,7 @@ struct VS_OUT{
 	uint normalMap;
 	uint metalRoughMap;
 	uint emissionMap;
+	uint isOcean;
 };
 
 layout(location=0)in vec3 fragPosWorld;
@@ -48,42 +50,71 @@ layout(push_constant)uniform Push{
 	uint UsesBufferedTransform;
 	uint materialRowBase;
 	float emissionLux;
+	float time;          // cumulative seconds (animated ocean waves)
 }push;
 
+// Procedural ocean surface: animated wave normal (single octave of 4D perlin, w=time),
+// deep-blue tint, and a Fresnel-boosted alpha so the water firms up at grazing angles.
+// Fills albedo/normal/roughness/metallic/alpha; the shared PBR lighting below runs on it.
+void shadeOcean(vec3 fragPos, vec3 V, float t,
+                out vec3 albedo, out vec3 normal, out float roughness, out float metallic, out float alpha) {
+	vec3 N = normalize(fragNormalWorld);
+	const float freq = 0.18, speed = 0.35, amp = 0.5;
+	vec4 wp = vec4(fragPos * freq, t * speed);
+	// Analytic wave gradient from ONE perlin4D (was 3 finite-diff perlin4 evals). Perturb N by
+	// the tangent-plane component of the spatial gradient — basis-free, so the wave normal is
+	// continuous everywhere including the poles (no tangent-frame flip / seam ring).
+	vec3 gW    = freq * perlin4D(wp, 1u).yzw;   // chain rule: d/dfragPos of (fragPos*freq)
+	vec3 gTang = gW - dot(gW, N) * N;
+	normal = normalize(N - amp * gTang);
+	albedo = vec3(0.02, 0.16, 0.32);   // deep blue (linear)
+	roughness = 0.06; metallic = 0.0;
+	float fres = pow(1.0 - max(dot(normal, V), 0.0), 5.0);
+	alpha = clamp(0.55 + 0.45 * fres, 0.0, 1.0); // ~55% face-on, opaque at grazing angles
+}
+
 void main(){
-	// technically since submeshes gets flagged as transparent
-	// when their albedo map exists and when it has transparency,
-	// there will always be an albedo map to sample from.
-	vec4 albedoSample=texture(samplerColor[fs_in.albedoMap],fragUV);
-	vec3 albedo=albedoSample.rgb;
-	float alpha=albedoSample.a;
-	
-	//same as gbuffer fill
-	vec3 normal=normalize(fragNormalWorld);
-	if(fs_in.normalMap!=0){
-		mat3 TBN=getTBN(fragTangent,fragBitangent,normal);
-		vec3 n=texture(samplerColor[fs_in.normalMap],fragUV).rgb*2.-1.;
-		normal=normalize(TBN*n);
-	}
-	float metallic=0.;
-	float roughness=.5;
-	// glTF ORM: R=occlusion, G=roughness, B=metallic
-	if(fs_in.metalRoughMap!=0){
-		vec3 mr=texture(samplerColor[fs_in.metalRoughMap],fragUV).rgb;
-		roughness=clamp(mr.g,0.,1.);
-		metallic=clamp(mr.b,0.,1.);
-	}
-	// this is slightly different from gbuffer_fill approach.
-	// not sure why the gbuffer_fill uses push constant for emission map but not this shader
-	vec4 emData=vec4(0.);
-	if(fs_in.emissionMap!=0)
-	{
-		vec3 emission=texture(samplerColor[fs_in.emissionMap],fragUV).rgb;
-		emData=vec4(emission,clamp(push.emissionLux/10000.,0.,1.));
-	}
-	
 	vec3 camPos=ubo.inverseViewMatrix[3].xyz;
 	vec3 V=normalize(camPos-fragPosWorld);
+
+	vec3  albedo;
+	float alpha;
+	vec3  normal;
+	float metallic;
+	float roughness;
+	vec4  emData=vec4(0.);
+
+	if(fs_in.isOcean!=0u){
+		shadeOcean(fragPosWorld, V, push.time, albedo, normal, roughness, metallic, alpha);
+	} else {
+		// technically since submeshes gets flagged as transparent when their albedo map
+		// exists and when it has transparency, there will always be an albedo map to sample.
+		vec4 albedoSample=texture(samplerColor[fs_in.albedoMap],fragUV);
+		albedo=albedoSample.rgb;
+		alpha=albedoSample.a;
+
+		//same as gbuffer fill
+		normal=normalize(fragNormalWorld);
+		if(fs_in.normalMap!=0){
+			mat3 TBN=getTBN(fragTangent,fragBitangent,normal);
+			vec3 n=texture(samplerColor[fs_in.normalMap],fragUV).rgb*2.-1.;
+			normal=normalize(TBN*n);
+		}
+		metallic=0.;
+		roughness=.5;
+		// glTF ORM: R=occlusion, G=roughness, B=metallic
+		if(fs_in.metalRoughMap!=0){
+			vec3 mr=texture(samplerColor[fs_in.metalRoughMap],fragUV).rgb;
+			roughness=clamp(mr.g,0.,1.);
+			metallic=clamp(mr.b,0.,1.);
+		}
+		if(fs_in.emissionMap!=0)
+		{
+			vec3 emission=texture(samplerColor[fs_in.emissionMap],fragUV).rgb;
+			emData=vec4(emission,clamp(push.emissionLux/10000.,0.,1.));
+		}
+	}
+
 	vec3 F0=mix(vec3(.04),albedo,metallic);
 	vec3 Lo=vec3(0.);
 	

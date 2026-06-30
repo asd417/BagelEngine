@@ -34,9 +34,9 @@ namespace bagel {
 
 		// Call inside the edges render pass. `inputHandle` is the composite output texture.
 		void render(FrameInfo& frameInfo, uint32_t inputHandle);
-		float edgeThreshold = 0.05f;
-		float localConstrastAdapt = 2.0f;
-		int   edgeMethod = 0; // 0 = luma, 1 = color, 2 = depth (see SmaaEdgePush::method)
+		float edgeThreshold = cfg::kSmaaEdgeThreshold;
+		float localConstrastAdapt = cfg::kSmaaLocalContrastAdapt;
+		int   edgeMethod = cfg::kSmaaEdgeMethod; // 0 = luma, 1 = color, 2 = depth (see SmaaEdgePush::method)
 
 	private:
 		std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager;

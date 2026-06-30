@@ -289,7 +289,7 @@ namespace bagel {
 		// Resolve joint world positions for this frame from the IK-corrected pose (editPose + IK),
 		// the same final pose the GPU palette bakes — so markers/handles sit on the bones' actual
 		// posed positions, not the pre-IK authored ones.
-		entityModel = tc.mat4();
+		entityModel = tc.computeMat4();
 		Pose displayPose;
 		applyManualPose(anim.skeleton, anim.editPose, anim.ikSetups, displayPose);
 		resolveGlobals(anim.skeleton, displayPose, globals);

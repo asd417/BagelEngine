@@ -15,6 +15,7 @@
 // pass from the persisted "recipe" (e.g. ModelComponent::loadSettings).
 
 #include "bagel_ecs_components.hpp"
+#include "components/planet.hpp" // PlanetComponent (paint cube-map recipe)
 
 #include "entt.hpp"
 #include <Jolt/Core/StreamWrapper.h>
@@ -269,6 +270,16 @@ namespace bagel {
 	void serialize(Archive& ar, InfoComponent& c) {
 	}
 
+	// PlanetComponent: persistent recipe only. cfg (planet::TerrainConfig) is trivially
+	// copyable so it archives as a raw leaf — this carries the noise settings AND the paint
+	// resolution / height scale. paint is the flat R16 cube-map (6*paintRes^2), archived via
+	// the vector path. The PlanetTerrain object, ModelComponent GPU buffers and the bindless
+	// face handle are TRANSIENT — rebuilt after load (see MyApplication::loadMapFromPath).
+	template<class Archive>
+	void serialize(Archive& ar, PlanetComponent& c) {
+		ar(c.cfg, c.paint);
+	}
+
 	// ---- whole-registry save / load -----------------------------------------
 	// The component list below IS the manifest of persisted component types. Keep it
 	// in sync with the overloads above.
@@ -308,6 +319,7 @@ namespace bagel {
 		saveComponent<JoltPhysicsComponent>(snap, ar, registry);
 		saveComponent<JoltKinematicComponent>(snap, ar, registry);
 		saveComponent<InfoComponent>(snap, ar, registry);
+		saveComponent<PlanetComponent>(snap, ar, registry);
 	}
 
 	inline void LoadRegistry(entt::registry& registry, std::istream& is) {
@@ -326,6 +338,7 @@ namespace bagel {
 			.get<JoltPhysicsComponent>(ar)
 			.get<JoltKinematicComponent>(ar)
 			.get<InfoComponent>(ar)
+			.get<PlanetComponent>(ar)
 			.orphans(); // drop entities that ended up with no components
 
 		// After this, persistent data is restored but transient state is at defaults.

@@ -34,9 +34,6 @@ namespace bagel {
 		int lightIndex = 0;
 		auto group = registry.group<>(entt::get<TransformComponent, PointLightComponent>);
 		for (auto [entity, transformComp, pointLightComp] : group.each()) {
-			auto rotateLight = glm::rotate(glm::mat4(1.0f), frameTime,{ 0.f,-1.f,0.f }); //axis of rotation
-			transformComp.setTranslation(rotateLight * (glm::vec4(transformComp.getTranslation(), 1.f)));
-			
 			PointLight light{};
 			light.color = glm::vec4(glm::vec3(pointLightComp.color), pointLightComp.lux);
 			light.position = transformComp.getWorldTranslation();

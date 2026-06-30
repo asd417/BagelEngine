@@ -6,11 +6,12 @@
 #include "bagel_window.hpp"
 #include "bagel_engine_device.hpp"
 #include "bagel_renderer.hpp"
-#include "bagel_keybinds.hpp"   // Source-style key -> console-command bindings
+#include "bagel_keybinds.hpp" // Source-style key -> console-command bindings
 
 #include "render_systems/point_light_render_system.hpp"
 #include "render_systems/wireframe_render_system.hpp"
 #include "render_systems/gbuffer_render_system.hpp"
+#include "render_systems/planet_gbuffer_render_system.hpp"
 #include "render_systems/composit_render_system.hpp"
 #include "render_systems/bloom_render_system.hpp"
 #include "render_systems/radiosity_render_system.hpp"
@@ -31,6 +32,7 @@
 #include "bagel_model.hpp"
 #include "bagel_textures.hpp"
 #include "bagel_material.hpp"
+#include "planet_paint_controller.hpp" // in-viewport planet height painter
 #include "animation/bagel_skin_manager.hpp"
 
 #include "physics/bagel_physics.hpp"
@@ -45,7 +47,8 @@ namespace bagel
 {
 	// Used by drawImgui() below by reference only; full definition is included in the .cpp.
 	class KeyboardMovementController;
-
+	// Per-section profiling accumulators (ms totals + sample counts)
+	using Clock = std::chrono::high_resolution_clock;
 	class Application
 	{
 	public:
@@ -58,8 +61,8 @@ namespace bagel
 		Application(const Application &) = delete;
 		Application &operator=(const Application &) = delete;
 
-		void updateDirectionalUBO(entt::registry& registry, GlobalUBO& ubo, glm::vec3 camPos, glm::vec3 camFwd, float aspect);
-		void drawImgui(BGLCamera& camera, KeyboardMovementController& cameraController, SmaaEdgeRenderSystem& edgeRender);
+		void updateDirectionalUBO(entt::registry &registry, GlobalUBO &ubo, glm::vec3 camPos, glm::vec3 camFwd, float aspect);
+		void drawImgui(BGLCamera &camera, KeyboardMovementController &cameraController, SmaaEdgeRenderSystem &edgeRender);
 		void run();
 		entt::registry &getRegistry() { return registry; }
 
@@ -67,14 +70,14 @@ namespace bagel
 		bool freeFly = true;
 		bool runPhys = false;
 		bool showInfo = false;
-		bool showImgui = true;   // ` (grave) key toggles all ImGui panels
+		bool showImgui = true; // ` (grave) key toggles all ImGui panels
 		bool showWireframe = false;
 		bool drawBBox = false;
-		bool  bloomEnabled   = true;
-		bool  smaaEnabled    = true;   // SMAA neighborhood blend (R_SMAA); off = passthrough
-		float bloomIntensity = 0.054f;
-		float bloomThreshold = 0.16f;
-		float bloomMipDecay  = 0.5f;
+		bool bloomEnabled = cfg::kBloomEnabled;
+		bool smaaEnabled = true; // SMAA neighborhood blend (R_SMAA); off = passthrough
+		float bloomIntensity = cfg::kBloomIntensity;
+		float bloomThreshold = cfg::kBloomThreshold;
+		float bloomMipDecay = cfg::kBloomMipDecay;
 		int gbufferDebugMode = 0; // 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic 6=bloom 7=raw emission
 
 		float smaaEdgeThreshold = 0.05f;
@@ -85,33 +88,36 @@ namespace bagel
 		bool showProfile = false;
 		bool stutterDetect = true;
 		float stutterThresholdMs = 33.3f; // flag frames slower than this (~30fps)
-		int maxFps = 0; // 0 = unlimited; minimum enforced value is 15
+		int maxFps = 0;					  // 0 = unlimited; minimum enforced value is 15
 		bool vsync = false;
 		bool vsyncDirty = false;
-		float exposure = 0.0075f;
+		float exposure = cfg::kExposure;
 		// Camera perspective controls (the "close"/"far" view distances + vertical FOV),
 		// live-tunable from the Settings panel. Far must reach past the planet (radius 64,
 		// spawn ~160 out). cameraFovDegrees feeds both the projection and the shadow-cascade
 		// frustum math in updateDirectionalUBO (keep them in sync).
-		float cameraNear = 0.1f;
-		float cameraFar  = 300.0f;
+		float cameraNear = cfg::kCameraNear;
+		float cameraFar = cfg::kCameraFar;
 		// HORIZONTAL FOV in degrees. Vertical FOV is derived from this + the aspect ratio
 		// (fovY = 2*atan(tan(fovX/2)/aspect)) so horizontal framing is stable across window
 		// sizes. ~60 keeps rectilinear edge distortion mild; the engine previously hardcoded
 		// a very wide 100 (as vertical, which got even wider horizontally on non-square views).
-		float cameraFovDegrees = 60.0f;
+		float cameraFovDegrees = cfg::kCameraFovDegrees;
 
 		// Bone-posing gizmo edit mode (console: editmode 0/1; also the G hotkey).
 		void setGizmoEditMode(bool on) { poseGizmo.setEditMode(on); }
-		bool gizmoEditModeOn() const   { return poseGizmo.editModeOn(); }
+		bool gizmoEditModeOn() const { return poseGizmo.editModeOn(); }
+
+		// In-viewport planet height painter (B hotkey; brush UI in the Maps panel).
+		PlanetPaintController &getPlanetPaint() { return planetPaint; }
 
 		// Source-style keybinds (key -> console command). Driven by the bind/unbind console
 		// commands and polled each frame in run().
-		KeyBindManager& getKeybinds() { return keybinds; }
-	
+		KeyBindManager &getKeybinds() { return keybinds; }
+
 		// Console "map <name>" hook: load /maps/<name>.bmap by name and rehydrate. Base is a no-op
 		// error; the derived app implements the actual load. Returns a status message for the console.
-		virtual std::string consoleLoadMap(const std::string& name) { return "[error] map: not supported in this app"; }
+		virtual std::string consoleLoadMap(const std::string &name) { return "[error] map: not supported in this app"; }
 
 		// Override in derived classes
 		virtual void OnSceneLoad() {}
@@ -127,13 +133,17 @@ namespace bagel
 		// World-space camera position for the current frame, refreshed in run() right
 		// before OnUpdate(dt). Lets a derived app drive camera-relative work (e.g. the
 		// planet LOD cut) without threading the camera through the OnUpdate signature.
-		glm::vec3 cameraWorldPos{ 0.0f };
+		glm::vec3 cameraWorldPos{0.0f};
 
 		// Request the free-fly camera be teleported to a position (consumed once by run()).
 		// A scene (OnSceneLoad / a build button) calls this to frame itself — e.g. the
 		// radius-64 planet needs the camera outside the body, not at the default spawn.
-		void setSpawnCameraPos(const glm::vec3& p) { spawnCameraPos = p; spawnCameraPosDirty = true; }
-		glm::vec3 spawnCameraPos{ 0.0f };
+		void setSpawnCameraPos(const glm::vec3 &p)
+		{
+			spawnCameraPos = p;
+			spawnCameraPosDirty = true;
+		}
+		glm::vec3 spawnCameraPos{0.0f};
 		bool spawnCameraPosDirty = false;
 
 		// Engine subsystems — accessible to derived application classes
@@ -148,15 +158,58 @@ namespace bagel
 		std::unique_ptr<BGLSkinManager> skinManager;
 		entt::registry registry;
 		// Declared after registry (constructed after it; holds only a reference to it).
-		PoseGizmo poseGizmo{ registry };
+		PoseGizmo poseGizmo{registry};
+		// Planet height painter (no registry ref held; registry is passed to update()).
+		PlanetPaintController planetPaint;
 		// Key -> console-command table; polled each frame in run() (see bagel_keybinds.hpp).
 		KeyBindManager keybinds;
 
 	private:
-		std::unique_ptr<BGLDescriptorSetLayout> modelSetLayout;
 		void initCommand();
 		void initJolt();
 		void initImgui();
+
+		void updateAnimation(double frameTime);
+		// Cache Mat4 transform of all entities. No updates to transformcomponents are allowed after this point.
+		void cacheTransforms();
+
+		void profile(double frameTime);
+		// When a frame blows past stutterThresholdMs, print the slowest section that frame.
+		void detectStutter(double frameTime);
+		double tMs(Clock::time_point a, Clock::time_point b);
+		void syncFrameRate(void *timerHandle, std::chrono::steady_clock::time_point frameLastTime);
+
+		// ---- per-frame CPU profiling ------------------------------------------------------
+		// run() times each phase into perf[]/sectMs[] (via the recordSection lambda); profile()
+		// prints a 1-second rolling average and clears the accumulators. These are MEMBERS (not
+		// run() locals) so profile() — a separate method — can reach them. sectName is C++17
+		// inline-constexpr, so no out-of-line definition is needed.
+		struct PerfSection { double total = 0.0; int n = 0; };
+		enum Sect {
+			S_POLL, S_CAMERA, S_GIZMO, S_UPDATE, S_HIERARCHY, S_PHYSICS,
+			S_UBO, S_IMGUI, S_BEGINCMD, S_GBUFFER, S_BLOOM, S_COMPOSITE, S_ENDCMD,
+			S_COUNT
+		};
+		static constexpr const char *sectName[S_COUNT] = {
+			"poll_events", "camera     ", "gizmo+paint", "on_update  ", "hierarchy  ", "physics    ",
+			"ubo+lights ", "imgui      ", "begin_cmd  ", "gbuffer    ", "bloom      ",
+			"composite  ", "end_cmd    "};
+		PerfSection perf[S_COUNT]{};
+		double sectMs[S_COUNT]{};
+		double profAccum = 0.0;
+		int    profFrames = 0;
+
+		void registerDescriptorEntries();
+		void reregisterDescriptorEntries();
 		VkDescriptorPool imguiPool;
+		std::unique_ptr<BGLDescriptorSetLayout> modelSetLayout;
+
+		// Render Handles
+		// can be recreated
+		uint32_t radiosityHandle;
+		uint32_t smaaEdgeHandle;
+		uint32_t smaaWeightHandle;
+		uint32_t compositeHandle;
+		uint32_t bloomMipHandles[BGLRenderer::BLOOM_MIPS];
 	};
 }

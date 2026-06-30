@@ -26,7 +26,9 @@ namespace bagel {
 			std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager,
 			entt::registry& registry);
 
-		void renderShadowCasters(FrameInfo& frameInfo, uint32_t cascadeIndex);
+		// lightVP is this cascade's light view-projection (ubo.directionalLight.lightSpaceMatrix[cascadeIndex]);
+		// used to frustum-cull casters that don't reach into this cascade's shadow volume.
+		void renderShadowCasters(FrameInfo& frameInfo, uint32_t cascadeIndex, const glm::mat4& lightVP);
 
 	private:
 		entt::registry& registry;

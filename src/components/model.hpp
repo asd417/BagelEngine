@@ -117,6 +117,8 @@ namespace bagel {
 		VkBuffer indexBuffer = VK_NULL_HANDLE;
 		VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
 		VkDeviceMemory indexMemory = VK_NULL_HANDLE;
+		void *mappedVB = nullptr; // host visible vertex buffer will be mapped here
+		void *mappedIB = nullptr; // host visible index buffer will be mapped here
 
 		uint32_t indexCount  = 0;
 		uint32_t vertexCount = 0;
@@ -151,6 +153,7 @@ namespace bagel {
 			}
 			vertexBuffer = indexBuffer = VK_NULL_HANDLE;
 			vertexMemory = indexMemory = VK_NULL_HANDLE;
+			mappedVB = mappedIB = nullptr;
 			ownsBuffers = false;
 		}
 		void stealFrom(ModelComponent& o) noexcept {

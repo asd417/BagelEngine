@@ -24,7 +24,14 @@ namespace bagel {
 		TransformComponent() = default;
 		TransformComponent(float x, float y, float z) { translation = { x,y,z }; }
 		TransformComponent(glm::vec4 pos) { translation = glm::vec3(pos); }
-		glm::mat4	mat4();
+		void	cacheMat4();
+		//retrieve the cached mat4 calculation result (valid only after cacheMat4() this frame)
+		const glm::mat4 &getMat4() const { return cached; }
+		// Compute the model matrix on demand WITHOUT touching the cache. For the few update-phase
+		// callers (gizmo, hierarchy/attachments, physics queries) that need the current transform
+		// before the per-frame cacheTransforms() pass runs. cacheMat4() is this + a store.
+		glm::mat4 computeMat4() const;
+
 		glm::mat3	normalMatrix();
 		glm::vec3	getTranslation() const { return translation; }
 		void		setTranslation(const glm::vec3& _translation) { translation = _translation; }
@@ -54,6 +61,8 @@ namespace bagel {
 		glm::vec3 localTranslation = { 0.0f,0.0f,0.0f };
 		glm::vec3 localScale = { 1.0f, 1.0f, 1.0f };
 		glm::vec3 localRotation = { 0.f,0.f,0.f };
+
+		glm::mat4 cached; // before rendering starts, all transform components cache the transform matrix here.
 	};
 
 	struct TransformArrayComponent {

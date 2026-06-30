@@ -1,5 +1,6 @@
 #include "gbuffer_render_system.hpp"
 #include "../bagel_ecs_components.hpp"
+#include "../components/planet.hpp"
 #include "../bagel_engine_device.hpp"
 #include "../bagel_util.hpp"
 #include "../bagel_frustum.hpp"
@@ -56,7 +57,8 @@ namespace bagel {
 		auto singleGroup = registry.view<TransformComponent, ModelComponent>();
 		for (auto [entity, transform, model] : singleGroup.each()) {
 			if (model.isSkinned) continue; // skinned models are drawn by SkinnedGBufferRenderSystem
-			glm::mat4 modelMatrix = transform.mat4();
+			if (registry.all_of<PlanetComponent>(entity)) continue; // drawn by PlanetGBufferRenderSystem
+			glm::mat4 modelMatrix = transform.getMat4();
 			if (model.frustumCull && !frustum.testAABB(model.aabbMin, model.aabbMax, modelMatrix))
 				continue;
 

@@ -2,6 +2,7 @@
 #include "../bagel_ecs_components.hpp"
 #include "../bagel_engine_device.hpp"
 #include "../bagel_util.hpp"
+#include "../bagel_frustum.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -77,6 +78,21 @@ namespace bagel {
 		pipelineConfig.rasterizationInfo.lineWidth = 1.0f;
 	}
 
+	// Pipeline for overlaying ordinary triangle meshes as wireframe (renderModelsWireframe).
+	// TRIANGLE_LIST input rasterized as edges (POLYGON_MODE_LINE), back faces culled so only the
+	// front-facing edges draw. The swapchain pass runs after blitGBufferDepthToSwapchain, so the
+	// depth buffer holds the solid surface depth: LESS_OR_EQUAL lets the coplanar edges pass (the
+	// planet/model vertex positions are identical to what the G-buffer drew), and depth-write is
+	// off so this overlay doesn't perturb depth for anything drawn afterwards.
+	void ModelWireframePipelineConfigModifier(PipelineConfigInfo& pipelineConfig) {
+		pipelineConfig.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
+		pipelineConfig.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		pipelineConfig.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+		pipelineConfig.rasterizationInfo.lineWidth = 1.0f;
+		pipelineConfig.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+		pipelineConfig.depthStencilInfo.depthWriteEnable = VK_FALSE;
+	}
+
 	static void uploadBuffer(BGLDevice& dev, VkBufferUsageFlags usage,
 	                         const void* src, VkDeviceSize size,
 	                         VkBuffer& dstBuf, VkDeviceMemory& dstMem)
@@ -109,6 +125,21 @@ namespace bagel {
 	{
 		std::cout << "Creating Wireframe Render System\n";
 		createPipeline(renderPass, "/shaders/wireframe_shader.vert.spv", "/shaders/wireframe_shader.frag.spv", WireframePipelineConfigModifier);
+
+		// Second pipeline: same shader + layout, but TRIANGLE_LIST polygon-line for drawing solid
+		// meshes as wireframe. Built here (not via the base createPipeline, which owns the single
+		// bglPipeline) so both pipelines coexist.
+		{
+			PipelineConfigInfo cfg{};
+			BGLPipeline::defaultPipelineConfigInfo(cfg);
+			cfg.renderPass = renderPass;
+			cfg.pipelineLayout = pipelineLayout;
+			ModelWireframePipelineConfigModifier(cfg);
+			modelWirePipeline = std::make_unique<BGLPipeline>(
+				util::enginePath("/shaders/wireframe_shader.vert.spv"),
+				util::enginePath("/shaders/wireframe_shader.frag.spv"),
+				cfg);
+		}
 
 		// Build shared unit wire cube [-1,-1,-1]→[1,1,1] for bbox drawing
 		auto corner = [](float x, float y, float z) {
@@ -165,7 +196,7 @@ namespace bagel {
 
 			WireframePushConstantData push{};
 			push.UsesBufferedTransform = 0;
-			push.modelMatrix = transformComp.mat4();
+			push.modelMatrix = transformComp.getMat4();
 			push.scale = glm::vec4{ transformComp.getWorldScale(), 1.0 };
 			for (uint32_t i = 0; i < modelDescComp.submeshCount; i++) {
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
@@ -201,11 +232,85 @@ namespace bagel {
 
 			WireframePushConstantData push{};
 			push.UsesBufferedTransform = 0;
-			push.modelMatrix = transformComp.mat4();
+			push.modelMatrix = transformComp.getMat4();
 			push.scale = glm::vec4{ collisionModelComp.collisionScale, 1.0 };
 			for (uint32_t i = 0; i < collisionModelComp.submeshCount; i++) {
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 				DrawByIndexCount(frameInfo.commandBuffer, collisionModelComp.vertexCount, collisionModelComp.indexCount, 1, collisionModelComp.submeshes[i].firstIndex);
+			}
+		}
+	}
+
+	void WireframeRenderSystem::renderModelsWireframe(FrameInfo& frameInfo)
+	{
+		Frustum frustum;
+		frustum.extractFromVP(frameInfo.camera.getProjection() * frameInfo.camera.getView());
+
+		modelWirePipeline->bind(frameInfo.commandBuffer);
+		vkCmdBindDescriptorSets(
+			frameInfo.commandBuffer,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipelineLayout,
+			0, 1,
+			&frameInfo.globalDescriptorSets,
+			0, nullptr);
+
+		VkDeviceSize offsets[] = { 0 };
+		// Distinct from the green bbox lines so the two overlays are tellable apart.
+		const glm::vec4 wireColor{ 0.6f, 1.0f, 0.6f, 1.0f };
+
+		// Single-transform models (the planet is one of these — keep it, that's the whole point).
+		auto singleView = registry.view<TransformComponent, ModelComponent>();
+		for (auto [entity, transform, model] : singleView.each()) {
+			if (model.isSkinned) continue; // skinned verts are bind-pose here; they'd misalign the deformed surface
+			if (model.vertexBuffer == VK_NULL_HANDLE || model.vertexCount == 0) continue;
+			glm::mat4 modelMatrix = transform.getMat4();
+			if (model.frustumCull && !frustum.testAABB(model.aabbMin, model.aabbMax, modelMatrix))
+				continue;
+
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
+			if (model.indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+			WireframePushConstantData push{};
+			push.UsesBufferedTransform = 0;
+			push.modelMatrix = modelMatrix;
+			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
+			push.color       = wireColor;
+			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+			// Solid submeshes only — transparent ones (e.g. the planet ocean) keep their own look.
+			for (const ModelComponent::Submesh& sm : model.solidSubmeshes()) {
+				if (model.indexCount > 0)
+					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
+				else
+					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, 1, sm.firstVertex, 0);
+			}
+		}
+
+		// Instanced/buffered-transform models.
+		auto instancedView = registry.view<TransformArrayComponent, ModelComponent>();
+		for (auto [entity, transform, model] : instancedView.each()) {
+			if (model.isSkinned) continue;
+			if (model.vertexBuffer == VK_NULL_HANDLE || model.vertexCount == 0) continue;
+
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
+			if (model.indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+			WireframePushConstantData push{};
+			push.UsesBufferedTransform   = transform.useBuffer() ? 1 : 0;
+			push.BufferedTransformHandle = transform.bufferHandle;
+			if (!transform.useBuffer()) {
+				push.modelMatrix = transform.mat4(0);
+				push.scale       = glm::vec4{ transform.getWorldScale(0), 1.0f };
+			}
+			push.color = wireColor;
+			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+			for (const ModelComponent::Submesh& sm : model.solidSubmeshes()) {
+				if (model.indexCount > 0)
+					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, transform.count(), sm.firstIndex, 0, 0);
+				else
+					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, transform.count(), sm.firstVertex, 0);
 			}
 		}
 	}
@@ -232,7 +337,7 @@ namespace bagel {
 			glm::vec3 center  = (modelComp.aabbMin + modelComp.aabbMax) * 0.5f;
 			glm::vec3 halfExt = (modelComp.aabbMax - modelComp.aabbMin) * 0.5f;
 
-			glm::mat4 bboxMat = transformComp.mat4()
+			glm::mat4 bboxMat = transformComp.getMat4()
 				* glm::translate(glm::mat4{1.0f}, center)
 				* glm::scale(glm::mat4{1.0f}, halfExt);
 
