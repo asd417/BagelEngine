@@ -28,7 +28,7 @@ namespace bagel {
 			BGLPipeline::setupTransparentPipeline);
 	}
 
-	void WaterRenderSystem::renderEntities(FrameInfo& frameInfo)
+	void WaterRenderSystem::renderEntities(FrameInfo& frameInfo, uint32_t gDepthHandle, float opaqueDepth, float camRefDist)
 	{
 		// Planet oceans only. A planet's ocean is its transparent submesh (materialIndex 1, the
 		// OCEAN sentinel); the solid terrain submesh is drawn by PlanetGBufferRenderSystem. The
@@ -62,6 +62,9 @@ namespace bagel {
 			push.modelMatrix = transform.getMat4();
 			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
 			push.time        = frameInfo.time;
+			push.gDepthHandle = gDepthHandle;
+			push.opaqueDepth = opaqueDepth;
+			push.camRefDist  = camRefDist;
 			vkCmdPushConstants(frameInfo.commandBuffer, pipelineLayout,
 				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 				0, sizeof(WaterPushConstantData), &push);

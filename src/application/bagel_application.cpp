@@ -516,7 +516,7 @@ namespace bagel
 				// water. For correct submerged-vs-surface transparency, split the transparent queue
 				// into a pre-water group (here, before the water) and a post-water group (after the
 				// water — atmosphere / glass over the surface). See WaterRenderSystem.
-				waterRenderSystem.renderEntities(frameInfo);
+				waterRenderSystem.renderEntities(frameInfo, gDepthHandle, waterOpaqueDepth, waterCamRefDist);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 
@@ -747,6 +747,13 @@ namespace bagel
 			bglRenderer.getRadiosityMemory(),
 			bglRenderer.getRadiosityImage(),
 			"RadiosityBuffer", reuse, radiosityHandle, false);
+		// Opaque scene depth for the water pass. Not owned (the renderer owns the G-buffer depth image);
+		// only sampled in the water pass where this image is in DEPTH_STENCIL_READ_ONLY_OPTIMAL.
+		gDepthHandle = descriptorManager->storeTexture(
+			bglRenderer.getDRDepthImageInfo(),
+			VK_NULL_HANDLE,
+			VK_NULL_HANDLE,
+			"GBufferDepth", reuse, gDepthHandle, false);
 		smaaEdgeHandle = descriptorManager->storeTexture(
 			bglRenderer.getSmaaEdgeImageInfo(),
 			bglRenderer.getSmaaEdgeMemory(),

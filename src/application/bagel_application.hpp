@@ -93,6 +93,11 @@ namespace bagel
 		bool vsync = false;
 		bool vsyncDirty = false;
 		float exposure = cfg::kExposure;
+		// Procedural water/ocean opacity controls (forwarded to water.frag as push constants, live
+		// from the Settings panel). waterOpaqueDepth = water column (world units) that reads opaque at
+		// waterCamRefDist; the threshold scales with camera distance so near water shows more depth.
+		float waterOpaqueDepth = 2.0f;
+		float waterCamRefDist = 100.0f;
 		// Camera perspective controls (the "close"/"far" view distances + vertical FOV),
 		// live-tunable from the Settings panel. Far must reach past the planet (radius 64,
 		// spawn ~160 out). cameraFovDegrees feeds both the projection and the shadow-cascade
@@ -210,6 +215,9 @@ namespace bagel
 		// registerDescriptorEntries() call (append) and reused in place on resize. Initialized
 		// so the first call never passes an indeterminate value as a designated handle.
 		uint32_t radiosityHandle = 0;
+		// Opaque G-buffer depth, exposed to the water pass so it can read scene depth behind the ocean
+		// surface (thickness -> opacity; far plane behind the limb -> opaque, fixing water-over-space).
+		uint32_t gDepthHandle = 0;
 		uint32_t smaaEdgeHandle = 0;
 		uint32_t smaaWeightHandle = 0;
 		uint32_t compositeHandle = 0;

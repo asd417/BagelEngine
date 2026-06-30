@@ -73,7 +73,8 @@ namespace bagel {
 			push.cascadeIndex          = cascadeIndex;
 			sendShadowPush(frameInfo.commandBuffer, pipelineLayout, push);
 
-			for (uint32_t i = 0; i < model.submeshCount; i++) {
+			// Only opaque submeshes cast shadows; transparent ones (e.g. the planet's ocean) must not.
+			for (uint32_t i = 0; i < model.solidSubmeshCount; i++) {
 				const ModelComponent::Submesh& sm = model.submeshes[i];
 				if (model.indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
@@ -98,7 +99,8 @@ namespace bagel {
 				push.modelMatrix = transform.mat4(0);
 			sendShadowPush(frameInfo.commandBuffer, pipelineLayout, push);
 
-			for (uint32_t i = 0; i < model.submeshCount; i++) {
+			// Only opaque submeshes cast shadows; transparent ones (e.g. the planet's ocean) must not.
+			for (uint32_t i = 0; i < model.solidSubmeshCount; i++) {
 				const ModelComponent::Submesh& sm = model.submeshes[i];
 				if (model.indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, transform.count(), sm.firstIndex, 0, 0);

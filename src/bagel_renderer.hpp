@@ -161,9 +161,8 @@ namespace bagel
 			for (uint32_t i = 0; i < CASCADE_COUNT; i++)
 			{
 				vkDestroyFramebuffer(BGLDevice::device(), frameBuffers[i], nullptr);
-				vkDestroyImageView(BGLDevice::device(), depth[i].view, nullptr);
-				vkDestroyImage(BGLDevice::device(), depth[i].image, nullptr);
-				vkFreeMemory(BGLDevice::device(), depth[i].mem, nullptr);
+				// depth[i] is a FrameBufferAttachment — its OWN destructor (runs right after this
+				// body) frees view/image/memory. Destroying them here too double-freed every cascade.
 			}
 		}
 	};
@@ -225,7 +224,6 @@ namespace bagel
 		VkImage getBloomMipImage(int mip) const { return bloomMips[mip].color.image; }
 		VkDeviceMemory getBloomMipMemory(int mip) const { return bloomMips[mip].color.mem; }
 
-		FrameBuffer getDeferredRenderFrameBuffer() const { return deferredRenderFrameBuffer; }
 
 		// Radiosity buffer — HDR PBR lighting result, read by bloom and composite passes
 		void beginRadiosityPass(VkCommandBuffer commandBuffer);
@@ -269,6 +267,13 @@ namespace bagel
 
 		VkSampler getDRSampler() const { return deferredRenderFrameBuffer.sampler; }
 		VkImageView getDRDepthView() const { return deferredRenderFrameBuffer.depth.view; }
+		// Opaque G-buffer depth as a SAMPLED image, for the water pass to read scene depth behind the
+		// surface. During the transparent/water pass this image is bound as a READ-ONLY depth attachment
+		// (DEPTH_STENCIL_READ_ONLY_OPTIMAL), so sampling it there is a legal, feedback-free read.
+		VkDescriptorImageInfo getDRDepthImageInfo() const
+		{
+			return { deferredRenderFrameBuffer.sampler, deferredRenderFrameBuffer.depth.view, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL };
+		}
 		VkImageView getDRNormalView() const { return deferredRenderFrameBuffer.normal.view; }
 		VkImageView getDRAlbedoView() const { return deferredRenderFrameBuffer.albedo.view; }
 		VkImageView getDREmissionView() const { return deferredRenderFrameBuffer.emission.view; }

@@ -20,6 +20,7 @@ namespace bagel {
 		// Scene content (each builds its own lights so it stands alone after a clear)
 		void placeCubes();
 		void createLights();   // point lights — common to every scene
+		void createDirectionalLight();
 		void buildHierarchyStack();
 		// One entity at origin from a single model asset (gltf/glb/obj). Shared by every
 		// single-model scene below; settings carries per-model tweaks (e.g. submesh merge).

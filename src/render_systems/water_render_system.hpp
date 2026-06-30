@@ -17,6 +17,9 @@ namespace bagel {
 		glm::mat4 modelMatrix{ 1.0f };
 		glm::vec4 scale{ 1.0f };
 		float time = 0.0f;            // cumulative seconds, for the animated ocean waves
+		uint32_t gDepthHandle = 0;    // bindless slot of the opaque G-buffer depth (scene depth behind water)
+		float opaqueDepth = 2.0f;     // water column (world units) that reads opaque at camRefDist
+		float camRefDist = 100.0f;    // reference camera distance for the depth->opacity scaling
 	};
 
 	// Procedural ocean/water pass. Draws the planets' transparent ocean submesh(es), split out of
@@ -36,7 +39,9 @@ namespace bagel {
 			std::vector<VkDescriptorSetLayout> setLayouts,
 			entt::registry& registry);
 
-		void renderEntities(FrameInfo& frameInfo);
+		// gDepthHandle: bindless slot of the opaque G-buffer depth, sampled by water.frag for the
+		// depth-aware opacity. opaqueDepth/camRefDist: live-tunable opacity falloff (see WaterPushConstantData).
+		void renderEntities(FrameInfo& frameInfo, uint32_t gDepthHandle, float opaqueDepth, float camRefDist);
 
 	private:
 		entt::registry& registry;

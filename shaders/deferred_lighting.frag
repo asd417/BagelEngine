@@ -87,11 +87,13 @@ void main(){
     ?texture(samplerColor[push.bloomHandle],fragUV).rgb*push.bloomIntensity
     :vec3(0.);
     
-    if(albedoData.w<.5){
-        outColor=vec4(.01+bloom,1.);
-        return;
-    }
-    
+    // No opaque-coverage background early-out anymore. The radiosity buffer already holds the final
+    // scene color at every pixel: pure black where the scene is empty (the "space" background), with
+    // any forward-rendered water/transparents already blended over it. Sampling radiosity below
+    // composites all of that correctly. (This previously returned vec4(.01+bloom,1.) wherever
+    // albedoData.w<.5 — i.e. wherever there was no OPAQUE geometry — which threw away the water that
+    // was drawn over space, making the ocean read as transparent at the planet's limb.)
+
     vec4 normData=texture(gNormal,fragUV);
     vec3 N=octDecode(normData.rg);
     float roughness=normData.b;

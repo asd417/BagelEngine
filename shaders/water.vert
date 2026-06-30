@@ -22,6 +22,9 @@ layout(push_constant) uniform Push {
 	mat4 modelMatrix;
 	vec4 scale;
 	float time;
+	uint gDepthHandle;   // opaque G-buffer depth bindless slot (used in water.frag)
+	float opaqueDepth;   // used in water.frag
+	float camRefDist;    // used in water.frag
 } push;
 
 void main() {

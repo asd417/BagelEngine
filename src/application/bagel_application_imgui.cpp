@@ -158,6 +158,11 @@ namespace bagel
 				ImGui::SliderFloat("Exposure", &exposure, 0.001f, 2.0f, "%.4f", ImGuiSliderFlags_Logarithmic);
 				resetBtn(exposure, cfg::kExposure);
 			}
+			ImGui::Text("Water");
+			// Opaque at this water depth (world units) when viewed from the reference distance.
+			ImGui::SliderFloat("Water Opaque Depth", &waterOpaqueDepth, 0.1f, 64.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+			// Reference camera distance for the depth->opacity scaling: closer = more transparent.
+			ImGui::SliderFloat("Water Cam Ref Dist", &waterCamRefDist, 1.0f, 1000.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
 			ImGui::Text("SMAA");
 			// Edge detection method: luma (default), color (catches chroma edges, ~2x cost), or
 			// depth (cheapest, geometry-only; wants a much smaller threshold — depth is non-linear).
