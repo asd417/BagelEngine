@@ -23,9 +23,11 @@ namespace bagel {
 		float time = 0.0f;            // cumulative seconds, for animated ocean waves
 	};
 
-	// Forward, alpha-blended pass for transparent submeshes. Runs in the swapchain render pass
-	// after the composite (so it draws on top of the resolved opaque image) and before ImGui.
-	// Depth-tests against the opaque depth blitted into the swapchain buffer; does not write depth.
+	// Forward, alpha-blended pass for transparent submeshes. Runs in the HDR radiosity pass after
+	// the radiosity (deferred lighting) pass and before bloom/composite, blending linear HDR into
+	// the radiosity buffer (composite tonemaps later). Depth-tests read-only against the opaque
+	// G-buffer depth; does not write depth. The procedural ocean is split out into WaterRenderSystem,
+	// drawn right after this in the same pass.
 	class TransparentRenderSystem : BGLRenderSystem {
 	public:
 		TransparentRenderSystem(

@@ -1,5 +1,6 @@
 #include "transparent_render_system.hpp"
 #include "../bagel_ecs_components.hpp"
+#include "../components/planet.hpp"   // PlanetComponent (ocean is drawn by WaterRenderSystem)
 #include "../bagel_engine_device.hpp"
 #include "../bagel_util.hpp"
 
@@ -45,6 +46,9 @@ namespace bagel {
 		for (auto [entity, transform, model] : view.each()) {
 			if (model.isSkinned) continue; // skinned transparent submeshes are out of scope for now
 			if (!model.hasTransparent()) continue;
+			// A planet's transparent submesh is its ocean — drawn by WaterRenderSystem (after this
+			// pass), so skip planets here to avoid drawing the ocean twice.
+			if (registry.all_of<PlanetComponent>(entity)) continue;
 			glm::vec3 d = camPos - transform.getTranslation();
 			order.emplace_back(glm::dot(d, d), entity);
 		}

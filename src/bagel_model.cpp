@@ -92,11 +92,9 @@ namespace bagel
 		else if (strcmp(filename, "/models/wirecube.obj") == 0) genName = "wirecube";
 		else if (strcmp(filename, "/models/wiresphere.obj")== 0) genName = "wiresphere";
 		else if (strcmp(filename, "/models/axis.obj")     == 0) genName = "axis";
-		else if (strcmp(filename, "planet") == 0){
-			// planets will dynamically recreate geometry for its LOD system
-			// this planet must allocate a vertex buffer of some size that can comfortably fit most planet
-			// but we dont want max subdivision because that will take up too much space.
-		}
+		// NOTE: "planet" is intentionally NOT handled here. Planet geometry is procedural and is
+		// built directly by PlanetComponentSystem (createPlanet / rebuildPlanetMesh), never loaded
+		// as a model asset, so it never reaches this loader.
 
 		if (genName) {
 			buildSettings.source = genName;

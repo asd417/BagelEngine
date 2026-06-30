@@ -154,11 +154,18 @@ namespace bagel
 
 		ModelLoadSettings settings{};
 		settings.scaleVec = { 1.0f, 1.0f, 1.0f };
-        settings.source = "planet"; 
-        settings.isDynamic = true;
-        ModelComponentBuilder builder(bglDevice, registry);
-		auto& mc = builder.buildComponent<ModelComponent>(planetEntity, "planet", settings); // TODO: generate planet name or else every planet will look the same and there may be undefined behavior related to LOD switching
-        mc.frustumCull = false;
+		settings.source = "planet";
+		// Planet geometry is procedural: rebuildPlanetMesh regenerates the LOD cut into a
+		// device-local vertex buffer (reuploaded whenever the cut/paint changes). It is NOT a
+		// loadable model asset, so the planet must NOT go through ModelComponentBuilder/loadModel
+		// — that path looks for a "planet" file (hits the unknown-file branch, leaving a stale/null
+		// loader) and, via buffer-sharing dedup on source=="planet", could alias multiple planets
+		// onto one buffer. Emplace the ModelComponent directly; rebuildPlanetMesh fills its buffer
+		// + submeshes on the first pcs.update() (render systems skip a planet whose buffer is null).
+		settings.isDynamic = false; // device-local reupload-on-dirty (see rebuildPlanetMesh)
+		auto& mc = registry.emplace<ModelComponent>(planetEntity);
+		mc.loadSettings = settings;
+		mc.frustumCull = false;
 
 		setupOceanMaterial(mc, materialManager); // 2-slot skin block (terrain + ocean sentinel)
         auto& pc = registry.emplace<PlanetComponent>(planetEntity);

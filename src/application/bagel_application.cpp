@@ -281,6 +281,12 @@ namespace bagel
 			descriptorManager,
 			registry};
 
+		// Procedural ocean. Same HDR pass as the transparents, drawn after them.
+		WaterRenderSystem waterRenderSystem{
+			bglRenderer.getTransparentRenderPass(),
+			pipelineDescriptorSetLayouts,
+			registry};
+
 		{
 			VkImageView shadowViews[BGLBindlessDescriptorManager::SHADOW_MAP_CASCADE_COUNT];
 			for (uint32_t i = 0; i < BGLBindlessDescriptorManager::SHADOW_MAP_CASCADE_COUNT; i++)
@@ -294,7 +300,7 @@ namespace bagel
 		viewerObject.transform.setTranslation({0.0f, -3.0f, 0.0f});
 		KeyboardMovementController cameraController{};
 
-		auto frameCurrentTime = std::chrono::high_resolution_clock::now();
+		auto frameCurrentTime = Clock::now(); // same clock as frameLastTime (they're subtracted each frame)
 
 		initCommand();
 
@@ -329,6 +335,10 @@ namespace bagel
 		auto frameLastTime = Clock::now();
 		while (!bglWindow.shouldClose())
 		{
+			// Timestamp the start of this frame. frameTime = (this start - previous start), and
+			// syncFrameRate() sleeps until this start + the target frame duration. Without this
+			// per-frame update frameTime stays 0, so dt-scaled movement (WASD) never advances.
+			frameLastTime = Clock::now();
 			// ` (grave) toggles all ImGui panels — kept HARD-CODED on purpose: it must always
 			// work (never rebindable or clearable via `unbindall`) so you can't lock yourself out
 			// of the UI/console. Edge-detected; ignored while an ImGui text field is focused.
@@ -501,6 +511,12 @@ namespace bagel
 				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "transparent");
 				bglRenderer.beginTransparentPass(primaryCommandBuffer);
 				transparentRenderSystem.renderEntities(frameInfo);
+				// Water is drawn AFTER the transparent objects, in this same HDR pass.
+				// TODO(pre/post-water transparents): currently ALL transparents draw before the
+				// water. For correct submerged-vs-surface transparency, split the transparent queue
+				// into a pre-water group (here, before the water) and a post-water group (after the
+				// water — atmosphere / glass over the surface). See WaterRenderSystem.
+				waterRenderSystem.renderEntities(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 

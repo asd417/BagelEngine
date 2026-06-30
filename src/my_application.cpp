@@ -389,7 +389,7 @@ namespace bagel {
 		planet::TerrainConfig cfg{};
 		cfg.radius      = 64.0f;
 		cfg.minLevel    = 2;
-		cfg.maxLevel    = 8;
+		cfg.maxLevel    = 5;
 		cfg.splitFactor = 5.0f;
 		cfg.noiseAmplitude = 11.0f;
 		cfg.noiseFrequency = 2.0f;  // "scaling"

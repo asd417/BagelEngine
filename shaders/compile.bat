@@ -12,6 +12,8 @@ set SHADERS=C:\Users\locti\OneDrive\Documents\BagelEngine\shaders
 %GLSLC% %SHADERS%\radiosity.frag            -o %SHADERS%\radiosity.frag.spv
 %GLSLC% %SHADERS%\transparent.vert          -o %SHADERS%\transparent.vert.spv
 %GLSLC% %SHADERS%\transparent.frag          -o %SHADERS%\transparent.frag.spv
+%GLSLC% %SHADERS%\water.vert                -o %SHADERS%\water.vert.spv
+%GLSLC% %SHADERS%\water.frag                -o %SHADERS%\water.frag.spv
 %GLSLC% %SHADERS%\bloom_downsample.frag    -o %SHADERS%\bloom_downsample.frag.spv
 %GLSLC% %SHADERS%\bloom_upsample.frag      -o %SHADERS%\bloom_upsample.frag.spv
 %GLSLC% %SHADERS%\shadow.vert              -o %SHADERS%\shadow.vert.spv

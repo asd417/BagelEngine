@@ -17,6 +17,7 @@
 #include "render_systems/radiosity_render_system.hpp"
 #include "render_systems/shadow_render_system.hpp"
 #include "render_systems/transparent_render_system.hpp"
+#include "render_systems/water_render_system.hpp"
 #include "render_systems/skinned_gbuffer_render_system.hpp"
 #include "render_systems/skinned_shadow_render_system.hpp"
 #include "render_systems/smaa_edge_render_system.hpp"

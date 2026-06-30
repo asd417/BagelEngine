@@ -40,6 +40,12 @@ if errorlevel 1 (echo [FAIL] deferred_lighting.frag  & set /a ERRORS+=1) else ec
 "%GLSLC%" "%S%\transparent.frag"        -o "%S%\transparent.frag.spv"
 if errorlevel 1 (echo [FAIL] transparent.frag        & set /a ERRORS+=1) else echo [OK] transparent.frag
 
+"%GLSLC%" "%S%\water.vert"              -o "%S%\water.vert.spv"
+if errorlevel 1 (echo [FAIL] water.vert              & set /a ERRORS+=1) else echo [OK] water.vert
+
+"%GLSLC%" "%S%\water.frag"              -o "%S%\water.frag.spv"
+if errorlevel 1 (echo [FAIL] water.frag              & set /a ERRORS+=1) else echo [OK] water.frag
+
 
 "%GLSLC%" "%S%\radiosity.frag"           -o "%S%\radiosity.frag.spv"
 if errorlevel 1 (echo [FAIL] radiosity.frag           & set /a ERRORS+=1) else echo [OK] radiosity.frag
