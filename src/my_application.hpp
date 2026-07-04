@@ -27,6 +27,7 @@ namespace bagel {
 		void loadDragon();
 		void loadMonkeyBone();   // skinned/bone-animated test model
 		void loadIKLeg();
+		void loadLegoBrick();    // single LDraw brick (3001.dat) — LDrawModelLoader smoke test
 		// NOTE: the geodesic-CDLOD planet (PlanetComponent / PlanetComponentSystem) is
 		// mid-refactor and not wired into the scene list yet. The render system stays
 		// registered in Application, but no planet is built or exposed in the GUI.

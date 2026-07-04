@@ -366,3 +366,9 @@ build/
 
 # Vendored dependency fetched by lib-setup.bat; not tracked in this repo
 Dependencies/xatlas/
+
+# LDraw parts library, extracted from complete.zip; reference data, not tracked
+lego/ldraw/
+
+# Standalone build scratch for the lego parser (g++ objects/exes)
+src/lego/.tmp/

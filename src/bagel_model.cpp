@@ -2,6 +2,7 @@
 #include "model_loaders/generated.hpp"
 #include "model_loaders/obj.hpp"
 #include "model_loaders/gltf.hpp"
+#include "lego/ldraw_model_loader.hpp"
 
 // vulkan headers
 #include <vulkan/vulkan.h>
@@ -106,6 +107,8 @@ namespace bagel
 				activeLoader = std::make_unique<GLTFModelLoader>(pTextureLoader);
 			} else if (ext && strcmp(ext, ".obj") == 0) {
 				activeLoader = std::make_unique<OBJModelLoader>(pTextureLoader);
+			} else if (ext && strcmp(ext, ".dat") == 0) {
+				activeLoader = std::make_unique<LDrawModelLoader>(pTextureLoader);
 			} else {
 				std::cerr << "[ModelComponentBuilder] Unknown file type: " << filename << "\n";
 				return;

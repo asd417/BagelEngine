@@ -58,6 +58,10 @@ namespace bagel
 			return "dragon";
 		case 4:
 			return "monkey";
+		case 5:
+			return "ikbone";
+		case 6:
+			return "lego";
 		default:
 			return "map";
 		}
@@ -115,6 +119,11 @@ namespace bagel
 			createLights();
 			createDirectionalLight();
 			loadIKLeg();
+			break;
+		case 6:
+			createLights();
+			createDirectionalLight();
+			loadLegoBrick();
 			break;
 		default:
 			break;
@@ -213,6 +222,9 @@ namespace bagel
 		ImGui::SameLine();
 		if (ImGui::Button("IKBone"))
 			buildScene(5);
+		ImGui::SameLine();
+		if (ImGui::Button("Lego"))
+			buildScene(6);
 
 		ImGui::Separator();
 		if (ImGui::Button("Save as map"))
@@ -222,7 +234,7 @@ namespace bagel
 
 		ImGui::Separator();
 		ImGui::TextUnformatted("Load (from disk):");
-		for (int i = 0; i < 6; ++i)
+		for (int i = 0; i < 7; ++i)
 		{
 			const bool onDisk = Map::exists(mapPath(i));
 			std::string label = std::string("Load ") + mapName(i) + (onDisk ? "" : " (none)");
@@ -377,6 +389,26 @@ namespace bagel
 	void MyApplication::loadDragon() { loadModel("/models/chinesedragon.gltf", 0.3f); }
 	void MyApplication::loadMonkeyBone() { loadModel("/models/monkey_bone_anim/monkeybone.glb", 1.0f); }
 	void MyApplication::loadIKLeg() { loadModel("/models/ikleg/ikbone.glb", 1.0f); }
+
+	// Single LDraw brick at origin, routed to LDrawModelLoader by the ".dat" extension.
+	// settings.scale bakes the raw LDU geometry (1 LDU = 0.4 mm) down to engine size at
+	// load time. LDraw is -Y up, so a rigid 180° flip about X puts the studs up (a pure
+	// rotation keeps winding/normals correct — no negative-scale mirroring).
+	void MyApplication::loadLegoBrick()
+	{
+		ModelComponentBuilder builder(bglDevice, registry);
+		builder.setTextureLoader(&materialManager->getTextureLoader());
+		builder.setMaterialManager(materialManager.get());
+		builder.setSkinManager(skinManager.get());
+
+		ModelLoadSettings settings{};
+		settings.scale = 0.1f;
+
+		auto entity = registry.create();
+		auto &tc = registry.emplace<TransformComponent>(entity);
+		tc.setRotation({glm::pi<float>(), 0.0f, 0.0f});
+		builder.buildComponent(entity, "3001.dat", settings);
+	}
 
 } // namespace bagel
 

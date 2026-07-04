@@ -76,6 +76,7 @@ file(GLOB RENDERSYSTEM 	"${PROJECT_SOURCE_DIR}/src/render_systems/*.cpp" "${PROJ
 file(GLOB PHYSICS 	"${PROJECT_SOURCE_DIR}/src/physics/*.cpp" "${PROJECT_SOURCE_DIR}/src/physics/*.hpp")
 file(GLOB MATH		"${PROJECT_SOURCE_DIR}/src/math/*.cpp" "${PROJECT_SOURCE_DIR}/src/math/*.hpp")
 file(GLOB MODEL_LOADERS "${PROJECT_SOURCE_DIR}/src/model_loaders/*.cpp" "${PROJECT_SOURCE_DIR}/src/model_loaders/*.hpp")
+file(GLOB LEGO		"${PROJECT_SOURCE_DIR}/src/lego/*.cpp" "${PROJECT_SOURCE_DIR}/src/lego/*.hpp")
 file(GLOB ANIMATION 	"${PROJECT_SOURCE_DIR}/src/animation/*.cpp" "${PROJECT_SOURCE_DIR}/src/animation/*.hpp")
 file(GLOB SMAA		"${PROJECT_SOURCE_DIR}/src/smaa/*.cpp" "${PROJECT_SOURCE_DIR}/src/smaa/*.hpp")
 file(GLOB COMPONENTS	"${PROJECT_SOURCE_DIR}/src/components/*.cpp" "${PROJECT_SOURCE_DIR}/src/components/*.hpp")
@@ -97,6 +98,7 @@ add_executable(${PROJECT_NAME}
 	${PHYSICS}
 	${MATH}
 	${MODEL_LOADERS}
+	${LEGO}
 	${ANIMATION}
 	${SMAA}
 	${COMPONENTS}
@@ -114,6 +116,7 @@ source_group("Render Systems"	FILES ${RENDERSYSTEM})
 source_group("Physics"		FILES ${PHYSICS})
 source_group("Math"		FILES ${MATH})
 source_group("Model Loaders"	FILES ${MODEL_LOADERS})
+source_group("Lego"		FILES ${LEGO})
 source_group("Animation"	FILES ${ANIMATION})
 source_group("Components"	FILES ${COMPONENTS})
 source_group("Game"		FILES ${GAME})
