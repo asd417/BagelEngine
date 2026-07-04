@@ -1,7 +1,7 @@
-// Planet paint cube-map addressing — the GPU half of a CPU/GPU shared mapping.
+// Cube <-> sphere addressing — the GPU half of a CPU/GPU shared mapping.
 // MUST stay bit-consistent with src/math/planet_cubemap.hpp::dirToFaceUV (the same
-// discipline noise.glsl follows for perlin), or the painted shading drifts from the
-// painted geometry. Standard GL cube convention: major axis selects one of six faces
+// discipline noise.glsl follows for perlin), or CPU and GPU cube addressing drift
+// apart. Standard GL cube convention: major axis selects one of six faces
 // (0=+X 1=-X 2=+Y 3=-Y 4=+Z 5=-Z); the other two components / |major| give uv in
 // [-1,1] -> [0,1].
 #ifndef CUBEMAP_GLSL

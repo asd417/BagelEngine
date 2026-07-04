@@ -1,8 +1,6 @@
 #pragma once
 #include "application/bagel_application.hpp"
 #include "bagel_material.hpp"
-#include "game/planet_terrain.hpp"   // geodesic-CDLOD planet (workstream G)
-#include "components/planet.hpp"
 #include "model_loaders/model_load_settings.hpp" // ModelLoadSettings (loadModel default arg)
 #include <memory>
 
@@ -29,15 +27,9 @@ namespace bagel {
 		void loadDragon();
 		void loadMonkeyBone();   // skinned/bone-animated test model
 		void loadIKLeg();
-		void loadPlanet();       // dynamically-subdividing icosphere (solid mesh)
-
-		// Planet (geodesic-CDLOD) demo state. The tree is the authoritative terrain;
-		// the ModelComponent's buffers are rebuilt from the LOD cut as the camera moves.
-		//void updatePlanet(const glm::vec3& camWorldPos); // called each frame from OnUpdate
-		//void rebuildPlanetMesh(const glm::vec3& camWorldPos);
-		//std::unique_ptr<planet::PlanetTerrain> planetTerrain;
-		//entt::entity planetEntity = entt::null;
-		//glm::vec3 planetLastRebuildCam{ 1e9f };
+		// NOTE: the geodesic-CDLOD planet (PlanetComponent / PlanetComponentSystem) is
+		// mid-refactor and not wired into the scene list yet. The render system stays
+		// registered in Application, but no planet is built or exposed in the GUI.
 
 		// Map pipeline
 		void buildScene(int index);     // clear + build one of the 3 scenes live
@@ -52,8 +44,6 @@ namespace bagel {
 		std::string currentMapName = "sponza"; // active map name (set by build / successful load)
 		entt::entity hierarchyRoot = entt::null;
 		float stackAngle = 0.0f;
-
-		PlanetComponentSystem pcs;
 	};
 
 } // namespace bagel

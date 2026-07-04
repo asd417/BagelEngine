@@ -33,7 +33,6 @@
 #include "bagel_model.hpp"
 #include "bagel_textures.hpp"
 #include "bagel_material.hpp"
-#include "planet_paint_controller.hpp" // in-viewport planet height painter
 #include "animation/bagel_skin_manager.hpp"
 
 #include "physics/bagel_physics.hpp"
@@ -114,8 +113,6 @@ namespace bagel
 		void setGizmoEditMode(bool on) { poseGizmo.setEditMode(on); }
 		bool gizmoEditModeOn() const { return poseGizmo.editModeOn(); }
 
-		// In-viewport planet height painter (B hotkey; brush UI in the Maps panel).
-		PlanetPaintController &getPlanetPaint() { return planetPaint; }
 
 		// Source-style keybinds (key -> console command). Driven by the bind/unbind console
 		// commands and polled each frame in run().
@@ -165,8 +162,6 @@ namespace bagel
 		entt::registry registry;
 		// Declared after registry (constructed after it; holds only a reference to it).
 		PoseGizmo poseGizmo{registry};
-		// Planet height painter (no registry ref held; registry is passed to update()).
-		PlanetPaintController planetPaint;
 		// Key -> console-command table; polled each frame in run() (see bagel_keybinds.hpp).
 		KeyBindManager keybinds;
 
@@ -197,7 +192,7 @@ namespace bagel
 			S_COUNT
 		};
 		static constexpr const char *sectName[S_COUNT] = {
-			"poll_events", "camera     ", "gizmo+paint", "on_update  ", "hierarchy  ", "physics    ",
+			"poll_events", "camera     ", "gizmo      ", "on_update  ", "hierarchy  ", "physics    ",
 			"ubo+lights ", "imgui      ", "begin_cmd  ", "gbuffer    ", "bloom      ",
 			"composite  ", "end_cmd    "};
 		PerfSection perf[S_COUNT]{};

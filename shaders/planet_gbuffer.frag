@@ -2,7 +2,6 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_GOOGLE_include_directive : require
 #include "noise.glsl"
-#include "cubemap.glsl"
 #include "data_transform.glsl"   // octEncode
 
 // Planet gbuffer fill (step 2): reconstructs the surface per-fragment from the SAME
@@ -25,33 +24,19 @@ layout(push_constant) uniform Push {
     vec4 centerRadius; // xyz = planet center (world), w = base radius
     vec4 noiseF;       // amplitude, frequency, lacunarity, gain
     vec4 noiseF2;      // sealevel, octaves, seed, gradient-epsilon
-    vec4 paint;        // faceBaseHandle, heightScale, faceRes, enabled (0/1)
 } push;
-
-// User-painted height delta, sampled from the 6 contiguous R16 cube faces and decoded
-// to world units. MUST match src/math/planet_cubemap.hpp::samplePaint. The face index
-// varies per fragment -> non-uniform descriptor index (nonuniformEXT).
-float paintSample(vec3 d) {
-    if (push.paint.w < 0.5) return 0.0; // paint disabled
-    int face; vec2 uv;
-    dirToFaceUV(d, face, uv);
-    uint h = uint(push.paint.x) + uint(face);
-    float t = texture(samplerColor[nonuniformEXT(h)], uv).r; // R16_UNORM -> [0,1]
-    return (t * 2.0 - 1.0) * push.paint.y;                   // -> [-heightScale, +heightScale]
-}
 
 void main() {
     vec3 d = normalize(fragPosWorld - push.centerRadius.xyz); // LOD-invariant direction
 
     // Displaced-surface normal of the height field P=H(d)*d. The fbm value AND its analytic
-    // gradient come from a SINGLE fbmD eval (was 3 finite-difference fbm evals). Paint is
-    // excluded from the gradient (low-freq authored detail, negligible for the normal); H0
-    // still includes it. Matches planet_terrain.hpp::surfaceNormal / baseHeightGrad.
+    // gradient come from a SINGLE fbmD eval (was 3 finite-difference fbm evals).
+    // Matches planet_terrain.hpp::surfaceNormal / baseHeightGrad.
     vec4 nd = fbmD(d, push.noiseF.y, int(push.noiseF2.y), push.noiseF.z, push.noiseF.w,
                    uint(push.noiseF2.z)); // .x = fbm value, .yzw = d(value)/ddir
     // No sea-level clamp (matches planet_terrain.hpp::baseHeight): the ocean is a separate
     // transparent sphere, so terrain keeps its full noise band and dips below the sea radius.
-    float H0 = push.centerRadius.w + push.noiseF.x * nd.x + paintSample(d);
+    float H0 = push.centerRadius.w + push.noiseF.x * nd.x;
     // n = normalize(H0*d - gTang), gTang = tangent-plane component of the height gradient.
     // Using the projection directly (not an arbitrary T/B basis) keeps the normal continuous
     // everywhere — including the poles, where a tangent frame would flip and leave a seam ring.

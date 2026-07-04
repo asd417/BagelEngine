@@ -40,7 +40,7 @@ namespace bagel {
 
 	struct Map {
 		static constexpr char     MAGIC[4] = { 'B', 'M', 'A', 'P' };
-		static constexpr std::uint32_t VERSION = 5; // v5: PlanetComponent (TerrainConfig + paint cube-map)
+		static constexpr std::uint32_t VERSION = 6; // v6: PlanetComponent paint cube-map removed (TerrainConfig only)
 
 		// True if a map file exists at `path` (used to "load only if it exists").
 		static bool exists(const std::string& path) {

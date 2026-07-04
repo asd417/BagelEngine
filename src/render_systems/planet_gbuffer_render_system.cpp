@@ -48,22 +48,8 @@ namespace bagel {
 
 			PlanetGBufferPushConstantData push{};
 			push.modelMatrix  = transform.getMat4();
-			if (planet.terrain) {
-				const auto& cfg = planet.terrain->config();
-				push.centerRadius = glm::vec4(transform.getWorldTranslation(), cfg.radius);
-				push.noiseF  = glm::vec4(cfg.noiseAmplitude, cfg.noiseFrequency,
-				                         cfg.noiseLacunarity, cfg.noiseGain);
-				// Shader runs a couple extra octaves beyond the mesh for sub-triangle normal
-				// detail; seed kept small enough to be float-exact (matches CPU noise). Kept
-				// modest (+1) because planetHeight is evaluated 3x/fragment for the analytic
-				// normal — extra octaves are a heavy per-pixel cost over the whole planet.
-				int shaderOct = std::min(cfg.noiseOctaves + 1, 12);
-				push.noiseF2 = glm::vec4(cfg.sealevel, static_cast<float>(shaderOct),
-				                         static_cast<float>(cfg.seed), 0.001f);
-				// Paint cube-map: base bindless handle + heightScale so the fragment can add the
-				// SAME painted delta the CPU folded into the mesh (faces are contiguous: base+face).
-				push.paint = glm::vec4(static_cast<float>(planet.faceBaseHandle),
-				                       cfg.paintHeightScale, static_cast<float>(cfg.paintRes), 1.0f);
+			if (false) {
+
 			} else {
 				push.centerRadius = glm::vec4(transform.getWorldTranslation(), 1.0f);
 			}

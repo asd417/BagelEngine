@@ -71,7 +71,7 @@ namespace bagel {
 		// bindless handle. Unlike loadTextureFromMemory (which dedups and returns without
 		// re-uploading), this overwrites the slot's image. Falls back to loadTextureFromMemory
 		// if the name isn't bound yet. Waits for GPU idle before freeing the old image.
-		// Used for live-painted textures (planet height cube-map).
+		// (Currently unused — was the planet paint upload path.)
 		uint32_t updateTextureFromMemory(const char* name, const uint8_t* rgba, uint32_t w, uint32_t h,
 		                                 VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM);
 

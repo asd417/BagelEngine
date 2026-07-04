@@ -195,11 +195,37 @@ namespace bagel {
 		bool hasTransparent() const { return solidSubmeshCount < submeshCount; }
 	};
 
-	struct WireframeComponent : ModelComponent {
+	struct WireframeComponent{
+		static constexpr uint32_t MAX_SUBMESHES = 128;
+		struct Submesh {
+			uint32_t firstIndex   = 0;
+			uint32_t indexCount   = 0;
+			uint32_t firstVertex  = 0;
+			uint32_t vertexCount  = 0;
+			uint32_t materialIndex = 0;
+			glm::vec3 aabbMin{ 0.0f };
+			glm::vec3 aabbMax{ 0.0f };
+		};
+		ModelLoadSettings loadSettings{};
+		Submesh  submeshes[MAX_SUBMESHES]{};
+		uint32_t submeshCount = 0;
+		glm::vec3 aabbMin{ 0.0f };
+		glm::vec3 aabbMax{ 0.0f };
+		bool frustumCull = true;
+
+		// Transient GPU handles — never serialized; rebuilt by the model loader on load.
+		// Default to VK_NULL_HANDLE so a default-constructed/half-loaded component is
+		// safe to destroy (vkDestroyBuffer/vkFreeMemory on null are no-ops).
+		VkBuffer vertexBuffer = VK_NULL_HANDLE;
+		VkBuffer indexBuffer = VK_NULL_HANDLE;
+		VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
+		VkDeviceMemory indexMemory = VK_NULL_HANDLE;
+		void *mappedVB = nullptr; // host visible vertex buffer will be mapped here
+		void *mappedIB = nullptr; // host visible index buffer will be mapped here
+
+		uint32_t indexCount  = 0;
+		uint32_t vertexCount = 0;
 		glm::vec4 color = {1.0f,1.0f, 1.0f, 1.0f};
-	};
-	struct CollisionModelComponent : ModelComponent {
-		glm::vec3 collisionScale = { 1.0,1.0,1.0 };
 	};
 
 	// Runtime skeletal-animation state for a skinned entity (paired with a skinned

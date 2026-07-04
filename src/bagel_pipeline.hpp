@@ -72,12 +72,65 @@ namespace bagel {
 		//shaderModule is a pointer to a pointer
 		void createShaderModule(const std::vector<char>& code, VkShaderModule * shaderModule);
 
-		//typedef pointer 
+		//typedef pointer
 		VkPipeline graphicsPipeline;
 
 		// VkShaderModule is a pointer to VkShaderModule_T
 		VkShaderModule vertShaderModule;
 		VkShaderModule fragShaderModule;
 	};
-	
+
+	// Compute counterpart to PipelineConfigInfo. A compute pipeline has no fixed-function state, so
+	// this only carries what actually varies: the caller-owned layout, the SPIR-V entry point, the
+	// pipeline create flags, and optional specialization constants (the usual way to set the
+	// shader's local_size_x/y/z or other tunables at pipeline-creation time). Fill it with
+	// defaultComputePipelineConfigInfo, then set pipelineLayout (and specialization data if wanted).
+	struct ComputePipelineConfigInfo {
+		ComputePipelineConfigInfo() = default;
+		ComputePipelineConfigInfo(const ComputePipelineConfigInfo&) = delete;
+		ComputePipelineConfigInfo operator=(const ComputePipelineConfigInfo&) = delete;
+
+		VkPipelineLayout pipelineLayout = nullptr;
+		const char* entryPointName = "main";
+		VkPipelineCreateFlags flags = 0;
+
+		// Specialization constants. Leave both empty to use the values baked into the shader.
+		// specializationData is the raw backing bytes the map entries index into.
+		std::vector<VkSpecializationMapEntry> specializationMapEntries{};
+		std::vector<uint8_t> specializationData{};
+	};
+
+	// Compute pipeline: a single .comp SPIR-V stage, no render pass / vertex input / fixed-function
+	// state. The pipeline layout (descriptor set layouts + push constant ranges) is owned by the
+	// caller, exactly like PipelineConfigInfo::pipelineLayout is for BGLPipeline, so it is NOT
+	// destroyed here. Dispatch must happen OUTSIDE a render pass, and the caller is responsible for
+	// the barriers around it (transition storage images to GENERAL, and add a COMPUTE_SHADER ->
+	// consumer-stage barrier before the result is read).
+	class BGLComputePipeline {
+	public:
+		BGLComputePipeline(const std::string& compFilePath, const ComputePipelineConfigInfo& configInfo);
+		~BGLComputePipeline();
+
+		// Fills configInfo with sensible defaults ("main" entry point, no flags, no specialization).
+		// The caller still must set configInfo.pipelineLayout before constructing the pipeline.
+		static void defaultComputePipelineConfigInfo(ComputePipelineConfigInfo& configInfo);
+
+		BGLComputePipeline(const BGLComputePipeline&) = delete;
+		BGLComputePipeline& operator=(const BGLComputePipeline&) = delete;
+
+		void bind(VkCommandBuffer commandBuffer);
+		// groupCount* are workgroup counts, i.e. ceil(problemSize / local_size_*) from the shader.
+		void dispatch(VkCommandBuffer commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ);
+
+		VkPipeline pipeline() const { return computePipeline; }
+
+	private:
+		static std::vector<char> readFile(const std::string& filepath);
+		void createShaderModule(const std::vector<char>& code, VkShaderModule* shaderModule);
+		void createComputePipeline(const std::string& compFilePath, const ComputePipelineConfigInfo& configInfo);
+
+		VkPipeline computePipeline;
+		VkShaderModule compShaderModule;
+	};
+
 }

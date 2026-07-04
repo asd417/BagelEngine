@@ -17,7 +17,6 @@ layout(push_constant) uniform Push {
     vec4 centerRadius; // xyz = planet center (world), w = base radius
     vec4 noiseF;       // amplitude, frequency, lacunarity, gain (unused in VS)
     vec4 noiseF2;      // sealevel, octaves, seed, epsilon       (unused in VS)
-    vec4 paint;        // faceBaseHandle, heightScale, faceRes, enabled (unused in VS)
 } push;
 
 void main() {

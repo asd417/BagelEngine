@@ -161,12 +161,6 @@ namespace bagel {
 			jpc.settings = sphereSettings; // persisted recipe; bodyID below is transient
 			jpc.bodyID = bodyInterface->CreateAndAddBody(sphereSettings, activity);
 		}
-		
-		//Create collision model
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
-		CollisionModelComponent& wfc = modelBuilder->buildComponent<CollisionModelComponent>(ent, "/models/wiresphere.obj", ComponentBuildMode::LINES);
-		wfc.collisionScale = {radius,radius,radius};
-		delete modelBuilder;
 	}
 
 	void BGLJolt::AddBox(entt::entity ent, glm::vec3 halfExtent, PhysicsBodyCreationInfo& info) {
@@ -185,12 +179,6 @@ namespace bagel {
 			jpc.settings = boxSettings; // persisted recipe; bodyID below is transient
 			jpc.bodyID = bodyInterface->CreateAndAddBody(boxSettings, activity);
 		}
-
-		//Create collision model
-		auto modelBuilder = new ModelComponentBuilder(bglDevice, registry);
-		CollisionModelComponent& wfc = modelBuilder->buildComponent<CollisionModelComponent>(ent, "/models/wirecube.obj", ComponentBuildMode::LINES);
-		wfc.collisionScale = glm::vec3({ halfExtent.x,halfExtent.y,halfExtent.z });
-		delete modelBuilder;
 	}
 	glm::vec3 BGLJolt::GetGravity()
 	{

@@ -16,8 +16,7 @@ namespace bagel {
 		glm::vec4 centerRadius{ 0.0f }; // xyz = planet center (world), w = base radius
 		glm::vec4 noiseF{ 0.0f };       // amplitude, frequency, lacunarity, gain
 		glm::vec4 noiseF2{ 0.0f };      // sealevel, octaves, seed, gradient-epsilon
-		glm::vec4 paint{ 0.0f };        // faceBaseHandle, heightScale, faceRes, enabled (0/1)
-	};                                  // 128 bytes total — at the guaranteed push-constant minimum
+	};                                  // 112 bytes total — within the guaranteed 128-byte push-constant minimum
 
 	// Draws PlanetComponent entities into the deferred gbuffer with a dedicated
 	// procedural pipeline (surface reconstructed per-fragment from noise(dir), so

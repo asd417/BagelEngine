@@ -19,17 +19,16 @@ namespace bagel
 
 	// rehydrateModelType<T> + the scene rehydrate pass moved to map/bagel_map_io.{hpp,cpp}
 	// (Map::rehydrate). Called from loadMapFromPath after Map::load.
-	MyApplication::MyApplication() : Application(), pcs(bglDevice, registry)
+	MyApplication::MyApplication() : Application()
 	{
 	}
 	void MyApplication::OnSceneLoad()
 	{
-		buildScene(6); // start on the geodesic-CDLOD planet (wireframe)
+		buildScene(2); // start on the hierarchy scene
 	}
 
 	void MyApplication::OnUpdate(float dt)
 	{
-		pcs.update(cameraWorldPos, materialManager->getTextureLoader()); // rebuild LOD cut + push paint edits
 		if (hierarchyRoot == entt::null)
 			return;
 		stackAngle += dt;
@@ -59,8 +58,6 @@ namespace bagel
 			return "dragon";
 		case 4:
 			return "monkey";
-		case 6:
-			return "planet";
 		default:
 			return "map";
 		}
@@ -119,11 +116,6 @@ namespace bagel
 			createDirectionalLight();
 			loadIKLeg();
 			break;
-		case 6:
-			createLights();
-			createDirectionalLight();
-			loadPlanet();
-			break;
 		default:
 			break;
 		}
@@ -161,18 +153,9 @@ namespace bagel
 		materialManager->clearSkinTable();
 		// rebuild transient GPU/material/physics state (moved to map/bagel_map_io.*)
 		Map::rehydrate(registry, bglDevice, *materialManager, *skinManager);
-		// Planets aren't model-type entities, so rebuild their transient state here from the
-		// loaded recipe: reconstruct the terrain tree from cfg, re-bind + fold in the painted
-		// cube-map, re-upload the 6 R16 faces, and let the next pcs.update() rebuild the mesh.
-		for (auto [e, pc] : registry.view<PlanetComponent>().each())
-		{
-			pc.terrain = std::make_unique<planet::PlanetTerrain>(pc.cfg);
-			pc.terrain->bindPaint(pc.paint.data());
-			pc.terrain->recomputeRadii();
-			pcs.allocatePaintTextures(e, pc, materialManager->getTextureLoader());
-			pcs.setupOceanMaterial(registry.get<ModelComponent>(e), *materialManager); // re-reserve ocean skin slot
-			pc.planetLastRebuildCam = glm::vec3(1e9f);								   // force LOD mesh rebuild next frame
-		}
+		// NOTE: planet rehydration (PlanetComponent -> mesh rebuild) is disabled while the
+		// geodesic-CDLOD terrain is mid-refactor. Maps containing planets will load their
+		// recipe but not rebuild the terrain mesh.
 		hierarchyRoot = entt::null; // loaded hierarchy is static (no live root)
 		currentMapName = name;
 		logDescriptorUsage();
@@ -230,9 +213,6 @@ namespace bagel
 		ImGui::SameLine();
 		if (ImGui::Button("IKBone"))
 			buildScene(5);
-		ImGui::SameLine();
-		if (ImGui::Button("Planet"))
-			buildScene(6);
 
 		ImGui::Separator();
 		if (ImGui::Button("Save as map"))
@@ -250,64 +230,8 @@ namespace bagel
 				loadMap(i);
 		}
 
-		// Live LOD + procedural-height control for any planet in the scene. Editing any
-		// value forces a fresh LOD cut next frame via the planetLastRebuildCam sentinel.
-		for (auto [ent, pc] : registry.view<PlanetComponent>().each())
-		{
-			if (!pc.terrain)
-				continue;
-			const auto &cfg = pc.terrain->config();
-			ImGui::Separator();
-			ImGui::TextUnformatted("Planet LOD");
-			// "px size": higher splitFactor subdivides from farther away -> smaller
-			// on-screen triangles. Logarithmic so the wide range stays usable.
-			float sf = cfg.splitFactor;
-			if (ImGui::SliderFloat("Split distance", &sf, 0.1f, 512.0f, "%.2f x edge",
-								   ImGuiSliderFlags_Logarithmic))
-			{
-				pc.terrain->setSplitFactor(sf);
-				pc.planetLastRebuildCam = glm::vec3(1e9f); // sentinel -> force rebuild
-			}
-
-			ImGui::TextUnformatted("Planet Noise");
-			float amp = cfg.noiseAmplitude;
-			float freq = cfg.noiseFrequency;
-			int oct = cfg.noiseOctaves;
-			float lac = cfg.noiseLacunarity;
-			float gain = cfg.noiseGain;
-			float sea = cfg.sealevel;
-			int seed = static_cast<int>(cfg.seed);
-			bool changed = false;
-			changed |= ImGui::SliderFloat("Amplitude", &amp, 0.0f, 64.0f, "%.2f");
-			changed |= ImGui::SliderFloat("Scaling", &freq, 0.1f, 64.0f, "%.2f",
-										  ImGuiSliderFlags_Logarithmic);
-			changed |= ImGui::SliderInt("Detailing", &oct, 1, 10);
-			changed |= ImGui::SliderFloat("Lacunarity", &lac, 1.0f, 4.0f, "%.2f");
-			changed |= ImGui::SliderFloat("Gain", &gain, 0.0f, 1.0f, "%.2f");
-			// Sea level caps surface radius; range = the planet's natural height band.
-			changed |= ImGui::SliderFloat("Sea level", &sea, cfg.radius - amp, cfg.radius + amp, "%.2f");
-			changed |= ImGui::InputInt("Seed", &seed);
-			if (changed)
-			{
-				if (oct < 1)
-					oct = 1;
-				if (seed < 0)
-					seed = 0;
-				pc.terrain->setNoise(amp, freq, oct, lac, gain, sea, static_cast<uint32_t>(seed));
-				pc.planetLastRebuildCam = glm::vec3(1e9f); // sentinel -> force rebuild
-			}
-
-			// Height painting (B also toggles; LMB-drag on the surface paints).
-			ImGui::TextUnformatted("Planet Paint");
-			auto &paint = getPlanetPaint();
-			bool paintOn = paint.editModeOn();
-			if (ImGui::Checkbox("Paint mode (B)", &paintOn))
-				paint.setEditMode(paintOn);
-			ImGui::SliderFloat("Brush radius", &paint.brushRadiusDeg, 1.0f, 45.0f, "%.1f deg");
-			ImGui::SliderFloat("Brush strength", &paint.strength, 0.05f, 8.0f, "%.2f");
-			ImGui::SliderInt("Brush detail", &paint.targetLevel, 2, cfg.maxLevel);
-			ImGui::Checkbox("Carve (lower)", &paint.lower);
-		}
+		// NOTE: the live planet LOD/noise controls are removed while the geodesic-CDLOD
+		// terrain is mid-refactor (PlanetComponent no longer exposes a live terrain tree).
 
 		ImGui::End();
 
@@ -350,7 +274,7 @@ namespace bagel
 			auto &tfc = registry.emplace<TransformComponent>(entity);
 			tfc.setTranslation(def.pos);
 			tfc.setScale(def.scale);
-			auto &model = modelBuilder.buildComponent<ModelComponent>(entity, "/models/cube.obj", ComponentBuildMode::FACES);
+			auto &model = modelBuilder.buildComponent(entity, "/models/cube.obj", ComponentBuildMode::FACES);
 			// Record the material source so the brick look survives a save/load round trip.
 			model.setMaterialSource(0, bricksSrc);
 		}
@@ -374,7 +298,7 @@ namespace bagel
 			entt::entity e = registry.create();
 			auto &tc = registry.emplace<TransformComponent>(e);
 			tc.setScale({cubeScale, cubeScale, cubeScale});
-			builder.buildComponent<ModelComponent>(e, "/models/cube.obj", settings);
+			builder.buildComponent(e, "/models/cube.obj", settings);
 
 			if (i == 0)
 			{
@@ -437,7 +361,7 @@ namespace bagel
 
 		auto entity = registry.create();
 		registry.emplace<TransformComponent>(entity).setScale({scale, scale, scale});
-		builder.buildComponent<ModelComponent>(entity, path, settings);
+		builder.buildComponent(entity, path, settings);
 	}
 	void MyApplication::loadSponza()
 	{
@@ -453,25 +377,6 @@ namespace bagel
 	void MyApplication::loadDragon() { loadModel("/models/chinesedragon.gltf", 0.3f); }
 	void MyApplication::loadMonkeyBone() { loadModel("/models/monkey_bone_anim/monkeybone.glb", 1.0f); }
 	void MyApplication::loadIKLeg() { loadModel("/models/ikleg/ikbone.glb", 1.0f); }
-	void MyApplication::loadPlanet()
-	{
-		// Planet: radius 64, tessellation ranging from a uniform level-2 floor (far side)
-		// to level 8 near the camera.
-		planet::TerrainConfig cfg{};
-		cfg.radius = 64.0f;
-		cfg.minLevel = 2;
-		cfg.maxLevel = 4;
-		cfg.splitFactor = 5.0f;
-		cfg.noiseAmplitude = 11.0f;
-		cfg.noiseFrequency = 2.0f; // "scaling"
-		cfg.noiseOctaves = 3;	   // "detailing"
-		cfg.sealevel = 64.0f;	   // = base radius: floor at sea level, full noise band pokes above
-		pcs.createPlanet({0, 0, 0}, cfg, *materialManager);
-		// Default free-fly spawn ({0,-3,0}) is inside the radius-64 body — frame it from
-		// outside (~2.5 radii out, within the 300-unit far plane).
-		setSpawnCameraPos({0.0f, 0.0f, cfg.radius * 2.5f});
-		CONSOLE->Log("Planet", "Geodesic-CDLOD icosphere — orbit/zoom to watch it subdivide.");
-	}
 
 } // namespace bagel
 

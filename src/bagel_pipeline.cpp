@@ -291,7 +291,7 @@ namespace bagel {
 	}
 	void BGLPipeline::createShaderModule(const std::vector<char>& code, VkShaderModule* shaderModule)
 	{
-		// Common pattern in vulkan 
+		// Common pattern in vulkan
 		// Rather than calling a parameter with bunch of parameters we put all the info in a struct and pass in the reference
 		VkShaderModuleCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -302,5 +302,111 @@ namespace bagel {
 		if (vkCreateShaderModule(BGLDevice::device(), &createInfo, nullptr, shaderModule) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to create shader module");
 		}
+	}
+
+	// ---------------------------------------------------------------------------
+	// BGLComputePipeline
+	// ---------------------------------------------------------------------------
+
+	BGLComputePipeline::BGLComputePipeline(const std::string& compFilePath, const ComputePipelineConfigInfo& configInfo)
+	{
+		createComputePipeline(compFilePath, configInfo);
+	}
+
+	void BGLComputePipeline::defaultComputePipelineConfigInfo(ComputePipelineConfigInfo& configInfo)
+	{
+		// A compute pipeline has no fixed-function state to default; these are just the values that
+		// make the create call valid. The caller must still fill in configInfo.pipelineLayout.
+		configInfo.entryPointName = "main";
+		configInfo.flags = 0;
+		configInfo.specializationMapEntries.clear();
+		configInfo.specializationData.clear();
+	}
+
+	BGLComputePipeline::~BGLComputePipeline()
+	{
+		// pipelineLayout is caller-owned and intentionally not destroyed here.
+		vkDestroyShaderModule(BGLDevice::device(), compShaderModule, nullptr);
+		vkDestroyPipeline(BGLDevice::device(), computePipeline, nullptr);
+	}
+
+	std::vector<char> BGLComputePipeline::readFile(const std::string& filepath)
+	{
+		std::ifstream file{ filepath, std::ios::ate | std::ios::binary };
+
+		if (!file.is_open()) {
+			throw std::runtime_error("Failed to open file: " + filepath);
+		}
+		size_t fileSize = static_cast<size_t>(file.tellg());
+		std::vector<char> buffer(fileSize);
+		file.seekg(0);
+		file.read(buffer.data(), fileSize);
+		file.close();
+
+		return buffer;
+	}
+
+	void BGLComputePipeline::createShaderModule(const std::vector<char>& code, VkShaderModule* shaderModule)
+	{
+		VkShaderModuleCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		createInfo.codeSize = code.size();
+		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+		if (vkCreateShaderModule(BGLDevice::device(), &createInfo, nullptr, shaderModule) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create compute shader module");
+		}
+	}
+
+	void BGLComputePipeline::createComputePipeline(const std::string& compFilePath, const ComputePipelineConfigInfo& configInfo)
+	{
+		assert(configInfo.pipelineLayout != VK_NULL_HANDLE && "Cannot create compute pipeline:: no pipelineLayout provided in configInfo");
+		auto compCode = readFile(compFilePath);
+		createShaderModule(compCode, &compShaderModule);
+
+		// Optional specialization constants (e.g. local_size_x/y/z or tunables baked at creation).
+		// Must outlive the vkCreateComputePipelines call, so it lives on the stack here.
+		VkSpecializationInfo specializationInfo{};
+		const bool hasSpecialization = !configInfo.specializationMapEntries.empty();
+		if (hasSpecialization) {
+			specializationInfo.mapEntryCount = static_cast<uint32_t>(configInfo.specializationMapEntries.size());
+			specializationInfo.pMapEntries   = configInfo.specializationMapEntries.data();
+			specializationInfo.dataSize      = configInfo.specializationData.size();
+			specializationInfo.pData         = configInfo.specializationData.data();
+		}
+
+		// A compute pipeline is a single shader stage — no vertex input, viewport, rasterization,
+		// blend, depth, or render pass. That is the whole reason it needs its own creation path
+		// separate from BGLPipeline::createGraphicsPipeline.
+		VkPipelineShaderStageCreateInfo stageInfo{};
+		stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+		stageInfo.module = compShaderModule;
+		stageInfo.pName = configInfo.entryPointName;
+		stageInfo.flags = 0;
+		stageInfo.pNext = nullptr;
+		stageInfo.pSpecializationInfo = hasSpecialization ? &specializationInfo : nullptr;
+
+		VkComputePipelineCreateInfo pipelineInfo{};
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		pipelineInfo.flags = configInfo.flags;
+		pipelineInfo.stage = stageInfo;
+		pipelineInfo.layout = configInfo.pipelineLayout;
+		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+		pipelineInfo.basePipelineIndex = -1;
+
+		if (vkCreateComputePipelines(BGLDevice::device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create compute pipeline");
+		}
+	}
+
+	void BGLComputePipeline::bind(VkCommandBuffer commandBuffer)
+	{
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+	}
+
+	void BGLComputePipeline::dispatch(VkCommandBuffer commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
+	{
+		vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
 	}
 }

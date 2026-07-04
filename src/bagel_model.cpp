@@ -258,4 +258,9 @@ namespace bagel
 		else createIndexBufferDeviceLocal(bufferSize, (void *)activeLoader->getIndices().data(), bufferDst, memoryDst);
 		return nullptr;
 	}
+
+	void ModelComponentBuilder::buildComponent(ModelComponent &mc, const char* modelFileName, const std::vector<glm::vec3> &verts, const std::vector<int> indices)
+	{
+
+	}
 }

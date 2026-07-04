@@ -220,25 +220,6 @@ namespace bagel {
 				DrawByIndexCount(frameInfo.commandBuffer, modelDescComp.vertexCount, modelDescComp.indexCount, transformComp.count(), modelDescComp.submeshes[i].firstIndex);
 			}
 		}
-
-		if (!drawCollision) return;
-		//Start drawing collision models
-		//Update UBO before drawing collision models.
-		//Collision models will all be yellow by default
-
-		auto collisionModelView = registry.view<TransformComponent, CollisionModelComponent>();
-		for (auto [entity, transformComp, collisionModelComp] : collisionModelView.each()) {
-			BindVertexIndexBuffer(frameInfo.commandBuffer, &collisionModelComp.vertexBuffer, offsets, collisionModelComp.indexCount, collisionModelComp.indexBuffer);
-
-			WireframePushConstantData push{};
-			push.UsesBufferedTransform = 0;
-			push.modelMatrix = transformComp.getMat4();
-			push.scale = glm::vec4{ collisionModelComp.collisionScale, 1.0 };
-			for (uint32_t i = 0; i < collisionModelComp.submeshCount; i++) {
-				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
-				DrawByIndexCount(frameInfo.commandBuffer, collisionModelComp.vertexCount, collisionModelComp.indexCount, 1, collisionModelComp.submeshes[i].firstIndex);
-			}
-		}
 	}
 
 	void WireframeRenderSystem::renderModelsWireframe(FrameInfo& frameInfo)

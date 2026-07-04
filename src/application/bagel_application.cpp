@@ -390,9 +390,6 @@ namespace bagel
 				VkExtent2D ext = bglRenderer.getExtent();
 				poseGizmo.update(bglWindow.getGLFWWindow(), camera,
 								 static_cast<float>(ext.width), static_cast<float>(ext.height));
-				// Planet height painter (B toggles paint mode; LMB drags paint the surface).
-				planetPaint.update(bglWindow.getGLFWWindow(), camera,
-								   static_cast<float>(ext.width), static_cast<float>(ext.height), registry);
 				recordSection(S_GIZMO, tMs(t0, Clock::now()));
 			}
 

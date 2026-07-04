@@ -15,7 +15,7 @@
 // pass from the persisted "recipe" (e.g. ModelComponent::loadSettings).
 
 #include "bagel_ecs_components.hpp"
-#include "components/planet.hpp" // PlanetComponent (paint cube-map recipe)
+#include "components/planet.hpp" // PlanetComponent (TerrainConfig recipe)
 
 #include "entt.hpp"
 #include <Jolt/Core/StreamWrapper.h>
@@ -199,16 +199,12 @@ namespace bagel {
 		serializeModelRecipe(ar, c);
 	}
 
+	// WireframeComponent is standalone (no longer a ModelComponent), so it carries only its
+	// own recipe fields — no skin/material block.
 	template<class Archive>
 	void serialize(Archive& ar, WireframeComponent& c) {
-		serializeModelRecipe(ar, c);
+		ar(c.loadSettings, c.frustumCull);
 		ar(c.color); // + wireframe tint
-	}
-
-	template<class Archive>
-	void serialize(Archive& ar, CollisionModelComponent& c) {
-		serializeModelRecipe(ar, c);
-		ar(c.collisionScale);
 	}
 
 	// AnimationComponent: only the AUTHORED POSE is persisted —
@@ -271,13 +267,12 @@ namespace bagel {
 	}
 
 	// PlanetComponent: persistent recipe only. cfg (planet::TerrainConfig) is trivially
-	// copyable so it archives as a raw leaf — this carries the noise settings AND the paint
-	// resolution / height scale. paint is the flat R16 cube-map (6*paintRes^2), archived via
-	// the vector path. The PlanetTerrain object, ModelComponent GPU buffers and the bindless
-	// face handle are TRANSIENT — rebuilt after load (see MyApplication::loadMapFromPath).
+	// copyable so it archives as a raw leaf — this carries the noise settings. The
+	// PlanetTerrain object and ModelComponent GPU buffers are TRANSIENT — rebuilt after
+	// load (see MyApplication::loadMapFromPath).
 	template<class Archive>
 	void serialize(Archive& ar, PlanetComponent& c) {
-		ar(c.cfg, c.paint);
+		ar(c.cfg);
 	}
 
 	// ---- whole-registry save / load -----------------------------------------
@@ -314,7 +309,6 @@ namespace bagel {
 		saveComponent<DirectionalLightComponent>(snap, ar, registry);
 		saveComponent<ModelComponent>(snap, ar, registry);
 		saveComponent<WireframeComponent>(snap, ar, registry);
-		saveComponent<CollisionModelComponent>(snap, ar, registry);
 		saveComponent<AnimationComponent>(snap, ar, registry);
 		saveComponent<JoltPhysicsComponent>(snap, ar, registry);
 		saveComponent<JoltKinematicComponent>(snap, ar, registry);
@@ -333,7 +327,6 @@ namespace bagel {
 			.get<DirectionalLightComponent>(ar)
 			.get<ModelComponent>(ar)
 			.get<WireframeComponent>(ar)
-			.get<CollisionModelComponent>(ar)
 			.get<AnimationComponent>(ar)
 			.get<JoltPhysicsComponent>(ar)
 			.get<JoltKinematicComponent>(ar)

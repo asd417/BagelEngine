@@ -331,7 +331,6 @@ engine** for the building system:
   intersect existing builds or terrain. Jolt's broadphase + cast/collide queries are the right
   tool; reuse `BGLJolt` rather than hand-rolling a spatial index.
   - Placed pieces register lightweight **collision proxies** (static Jolt bodies from
-    `CollisionModelComponent`/simple shapes) used purely for these queries, not for simulation.
   - The cursor→sphere ray can start as analytic sphere math (`PlanetSurface`), but Jolt raycasts
     give precise hits against actual placed geometry/terrain for snapping and "what's under the
     cursor" picking.
@@ -693,8 +692,7 @@ A detailed, creative editor that runs **in-game**, reusing engine pieces.
 - Reuse the **gizmo pattern** (`PoseGizmo`, `gizmo_render_system`) for a `BuildGizmo`.
 - Every placed object is an **entity** with a `Placeable` component → the existing `.bmap`
   save/load *is* the zoo save system. Blueprints are sub-snapshots.
-- Pieces are catalog entries (data file) → spawn a `ModelComponent` via the loader +
-  optional `CollisionModelComponent` + functional component(s).
+- Pieces are catalog entries (data file) → spawn a `ModelComponent` via the loader
 
 ### 3.6 Progression: Campaign & Achievements (source of Jump Cores)
 

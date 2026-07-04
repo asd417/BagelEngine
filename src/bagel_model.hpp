@@ -57,28 +57,29 @@ namespace bagel {
 			WireframeComponent& comp = registry.emplace<WireframeComponent>(targetEnt);
 			createVertexBuffer(sizeof(BGLModel::Vertex) * normalDataVertices.size(), (void*) normalDataVertices.data(), comp.vertexBuffer, comp.vertexMemory);
 
-			comp.submeshes[comp.submeshCount++] = ModelComponent::Submesh{};
+			comp.submeshes[comp.submeshCount++] = WireframeComponent::Submesh{};
 			comp.vertexCount = static_cast<uint32_t>(normalDataVertices.size());
 			
 			normalDataVertices.clear();
 			return comp;
 		}
-
-		template<typename T>
-		T& buildComponent(entt::entity targetEnt, const char* modelFileName, ModelLoadSettings buildSettings)
+		void buildComponent(ModelComponent &mc, const char* modelFileName, const std::vector<glm::vec3> &verts, const std::vector<int> indices);
+		
+		
+		ModelComponent& buildComponent(entt::entity targetEnt, const char* modelFileName, ModelLoadSettings buildSettings)
 		{
 			//Check through registry if the model was already loaded by another entity
 			entt::entity srcEnt = entt::null;
-			for (auto [entity, existing] : registry.view<T>().each()) {
+			for (auto [entity, existing] : registry.view<ModelComponent>().each()) {
 				if (existing.loadSettings.source == std::string(modelFileName)) { srcEnt = entity; break; }
 			}
 			if (srcEnt != entt::null) {
 				//Already loaded — share the original's GPU buffers and submesh layout.
-				T& newComp = registry.emplace<T>(targetEnt);
+				ModelComponent& newComp = registry.emplace<ModelComponent>(targetEnt);
 				// Re-fetch the source AFTER emplace: adding newComp can relocate the pool,
 				// which would invalidate a reference taken during the scan above (and a
 				// stale read of a moved-from ModelComponent would see nulled handles).
-				T& comp = registry.get<T>(srcEnt);
+				ModelComponent& comp = registry.get<ModelComponent>(srcEnt);
 
 				newComp.loadSettings = comp.loadSettings;
 				// Borrow the original's shared Vk buffers; only the original frees them.
@@ -118,7 +119,7 @@ namespace bagel {
 
 				return newComp;
 			}
-			T& comp = registry.emplace<T>(targetEnt);
+			ModelComponent& comp = registry.emplace<ModelComponent>(targetEnt);
 			// Record the authored recipe so the model can be rebuilt on map load.
 			// loadModel resolves source internally on its own copy, so set the
 			// caller-provided identifier here explicitly.

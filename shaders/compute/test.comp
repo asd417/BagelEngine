@@ -1,0 +1,27 @@
+layout (local_size_x = 256) in;
+
+layout(set = 0, binding = 0) uniform Config{
+    mat4 transform;
+    int matrixCount;
+} opData;
+
+layout(set = 0, binding = 1) readonly buffer  InputBuffer{
+    mat4 matrices[];
+} sourceData;
+
+layout(set = 0, binding = 2) buffer  OutputBuffer{
+    mat4 matrices[];
+} outputData;
+
+
+void main()
+{
+    //grab global ID
+	uint gID = gl_GlobalInvocationID.x;
+    //make sure we don't access past the buffer size
+    if(gID < matrixCount)
+    {
+        // do math
+        outputData.matrices[gID] = sourceData.matrices[gID] * opData.transform;
+    }
+}

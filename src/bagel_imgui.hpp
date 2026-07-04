@@ -187,8 +187,11 @@ namespace bagel {
                     if (ikRemove >= 0) a->ikSetups.erase(a->ikSetups.begin() + ikRemove);
                     if (ImGui::Button("Add IK setup")) a->ikSetups.push_back(IKSetup{});
                 }
-                if (auto* w = registry.try_get<WireframeComponent>(entity))      drawModel("Wireframe", *w);
-                if (auto* c = registry.try_get<CollisionModelComponent>(entity)) drawModel("CollisionModel", *c);
+                if (auto* w = registry.try_get<WireframeComponent>(entity)) {
+                    ImGui::Text("Wireframe: \"%s\"", w->loadSettings.source.c_str());
+                    ImGui::Text("  submeshes=%u  indexCount=%u  vertexCount=%u", w->submeshCount, w->indexCount, w->vertexCount);
+                    ImGui::Text("  frustumCull=%s", w->frustumCull ? "yes" : "no");
+                }
                 if (auto* db = registry.try_get<DataBufferComponent>(entity))
                     ImGui::Text("DataBuffer: handle=%u", db->getBufferHandle());
                 if (registry.all_of<JoltPhysicsComponent>(entity))   ImGui::TextUnformatted("JoltPhysics");

@@ -69,7 +69,7 @@ namespace bagel {
 		}
 
 		for (auto& r : recipes) {
-			T& m = builder.buildComponent<T>(r.e, r.ls.source.c_str(), r.ls);
+			T& m = builder.buildComponent(r.e, r.ls.source.c_str(), r.ls);
 			m.frustumCull = r.frustumCull;
 			m.setSkin(r.skinIndex); // re-apply the saved skin (numSkins came back from the sidecar)
 			// Restore the generated-material source paths (OBJ/GLTF have materialCount == 0;
@@ -101,8 +101,6 @@ namespace bagel {
 		builder.setMaterialManager(&materialManager);
 		builder.setSkinManager(&skinManager);
 		rehydrateModelType<ModelComponent>(registry, builder);
-		rehydrateModelType<WireframeComponent>(registry, builder);
-		rehydrateModelType<CollisionModelComponent>(registry, builder);
 
 		// Rebuild live Jolt bodies from the restored BodyCreationSettings; this reissues
 		// the transient BodyIDs (the loaded ones are meaningless).
