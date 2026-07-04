@@ -66,8 +66,12 @@ namespace bagel {
     inline void DrawRegistryPanel(entt::registry& registry) {
         ImGui::Begin("Registry");
 
+        // Iterate the entity storage, but skip released slots: registry.clear() (scene
+        // switch) leaves tombstoned entities in the storage's packed array — they stay
+        // iterable but invalid, so without this guard the panel keeps showing the old
+        // scene's entities. registry.valid() filters them so the view clears on switch.
         int total = 0;
-        for (auto e : registry.storage<entt::entity>()) { (void)e; ++total; }
+        for (auto e : registry.storage<entt::entity>()) { if (registry.valid(e)) ++total; }
         ImGui::Text("Entities: %d", total);
         ImGui::Separator();
 
@@ -79,6 +83,7 @@ namespace bagel {
         };
 
         for (auto entity : registry.storage<entt::entity>()) {
+            if (!registry.valid(entity)) continue; // skip released slots (see note above)
             // Show the recycled index (low bits) rather than the packed identifier, whose high
             // bits hold the version that climbs every time a slot is destroyed and reused.
             const uint32_t idx = static_cast<uint32_t>(entt::entt_traits<entt::entity>::to_entity(entity));

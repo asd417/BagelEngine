@@ -22,9 +22,12 @@
 
 namespace bagel::ldraw {
 
-	// What kind of LEGO connector a stud-family primitive represents. Male = raised
-	// stud on top; Female = underside tube/receptacle it mates into.
-	enum class ConnType { Male, Female };
+	// What kind of LEGO connector a primitive represents.
+	//   Male   = raised stud on top.
+	//   Female = underside tube/receptacle a stud mates into.
+	//   Pin    = Technic round pin/connector hole (beam hole, connector hole).
+	//   Axle   = Technic cross-shaped axle hole.
+	enum class ConnType { Male, Female, Pin, Axle };
 
 	// A single connection point in part-local space (LDU). `orient` is the primitive's
 	// accumulated 3x3 basis: its +Y column is the stud axis (which way the stud faces).
@@ -49,6 +52,8 @@ namespace bagel::ldraw {
 		std::vector<ConnectionPoint> connections;
 		int maleCount() const;
 		int femaleCount() const;
+		int pinCount() const;
+		int axleCount() const;
 	};
 
 	class Library {
@@ -86,8 +91,11 @@ namespace bagel::ldraw {
 		std::unique_ptr<File> parseFile(const std::string& path, const std::string& basename);
 		bool resolve(const std::string& normName, std::string& outPath) const;
 
+		// insideConnector: true once we are recursing INSIDE a connector primitive, so
+		// nested connectors aren't recorded again (axle holes nest sub-pieces also titled
+		// "Axle Hole" — only the outermost counts as one connection). Geometry still emits.
 		void bakeInto(const std::string& normName, const glm::mat4& xf,
-		              bool invert, BakeResult& out, int depth);
+		              bool invert, BakeResult& out, int depth, bool insideConnector);
 
 		std::string root_;
 		std::unordered_map<std::string, std::unique_ptr<File>> cache_;

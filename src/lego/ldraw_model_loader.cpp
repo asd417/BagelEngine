@@ -16,9 +16,11 @@ namespace bagel {
 			          << "' produced no geometry (" << lib.unresolvedCount()
 			          << " unresolved refs)\n";
 		}
-		// Count before moving — maleCount()/femaleCount() read baked.connections.
+		// Count before moving — the count helpers read baked.connections.
 		const int males = baked.maleCount();
 		const int females = baked.femaleCount();
+		const int pins = baked.pinCount();
+		const int axles = baked.axleCount();
 		connections_ = std::move(baked.connections);
 
 		// Set up the (single, default) material slot so the skin/material system is
@@ -60,7 +62,8 @@ namespace bagel {
 		std::cout << "[LDrawModelLoader] '" << parms.source << "': "
 		          << vertices.size() << " verts, " << indices.size() / 3 << " tris, "
 		          << connections_.size() << " connections ("
-		          << males << " male / " << females << " female)\n";
+		          << males << " male / " << females << " female / "
+		          << pins << " pin / " << axles << " axle)\n";
 	}
 
 } // namespace bagel

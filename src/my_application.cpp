@@ -5,6 +5,8 @@
 #include "bagel_util.hpp"
 #include "bagel_imgui.hpp"						// ImGui + ConsoleApp (CONSOLE)
 #include "model_loaders/bagel_model_loader.hpp" // BGLModel::Vertex (planet wire upload)
+#include "lego/ldraw_library.hpp"                // ldraw::Library (connection-point bake)
+#include "lego/lego_connection_component.hpp"    // LegoConnectionComponent (gizmo markers)
 
 #include <iostream>
 #include <cmath>
@@ -24,7 +26,7 @@ namespace bagel
 	}
 	void MyApplication::OnSceneLoad()
 	{
-		buildScene(2); // start on the hierarchy scene
+		buildScene(6); // TEMP: verify connection gizmo
 	}
 
 	void MyApplication::OnUpdate(float dt)
@@ -121,7 +123,7 @@ namespace bagel
 			loadIKLeg();
 			break;
 		case 6:
-			createLights();
+			//createLights();
 			createDirectionalLight();
 			loadLegoBrick();
 			break;
@@ -332,7 +334,7 @@ namespace bagel
 	{
 		const auto entity = registry.create();
 		auto &sun = registry.emplace<DirectionalLightComponent>(entity);
-		sun.color = {0.6f, 0.6f, 0.2f, 1.0f};
+		sun.color = {0.6f, 0.6f, 0.6f, 1.0f};
 		sun.rotation = {-152.0f, 30.0f, 0.0f};
 		sun.shadowBiasMin = 0.0f;
 		sun.shadowBiasSlope = 0.0f;
@@ -407,7 +409,31 @@ namespace bagel
 		auto entity = registry.create();
 		auto &tc = registry.emplace<TransformComponent>(entity);
 		tc.setRotation({glm::pi<float>(), 0.0f, 0.0f});
-		builder.buildComponent(entity, "3001.dat", settings);
+		// 32316 = "Technic Beam 5" (studless 1x5 stick with pin holes).
+		const char *part = "32316.dat";
+		builder.buildComponent(entity, part, settings);
+
+		// Bake once more to pull the detected connection points (studs/holes) and store them
+		// in model-local space (raw LDU * loadScale, matching the vertex buffer) so the gizmo
+		// pass can overlay a marker at each. Cheap for one part; keeps the loader decoupled.
+		ldraw::Library lib(util::enginePath("/lego/ldraw"));
+		ldraw::BakeResult baked = lib.bake(part);
+		auto &cc = registry.emplace<LegoConnectionComponent>(entity);
+		auto radiusFor = [](ldraw::ConnType t) {
+			switch (t) {
+			case ldraw::ConnType::Axle: return 5.0f; // cross hole, a touch tighter
+			default:                    return 6.0f; // stud / tube / pin ~ 6 LDU
+			}
+		};
+		for (const ldraw::ConnectionPoint &c : baked.connections) {
+			LegoConnectionPoint p;
+			p.pos    = c.pos * settings.scale;
+			p.orient = c.orient;
+			p.radius = radiusFor(c.type) * settings.scale;
+			p.type   = static_cast<int>(c.type);
+			cc.points.push_back(p);
+		}
+		CONSOLE->Log("Lego", "Connection markers: " + std::to_string(cc.points.size()));
 	}
 
 } // namespace bagel

@@ -41,6 +41,12 @@ namespace bagel::ldraw {
 	int BakeResult::femaleCount() const {
 		int n = 0; for (auto& c : connections) if (c.type == ConnType::Female) ++n; return n;
 	}
+	int BakeResult::pinCount() const {
+		int n = 0; for (auto& c : connections) if (c.type == ConnType::Pin) ++n; return n;
+	}
+	int BakeResult::axleCount() const {
+		int n = 0; for (auto& c : connections) if (c.type == ConnType::Axle) ++n; return n;
+	}
 
 	bool Library::resolve(const std::string& normName, std::string& outPath) const {
 		namespace fs = std::filesystem;
@@ -136,19 +142,32 @@ namespace bagel::ldraw {
 			}
 		}
 
-		// Classify stud-family primitives from the title line (see p/stud*.dat headers):
-		//   "Stud Tube ..." -> Female (underside receptacle)
-		//   "Stud ..." (not Tube, not Group) -> Male (raised stud)
+		// Classify connector primitives from the title line. A connection point is
+		// recorded wherever a part references one of these (see bakeInto). The hole
+		// primitives nest sub-pieces titled "Peg Hole ..." (beamhole/connhole embed
+		// peghole); classifying by the DISTINCT composite phrases below skips those
+		// nested pieces, so a 1x5 beam reports 5 holes rather than double-counting.
+		//   "Stud Tube ..."          -> Female  (underside receptacle)
+		//   "Stud ..." (not Group)   -> Male    (raised stud)
+		//   "Technic Axle Hole ..."  -> Axle    (cross-shaped, takes an axle)
+		//   "... Beam Hole ..." /
+		//   "... Connector Hole ..." -> Pin     (round, takes a pin)
 		const std::string b = toLower(basename);
 		if (b.rfind("stud", 0) == 0) {
 			if (contains(title, "Tube")) { file->isConnector = true; file->connType = ConnType::Female; }
 			else if (!contains(title, "Group")) { file->isConnector = true; file->connType = ConnType::Male; }
 		}
+		else if (contains(title, "Axle Hole")) {
+			file->isConnector = true; file->connType = ConnType::Axle;
+		}
+		else if (contains(title, "Beam Hole") || contains(title, "Connector Hole")) {
+			file->isConnector = true; file->connType = ConnType::Pin;
+		}
 		return file;
 	}
 
 	void Library::bakeInto(const std::string& normName, const glm::mat4& xf,
-	                       bool invert, BakeResult& out, int depth) {
+	                       bool invert, BakeResult& out, int depth, bool insideConnector) {
 		if (depth > 64) return; // cycle / runaway guard
 		const File* file = getFile(normName);
 		if (!file) { ++unresolved_; return; }
@@ -168,7 +187,9 @@ namespace bagel::ldraw {
 			case Cmd::Ref: {
 				const glm::mat4 childXf = xf * c.xf;
 				const File* child = getFile(c.ref);
-				if (child && child->isConnector) {
+				const bool childIsConn = child && child->isConnector;
+				// Record only the outermost connector in a nested chain (see insideConnector).
+				if (childIsConn && !insideConnector) {
 					ConnectionPoint cp;
 					cp.pos = glm::vec3(childXf[3]);
 					cp.orient = glm::mat3(childXf);
@@ -176,7 +197,8 @@ namespace bagel::ldraw {
 					cp.prim = child->basename;
 					out.connections.push_back(std::move(cp));
 				}
-				bakeInto(c.ref, childXf, invert ^ invertNext, out, depth + 1);
+				bakeInto(c.ref, childXf, invert ^ invertNext, out, depth + 1,
+				         insideConnector || childIsConn);
 				invertNext = false;
 				break;
 			}
@@ -226,7 +248,7 @@ namespace bagel::ldraw {
 		std::string n = normalize(name);
 		if (n.size() < 4 || n.substr(n.size() - 4) != ".dat") n += ".dat";
 		BakeResult out;
-		bakeInto(n, glm::mat4(1.0f), false, out, 0);
+		bakeInto(n, glm::mat4(1.0f), false, out, 0, false);
 		return out;
 	}
 

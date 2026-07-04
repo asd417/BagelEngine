@@ -581,6 +581,7 @@ namespace bagel
 				if (drawBBox)
 					wireframeRenderSystem.renderBBoxes(frameInfo);
 				gizmoRenderSystem.render(frameInfo, poseGizmo);
+				gizmoRenderSystem.renderConnections(frameInfo); // LEGO stud/hole markers
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), primaryCommandBuffer);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);

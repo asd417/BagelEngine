@@ -2,6 +2,8 @@
 #include "wireframe_render_system.hpp"   // WireframePushConstantData (shared layout)
 #include "../bagel_engine_device.hpp"
 #include "../bagel_model.hpp"            // BGLModel::Vertex
+#include "../components/transform.hpp"   // TransformComponent
+#include "../lego/lego_connection_component.hpp"
 
 #include <vulkan/vulkan.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -144,6 +146,56 @@ namespace bagel {
 		VkDeviceSize zero = 0;
 		vkCmdBindVertexBuffers(cmd, 0, 1, &vb, &zero);
 		vkCmdDraw(cmd, vertCount, 1, 0, 0);
+	}
+
+	void GizmoRenderSystem::renderConnections(FrameInfo& frameInfo)
+	{
+		auto view = frameInfo.registry.view<LegoConnectionComponent, TransformComponent>();
+		if (view.begin() == view.end()) return;
+
+		bglPipeline->bind(frameInfo.commandBuffer);
+		vkCmdBindDescriptorSets(frameInfo.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipelineLayout, 0, 1, &frameInfo.globalDescriptorSets, 0, nullptr);
+
+		// Marker color per connector type (see LegoConnectionPoint::type).
+		const glm::vec4 typeColor[4] = {
+			{0.2f, 1.0f, 0.3f, 1.0f}, // 0 male stud   -> green
+			{1.0f, 0.3f, 0.3f, 1.0f}, // 1 female tube -> red
+			{0.3f, 0.7f, 1.0f, 1.0f}, // 2 pin hole    -> cyan
+			{1.0f, 0.6f, 0.1f, 1.0f}, // 3 axle hole   -> orange
+		};
+
+		for (auto entity : view) {
+			const auto& cc = view.get<LegoConnectionComponent>(entity);
+			const glm::mat4 world = view.get<TransformComponent>(entity).computeMat4();
+
+			for (const LegoConnectionPoint& p : cc.points) {
+				// Orthonormal frame from the connector basis: axis = local +Y, u/v span the
+				// perpendicular plane. Built in model-local space, then `world` maps it exactly
+				// like the mesh (same scale/rotation), so markers track the part.
+				glm::vec3 axis = glm::normalize(p.orient[1]);
+				glm::vec3 u = p.orient[0] - axis * glm::dot(p.orient[0], axis);
+				if (glm::length(u) < 1e-5f) u = glm::vec3(1, 0, 0);
+				u = glm::normalize(u);
+				glm::vec3 v = glm::cross(axis, u);
+
+				const glm::vec4 col = typeColor[(p.type >= 0 && p.type < 4) ? p.type : 0];
+
+				// Ring in the u/v plane (perpendicular to the axis), radius = p.radius.
+				glm::mat4 ringLocal{ 1.0f };
+				ringLocal[0] = glm::vec4(u * p.radius, 0.0f);
+				ringLocal[1] = glm::vec4(v * p.radius, 0.0f);
+				ringLocal[2] = glm::vec4(axis, 0.0f);
+				ringLocal[3] = glm::vec4(p.pos, 1.0f);
+				drawMesh(frameInfo.commandBuffer, ringVB, ringCount, world * ringLocal, 1.0f, col);
+
+				// Short line from the point along +axis so the opening direction is visible.
+				glm::mat4 segLocal{ 1.0f };
+				segLocal[0] = glm::vec4(axis * (p.radius * 2.5f), 0.0f);
+				segLocal[3] = glm::vec4(p.pos, 1.0f);
+				drawMesh(frameInfo.commandBuffer, segVB, segCount, world * segLocal, 1.0f, col);
+			}
+		}
 	}
 
 	void GizmoRenderSystem::render(FrameInfo& frameInfo, const PoseGizmo& gizmo)
