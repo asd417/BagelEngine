@@ -33,19 +33,50 @@ namespace bagel::ldraw {
 		bool contains(const std::string& hay, const char* needle) {
 			return hay.find(needle) != std::string::npos;
 		}
+		// Click-stop count from a Click-Lock-Hinge title, e.g.
+		// "... Dual Finger 7-Position ..." -> 7. 0 if the title has no "N-Position".
+		int parsePositionCount(const std::string& title) {
+			size_t p = title.find("-Position");
+			if (p == std::string::npos) return 0;
+			size_t s = p;   // walk back over the digits immediately before the '-'
+			while (s > 0 && std::isdigit(static_cast<unsigned char>(title[s - 1]))) --s;
+			if (s == p) return 0;
+			return std::stoi(title.substr(s, p - s));
+		}
+	}
+
+	void assignAxisGroups(std::vector<ConnectionPoint>& conns) {
+		constexpr float PARALLEL = 0.9995f;  // |dot| above this counts as parallel axes
+		constexpr float LINE_EPS = 0.1f;     // LDU: perpendicular distance to the shared line
+		                                     // (the nearest non-collinear case is ~20 LDU away)
+		std::vector<size_t> repr;            // one representative connector index per group
+		for (size_t i = 0; i < conns.size(); ++i) {
+			const glm::vec3 axisI = glm::normalize(glm::vec3(conns[i].orient[1]));
+			int g = -1;
+			for (size_t k = 0; k < repr.size(); ++k) {
+				const auto& rc = conns[repr[k]];
+				const glm::vec3 axisR = glm::normalize(glm::vec3(rc.orient[1]));
+				if (glm::abs(glm::dot(axisI, axisR)) < PARALLEL) continue;              // not parallel
+				if (glm::length(glm::cross(conns[i].pos - rc.pos, axisR)) > LINE_EPS) continue; // off-line
+				g = static_cast<int>(k);
+				break;
+			}
+			if (g < 0) { g = static_cast<int>(repr.size()); repr.push_back(i); }
+			conns[i].axisGroup = g;
+		}
 	}
 
 	int BakeResult::maleCount() const {
-		int n = 0; for (auto& c : connections) if (c.type == ConnType::Male) ++n; return n;
+		int n = 0; for (auto& c : connections) if (c.type == ConnectorType::Male) ++n; return n;
 	}
 	int BakeResult::femaleCount() const {
-		int n = 0; for (auto& c : connections) if (c.type == ConnType::Female) ++n; return n;
+		int n = 0; for (auto& c : connections) if (c.type == ConnectorType::Female) ++n; return n;
 	}
 	int BakeResult::pinCount() const {
-		int n = 0; for (auto& c : connections) if (c.type == ConnType::Pin) ++n; return n;
+		int n = 0; for (auto& c : connections) if (c.type == ConnectorType::Pin) ++n; return n;
 	}
 	int BakeResult::axleCount() const {
-		int n = 0; for (auto& c : connections) if (c.type == ConnType::Axle) ++n; return n;
+		int n = 0; for (auto& c : connections) if (c.type == ConnectorType::Axle) ++n; return n;
 	}
 
 	bool Library::resolve(const std::string& normName, std::string& outPath) const {
@@ -152,16 +183,40 @@ namespace bagel::ldraw {
 		//   "Technic Axle Hole ..."  -> Axle    (cross-shaped, takes an axle)
 		//   "... Beam Hole ..." /
 		//   "... Connector Hole ..." -> Pin     (round, takes a pin)
+		//   "joint8ball*"            -> Ball   / Joint8      (small towball, male)
+		//   "joint8socket*"          -> Socket / Joint8      (small towball socket, female)
+		//   "clh*" "Click Lock Hinge ... Single/Dual Finger [N-Position]"
+		//                            -> Male/Female / ClickHinge (poseable, `detents` stops)
+		// NOTE: the large Constraction/Bionicle balls and the raw-modeled Technic rotation
+		// joints have NO dedicated primitive (they are built from generic sphere/cylinder
+		// geometry), so they are NOT detected here -- see the per-part fallback in the design
+		// note (src/lego/CONNECTORS.md).
 		const std::string b = toLower(basename);
 		if (b.rfind("stud", 0) == 0) {
-			if (contains(title, "Tube")) { file->isConnector = true; file->connType = ConnType::Female; }
-			else if (!contains(title, "Group")) { file->isConnector = true; file->connType = ConnType::Male; }
+			if (contains(title, "Tube")) { file->isConnector = true; file->connType = ConnectorType::Female; }
+			else if (!contains(title, "Group")) { file->isConnector = true; file->connType = ConnectorType::Male; }
 		}
 		else if (contains(title, "Axle Hole")) {
-			file->isConnector = true; file->connType = ConnType::Axle;
+			file->isConnector = true; file->connType = ConnectorType::Axle;
 		}
 		else if (contains(title, "Beam Hole") || contains(title, "Connector Hole")) {
-			file->isConnector = true; file->connType = ConnType::Pin;
+			file->isConnector = true; file->connType = ConnectorType::Pin;
+		}
+		else if (b.rfind("joint8ball", 0) == 0) {
+			file->isConnector = true; file->connType = ConnectorType::Ball;   file->connFamily = ConnFamily::Joint8;
+		}
+		else if (b.rfind("joint8socket", 0) == 0) {
+			file->isConnector = true; file->connType = ConnectorType::Socket; file->connFamily = ConnFamily::Joint8;
+		}
+		else if (b.rfind("clh", 0) == 0) {
+			// Click-lock hinge finger. Single finger = one half (Male), dual finger = the
+			// other (Female); they share a hinge axis and click into `detents` stops. The
+			// stop count "N-Position" is authored on the dual-finger titles (the single
+			// finger inherits it from its mate at connection time).
+			file->isConnector = true;
+			file->connFamily = ConnFamily::ClickHinge;
+			file->connType = contains(title, "Dual") ? ConnectorType::Female : ConnectorType::Male;
+			file->connDetents = parsePositionCount(title);   // 0 if the title omits "N-Position"
 		}
 		return file;
 	}
@@ -194,6 +249,8 @@ namespace bagel::ldraw {
 					cp.pos = glm::vec3(childXf[3]);
 					cp.orient = glm::mat3(childXf);
 					cp.type = child->connType;
+					cp.family = child->connFamily;
+					cp.detents = child->connDetents;
 					cp.prim = child->basename;
 					out.connections.push_back(std::move(cp));
 				}

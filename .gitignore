@@ -369,6 +369,8 @@ Dependencies/xatlas/
 
 # LDraw parts library, extracted from complete.zip; reference data, not tracked
 lego/ldraw/
-
+lego/baked/
 # Standalone build scratch for the lego parser (g++ objects/exes)
 src/lego/.tmp/
+# CoACD Python venv for the collision baker (lego/setup_coacd.*)
+lego/.venv/

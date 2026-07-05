@@ -10,6 +10,8 @@
 //
 // Units: 1 LDU = 0.4 mm. Stud pitch = 20 LDU, brick = 24 LDU tall, plate = 8 LDU.
 
+#include "connector_types.hpp"   // shared ConnectorType / ConnFamily / MateType / JointKind
+
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -22,21 +24,27 @@
 
 namespace bagel::ldraw {
 
-	// What kind of LEGO connector a primitive represents.
-	//   Male   = raised stud on top.
-	//   Female = underside tube/receptacle a stud mates into.
-	//   Pin    = Technic round pin/connector hole (beam hole, connector hole).
-	//   Axle   = Technic cross-shaped axle hole.
-	enum class ConnType { Male, Female, Pin, Axle };
-
 	// A single connection point in part-local space (LDU). `orient` is the primitive's
 	// accumulated 3x3 basis: its +Y column is the stud axis (which way the stud faces).
 	struct ConnectionPoint {
 		glm::vec3   pos{ 0.0f };
 		glm::mat3   orient{ 1.0f };
-		ConnType    type = ConnType::Male;
+		ConnectorType    type = ConnectorType::Male;
+		ConnFamily  family = ConnFamily::None;   // mechanical family (mating + joint model)
+		// Part-local id grouping connectors that share one rotation-axis line (parallel
+		// axes lying on a common line). A long axle/pin through collinear holes keeps that
+		// group's hinge; offset-parallel connectors (a brick's studs) get separate ids so
+		// the joint reads rigid. Assigned by the offline baker; -1 when not baked.
+		int         axisGroup = -1;
+		int         detents = 0;   // ClickHinge: number of click-stops (from "N-Position"); else 0
 		std::string prim;   // primitive that produced it, e.g. "stud.dat"
 	};
+
+	// Assign ConnectionPoint::axisGroup over a part's connectors: connectors whose axes are
+	// parallel AND lie on a common line get the same group id (0..N-1). Lets the joint resolver
+	// tell a collinear axle/pin hinge (one group) from an offset-parallel rigid set (many).
+	// Group ids are part-local; idempotent, so it is safe on hand-authored connector lists too.
+	void assignAxisGroups(std::vector<ConnectionPoint>& conns);
 
 	// Flattened, transformed geometry. positions/normals are parallel; indices are
 	// 3-per-triangle. Not welded (the engine-side loader can weld/index later).
@@ -82,7 +90,9 @@ namespace bagel::ldraw {
 			bool ccw = true;        // BFC winding default (true unless "BFC ... CW")
 			// Connection classification of THIS file, if it is a stud primitive.
 			bool isConnector = false;
-			ConnType connType = ConnType::Male;
+			ConnectorType connType = ConnectorType::Male;
+			ConnFamily connFamily = ConnFamily::None;
+			int connDetents = 0;    // ClickHinge click-stop count, else 0
 			std::string basename;   // e.g. "stud.dat"
 		};
 

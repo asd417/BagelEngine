@@ -4,6 +4,7 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/src",
+                "${workspaceFolder}/src/lego",
                 "${workspaceFolder}/src/render_systems",
                 "${workspaceFolder}/src/physics",
                 "${workspaceFolder}/src/math",

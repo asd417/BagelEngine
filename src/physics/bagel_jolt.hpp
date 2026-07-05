@@ -13,6 +13,8 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
+#include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
 
@@ -247,6 +249,12 @@ namespace bagel {
 		void RemoveAllBodies();
 		void AddSphere(entt::entity ent, float radius, PhysicsBodyCreationInfo &info);
 		void AddBox(entt::entity ent, glm::vec3 halfExtent, PhysicsBodyCreationInfo& info);
+		// Convex-hull collider baked offline (lego/baked/collision/<part>.glb). Each inner
+		// vector is one hull's point cloud in body-local space; one hull -> ConvexHullShape,
+		// many -> a StaticCompoundShape of hulls. Points must already be in the entity's
+		// local/model scale (the caller scales the raw-LDU bake by the load scale).
+		void AddConvexHull(entt::entity ent, const std::vector<std::vector<glm::vec3>>& hulls,
+		                   PhysicsBodyCreationInfo& info);
 		void SetSimulationTimescale(float _s) { simTimeScale = _s; }
 		glm::vec3 GetGravity();
 		void SetGravity(glm::vec3 gravity);

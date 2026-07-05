@@ -180,6 +180,71 @@ namespace bagel {
 			jpc.bodyID = bodyInterface->CreateAndAddBody(boxSettings, activity);
 		}
 	}
+	void BGLJolt::AddConvexHull(entt::entity ent, const std::vector<std::vector<glm::vec3>>& hulls,
+	                            PhysicsBodyCreationInfo& info) {
+		// Build a Jolt convex hull per point cloud. One hull -> ConvexHullShape; several ->
+		// a StaticCompoundShape (Jolt requires >= 2 sub-shapes for a compound).
+		auto buildHull = [](const std::vector<glm::vec3>& pts) -> JPH::RefConst<JPH::Shape> {
+			JPH::Array<JPH::Vec3> jpts;
+			jpts.reserve(pts.size());
+			for (const glm::vec3& v : pts) jpts.push_back(JPH::Vec3(v.x, v.y, v.z));
+			JPH::ConvexHullShapeSettings settings(jpts, JPH::cDefaultConvexRadius);
+			JPH::ShapeSettings::ShapeResult res = settings.Create();
+			if (res.HasError()) {
+				CONSOLE->Log("Physics", std::string("convex hull build failed: ") + res.GetError().c_str());
+				return {};
+			}
+			return res.Get();
+		};
+
+		JPH::RefConst<JPH::Shape> shape;
+		if (hulls.size() == 1) {
+			shape = buildHull(hulls[0]);
+		}
+		else if (hulls.size() > 1) {
+			JPH::StaticCompoundShapeSettings comp;
+			int added = 0;
+			for (const auto& h : hulls) {
+				JPH::RefConst<JPH::Shape> sub = buildHull(h);
+				if (sub == nullptr) continue;
+				comp.AddShape(JPH::Vec3::sZero(), JPH::Quat::sIdentity(), sub.GetPtr());
+				++added;
+			}
+			if (added >= 2) {
+				JPH::ShapeSettings::ShapeResult res = comp.Create();
+				if (!res.HasError()) shape = res.Get();
+				else CONSOLE->Log("Physics", std::string("compound build failed: ") + res.GetError().c_str());
+			}
+			else if (added == 1) {
+				shape = buildHull(hulls[0]);   // degenerate compound -> fall back to a single hull
+			}
+		}
+		if (shape == nullptr) return;   // nothing valid to add
+
+		JPH::AABox b = shape->GetLocalBounds();
+		CONSOLE->Log("Physics", "convex collider: " + std::to_string(hulls.size()) + " hull(s), bounds ["
+			+ std::to_string(b.mMin.GetX()) + "," + std::to_string(b.mMin.GetY()) + "," + std::to_string(b.mMin.GetZ()) + "] .. ["
+			+ std::to_string(b.mMax.GetX()) + "," + std::to_string(b.mMax.GetY()) + "," + std::to_string(b.mMax.GetZ()) + "]");
+
+		JPH::EActivation activity = info.activate ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
+		// Baked shape (not settings) so it serializes via BodyCreationSettings::SaveWithChildren.
+		JPH::BodyCreationSettings bodySettings(shape.GetPtr(),
+			JPH::RVec3(info.pos.x, info.pos.y, info.pos.z),
+			JPH::Quat::sEulerAngles({ info.rot.x, info.rot.y, info.rot.z }),
+			(JPH::EMotionType)info.physicsType, info.layer);
+
+		if (info.physicsType == PhysicsType::KINEMATIC) {
+			auto& jpc = registry.emplace<bagel::JoltKinematicComponent>(ent);
+			jpc.settings = bodySettings;
+			jpc.bodyID = bodyInterface->CreateAndAddBody(bodySettings, activity);
+		}
+		else {
+			auto& jpc = registry.emplace<bagel::JoltPhysicsComponent>(ent);
+			jpc.settings = bodySettings;
+			jpc.bodyID = bodyInterface->CreateAndAddBody(bodySettings, activity);
+		}
+	}
+
 	glm::vec3 BGLJolt::GetGravity()
 	{
 		JPH::Vec3 dir = physicsSystem.GetGravity();

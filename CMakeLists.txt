@@ -77,6 +77,8 @@ file(GLOB PHYSICS 	"${PROJECT_SOURCE_DIR}/src/physics/*.cpp" "${PROJECT_SOURCE_D
 file(GLOB MATH		"${PROJECT_SOURCE_DIR}/src/math/*.cpp" "${PROJECT_SOURCE_DIR}/src/math/*.hpp")
 file(GLOB MODEL_LOADERS "${PROJECT_SOURCE_DIR}/src/model_loaders/*.cpp" "${PROJECT_SOURCE_DIR}/src/model_loaders/*.hpp")
 file(GLOB LEGO		"${PROJECT_SOURCE_DIR}/src/lego/*.cpp" "${PROJECT_SOURCE_DIR}/src/lego/*.hpp")
+# NOTE: the standalone baker / thumbnail tool lives in src/lego/partsParser/. This
+# GLOB is non-recursive, so that subfolder's main() is not pulled into the engine.
 file(GLOB ANIMATION 	"${PROJECT_SOURCE_DIR}/src/animation/*.cpp" "${PROJECT_SOURCE_DIR}/src/animation/*.hpp")
 file(GLOB SMAA		"${PROJECT_SOURCE_DIR}/src/smaa/*.cpp" "${PROJECT_SOURCE_DIR}/src/smaa/*.hpp")
 file(GLOB COMPONENTS	"${PROJECT_SOURCE_DIR}/src/components/*.cpp" "${PROJECT_SOURCE_DIR}/src/components/*.hpp")

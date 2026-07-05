@@ -6,6 +6,8 @@
 #include "bagel_imgui.hpp"						// ImGui + ConsoleApp (CONSOLE)
 #include "model_loaders/bagel_model_loader.hpp" // BGLModel::Vertex (planet wire upload)
 #include "lego/ldraw_library.hpp"                // ldraw::Library (connection-point bake)
+#include "lego/baked_connectors.hpp"             // ldraw::BakedConnectors (offline connector cache)
+#include "lego/baked_collision.hpp"              // ldraw::BakedCollision (offline convex-hull cache)
 #include "lego/lego_connection_component.hpp"    // LegoConnectionComponent (gizmo markers)
 
 #include <iostream>
@@ -413,19 +415,34 @@ namespace bagel
 		const char *part = "32316.dat";
 		builder.buildComponent(entity, part, settings);
 
-		// Bake once more to pull the detected connection points (studs/holes) and store them
-		// in model-local space (raw LDU * loadScale, matching the vertex buffer) so the gizmo
-		// pass can overlay a marker at each. Cheap for one part; keeps the loader decoupled.
-		ldraw::Library lib(util::enginePath("/lego/ldraw"));
-		ldraw::BakeResult baked = lib.bake(part);
+		// Pull the detected connection points (studs/holes) and store them in model-local
+		// space (raw LDU * loadScale, matching the vertex buffer) so the gizmo pass can
+		// overlay a marker at each. Prefer the offline bake (lego/baked/connections/<part>.conn,
+		// from partsParser) and only fall back to a live recursive re-bake if the
+		// file is missing or the part has no baked entry.
+		static ldraw::BakedConnectors bakedCache = [] {
+			ldraw::BakedConnectors c;
+			c.setDir(util::enginePath("/lego/baked/connections"));
+			return c;
+		}();
+
+		std::vector<ldraw::ConnectionPoint> liveBake;                // holds fallback result, if used
+		const std::vector<ldraw::ConnectionPoint> *conns = bakedCache.find(part);
+		if (!conns) {
+			ldraw::Library lib(util::enginePath("/lego/ldraw"));
+			liveBake = std::move(lib.bake(part).connections);
+			conns = &liveBake;
+			CONSOLE->Log("Lego", std::string("Connector cache miss for ") + part + " - re-baked live");
+		}
+
 		auto &cc = registry.emplace<LegoConnectionComponent>(entity);
-		auto radiusFor = [](ldraw::ConnType t) {
+		auto radiusFor = [](ldraw::ConnectorType t) {
 			switch (t) {
-			case ldraw::ConnType::Axle: return 5.0f; // cross hole, a touch tighter
+			case ldraw::ConnectorType::Axle: return 5.0f; // cross hole, a touch tighter
 			default:                    return 6.0f; // stud / tube / pin ~ 6 LDU
 			}
 		};
-		for (const ldraw::ConnectionPoint &c : baked.connections) {
+		for (const ldraw::ConnectionPoint &c : *conns) {
 			LegoConnectionPoint p;
 			p.pos    = c.pos * settings.scale;
 			p.orient = c.orient;
@@ -434,6 +451,36 @@ namespace bagel
 			cc.points.push_back(p);
 		}
 		CONSOLE->Log("Lego", "Connection markers: " + std::to_string(cc.points.size()));
+
+		// Attach the offline-baked convex-hull collider (lego/baked/collision/<part>.glb).
+		// Points are stored in raw LDU (studs-down, like the render mesh pre-transform), so
+		// scale them by the same load scale; the studs-up 180° flip lives in the entity's
+		// TransformComponent rotation, which we hand to Jolt as the body rotation.
+		static ldraw::BakedCollision collisionCache = [] {
+			ldraw::BakedCollision c;
+			c.setDir(util::enginePath("/lego/baked/collision"));
+			return c;
+		}();
+		if (const auto *hulls = collisionCache.find(part)) {
+			std::vector<std::vector<glm::vec3>> scaled;
+			scaled.reserve(hulls->size());
+			for (const auto &h : *hulls) {
+				std::vector<glm::vec3> s;
+				s.reserve(h.size());
+				for (const glm::vec3 &v : h) s.push_back(v * settings.scale);
+				scaled.push_back(std::move(s));
+			}
+			BGLJolt::PhysicsBodyCreationInfo info{};
+			info.pos = tc.getWorldTranslation();
+			info.rot = tc.getWorldRotation();
+			info.physicsType = PhysicsType::STATIC;      // in place for now; flip to DYNAMIC in real scenes
+			info.activate = false;
+			info.layer = PhysicsLayers::NON_MOVING;
+			BGLJolt::GetInstance()->AddConvexHull(entity, scaled, info);
+			CONSOLE->Log("Lego", "Collision hulls: " + std::to_string(scaled.size()));
+		} else {
+			CONSOLE->Log("Lego", std::string("No baked collision for ") + part);
+		}
 	}
 
 } // namespace bagel
