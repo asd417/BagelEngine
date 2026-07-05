@@ -42,9 +42,9 @@ namespace bagel {
 
 		auto group = registry.view<TransformComponent, ModelComponent, PlanetComponent>();
 		for (auto [entity, transform, model, planet] : group.each()) {
-			if (model.vertexBuffer == VK_NULL_HANDLE || model.vertexCount == 0) continue;
+			if (model.mesh().vertexBuffer == VK_NULL_HANDLE || model.mesh().vertexCount == 0) continue;
 
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
 
 			PlanetGBufferPushConstantData push{};
 			push.modelMatrix  = transform.getMat4();

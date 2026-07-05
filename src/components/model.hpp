@@ -37,11 +37,15 @@ namespace bagel {
 		std::string emission;
 	};
 
-	struct ModelComponent {
+	// A loaded model's shared, immutable-after-build data: GPU geometry buffers, submesh
+	// layout, model-space bounds, and skin-table metadata. Owned by ModelCacheManager and
+	// keyed by source path — every entity that uses the same model points at ONE Model
+	// (flyweight), so the heavy data exists once and an entity's destruction never frees it.
+	// The cache frees these (vkDestroyBuffer) on scene unload / shutdown, GPU idle.
+	struct Model {
 		static constexpr uint32_t MAX_SUBMESHES = 128;
 		// A model has at most this many distinct materials, shared across its submeshes
-		// (each Submesh::materialIndex selects one). materialSources[] is sized to this,
-		// NOT to the submesh count.
+		// (each Submesh::materialIndex selects one).
 		static constexpr uint32_t MAX_MATERIALS = 8;
 
 		struct Submesh {
@@ -64,135 +68,116 @@ namespace bagel {
 			bool     empty() const { return b == e; }
 		};
 
-		// The model's build recipe (source path + scale/build options). This is the
-		// authored, serialized identity of the model; everything below it is rebuilt
-		// from this by the model loader. loadSettings.source replaces the old modelName.
+		// The build recipe that produced this model, and its identity (loadSettings.source is
+		// the cache key). Everything below is rebuilt from it by the model loader.
 		ModelLoadSettings loadSettings{};
+
 		Submesh  submeshes[MAX_SUBMESHES]{};
-		// Material recipe for GENERATED models, indexed by Submesh::materialIndex. The
-		// ModelComponent stores the image SOURCE PATHS, not the loaded bindless handles —
-		// those are transient and live in the vertex buffer, re-baked by the loader on
-		// rehydrate. This array exists purely so a generated model's materials survive
-		// save/load. Empty/unused for OBJ/GLTF, whose materials come back from the asset.
-		// materialCount = number of valid leading slots. See MaterialSource.
-		bagel::MaterialSource materialSources[MAX_MATERIALS]{};
-		uint32_t materialCount = 0;
 		uint32_t submeshCount = 0;
 		// Submeshes are stored solid-first: [0, solidSubmeshCount) are solid/opaque and
-		// [solidSubmeshCount, submeshCount) are transparent. The loaders emit them in this
-		// order, so a single split index is enough to filter by transparency at draw time.
+		// [solidSubmeshCount, submeshCount) are transparent — one split index filters by
+		// transparency at draw time.
 		uint32_t solidSubmeshCount = 0;
 
-		// Skin table block (transient; rebuilt by the loader). The material for a draw is
+		// Skin table block (rebuilt by the loader). The material for a draw is
 		//   skinTable[ skinBase + skinIndex*numSlots + vertex.materialIndex(=local slot) ].
-		// skinBase/numSlots/numSkins describe the model's block (shared by deduped instances);
-		// skinIndex is this entity's selected skin (per-entity, serialized). Packed small:
-		// skinBase fits the table cap (<=65535), numSlots fits the vertex's uint16 slot, and
-		// 256 skins is plenty.
+		// These describe the model's block; skinIndex is per-entity (on ModelComponent).
 		uint16_t skinBase   = 0;
 		uint16_t numSlots   = 1;
 		uint8_t  numSkins   = 1;
-		uint8_t  skinIndex  = 0;
 
-		// Skeletal skinning (bone animation). isSkinned models are drawn by the dedicated
-		// SkinnedGBufferRenderSystem (per-entity, not buffered) and skipped by the static
-		// G-buffer/transparent passes. skinVertexBase is this model's base offset into the
+		// Skeletal skinning. isSkinned models are drawn by the dedicated AnimatedGBufferRenderSystem
+		// and skipped by the static passes. skinVertexBase is this model's base offset into the
 		// global per-vertex skin-influence SSBO; the shader reads v[skinVertexBase + gl_VertexIndex].
-		// The matching skeleton/clip state lives on a separate AnimationComponent.
 		bool     isSkinned      = false;
 		uint32_t skinVertexBase = 0;
 
-		// Switch this entity's skin. Instant (the next draw computes a new row base); ignored
-		// if out of range. numSkins/skinBase come from the model's "<model>.yaml" sidecar.
-		void setSkin(uint32_t i) { if (i < numSkins) skinIndex = static_cast<uint8_t>(i); }
-
 		glm::vec3 aabbMin{ 0.0f };
 		glm::vec3 aabbMax{ 0.0f };
-		bool frustumCull = true;
 
-		// Transient GPU handles — never serialized; rebuilt by the model loader on load.
-		// Default to VK_NULL_HANDLE so a default-constructed/half-loaded component is
-		// safe to destroy (vkDestroyBuffer/vkFreeMemory on null are no-ops).
+		// GPU handles — OWNED by this Model, freed in the destructor. Null-safe defaults so a
+		// half-built Model is safe to destroy (vkDestroyBuffer/vkFreeMemory on null are no-ops).
 		VkBuffer vertexBuffer = VK_NULL_HANDLE;
 		VkBuffer indexBuffer = VK_NULL_HANDLE;
 		VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
 		VkDeviceMemory indexMemory = VK_NULL_HANDLE;
-		void *mappedVB = nullptr; // host visible vertex buffer will be mapped here
-		void *mappedIB = nullptr; // host visible index buffer will be mapped here
+		void *mappedVB = nullptr; // host-visible vertex buffer mapped here (dynamic/deformable)
+		void *mappedIB = nullptr; // host-visible index buffer mapped here
 
 		uint32_t indexCount  = 0;
 		uint32_t vertexCount = 0;
 
-		// True if this component must destroy the Vk buffers above. Deduplicated models
-		// share one set of buffers — the original owns them (ownsBuffers=true), copies
-		// borrow (false). Replaces the old `origin` self-pointer, which broke whenever
-		// entt relocated the component (the `this`-identity comparison became stale).
-		bool ownsBuffers = true;
+		// Solid/opaque submeshes — drawn in the G-buffer (deferred) pass.
+		SubmeshRange solidSubmeshes() const { return { submeshes, submeshes + solidSubmeshCount }; }
+		// Transparent submeshes — drawn in the forward alpha-blended pass.
+		SubmeshRange transparentSubmeshes() const { return { submeshes + solidSubmeshCount, submeshes + submeshCount }; }
+		bool hasTransparent() const { return solidSubmeshCount < submeshCount; }
 
-		ModelComponent() = default;
-		// Move-only. entt relocates components (swap-and-pop on erase/clear) by moving;
-		// the move transfers buffer ownership and nulls the source so it frees nothing.
-		// Copying is forbidden: a shallow copy would duplicate ownership of the same Vk
-		// handles and double-free them on destruction (the original crash).
-		ModelComponent(const ModelComponent&) = delete;
-		ModelComponent& operator=(const ModelComponent&) = delete;
-		ModelComponent(ModelComponent&& o) noexcept { stealFrom(o); }
-		ModelComponent& operator=(ModelComponent&& o) noexcept {
-			if (this != &o) { destroyBuffers(); stealFrom(o); }
-			return *this;
+		// One Model per source, owned by the cache via unique_ptr — never copied or moved
+		// (that would alias or double-free the GPU handles). Destroying it frees the buffers.
+		Model() = default;
+		Model(const Model&) = delete;
+		Model& operator=(const Model&) = delete;
+		Model(Model&&) = delete;
+		Model& operator=(Model&&) = delete;
+		~Model() {
+			vkDestroyBuffer(BGLDevice::device(), vertexBuffer, nullptr);
+			vkDestroyBuffer(BGLDevice::device(), indexBuffer, nullptr);
+			vkFreeMemory(BGLDevice::device(), vertexMemory, nullptr);
+			vkFreeMemory(BGLDevice::device(), indexMemory, nullptr);
 		}
-		~ModelComponent() { destroyBuffers(); }
+	};
 
-	private:
-		void destroyBuffers() noexcept {
-			if (ownsBuffers) {
-				vkDestroyBuffer(BGLDevice::device(), vertexBuffer, nullptr);
-				vkDestroyBuffer(BGLDevice::device(), indexBuffer, nullptr);
-				vkFreeMemory(BGLDevice::device(), vertexMemory, nullptr);
-				vkFreeMemory(BGLDevice::device(), indexMemory, nullptr);
-			}
-			vertexBuffer = indexBuffer = VK_NULL_HANDLE;
-			vertexMemory = indexMemory = VK_NULL_HANDLE;
-			mappedVB = mappedIB = nullptr;
-			ownsBuffers = false;
-		}
-		void stealFrom(ModelComponent& o) noexcept {
-			loadSettings = std::move(o.loadSettings);
-			for (uint32_t i = 0; i < MAX_SUBMESHES; ++i) submeshes[i] = o.submeshes[i];
-			for (uint32_t i = 0; i < MAX_MATERIALS; ++i) materialSources[i] = std::move(o.materialSources[i]);
-			materialCount = o.materialCount;
-			submeshCount = o.submeshCount; solidSubmeshCount = o.solidSubmeshCount;
-			skinBase = o.skinBase; numSlots = o.numSlots; numSkins = o.numSkins; skinIndex = o.skinIndex;
-			isSkinned = o.isSkinned; skinVertexBase = o.skinVertexBase;
-			aabbMin = o.aabbMin; aabbMax = o.aabbMax; frustumCull = o.frustumCull;
-			vertexBuffer = o.vertexBuffer; indexBuffer = o.indexBuffer;
-			vertexMemory = o.vertexMemory; indexMemory = o.indexMemory;
-			indexCount = o.indexCount; vertexCount = o.vertexCount;
-			ownsBuffers = o.ownsBuffers;
-			o.vertexBuffer = o.indexBuffer = VK_NULL_HANDLE;
-			o.vertexMemory = o.indexMemory = VK_NULL_HANDLE;
-			o.ownsBuffers = false;
-		}
-	public:
+	// Per-entity model instance: a light handle to a shared Model (owned by ModelCacheManager)
+	// plus this entity's per-instance state. Holds NO GPU resources, so destroying the entity
+	// frees nothing GPU-side and can never dangle another instance's buffers — the fix for the
+	// old owner/borrower double-free. `model` is resolved from the cache at build/load;
+	// loadSettings.source is the serialized identity used to re-resolve it.
+	struct ModelComponent {
+		// Compat aliases so existing `ModelComponent::Submesh` / `::MAX_SUBMESHES` keep working.
+		using Submesh      = Model::Submesh;
+		using SubmeshRange = Model::SubmeshRange;
+		static constexpr uint32_t MAX_SUBMESHES = Model::MAX_SUBMESHES;
+		static constexpr uint32_t MAX_MATERIALS = Model::MAX_MATERIALS;
+
+		// Shared model (buffers + submeshes + bounds + skin block). Owned by the cache; never
+		// freed here. Resolved by ModelComponentBuilder::buildComponent (or on map rehydrate).
+		Model* model = nullptr;
+
+		// The build recipe — serialized identity of this instance's model. loadSettings.source
+		// is the cache key used to (re)resolve `model` on load.
+		ModelLoadSettings loadSettings{};
+
+		// Material recipe for GENERATED models (source paths, indexed by Submesh::materialIndex),
+		// kept per-entity so a generated model's authored materials survive save/load. Empty for
+		// OBJ/GLTF/LDraw, whose materials come back from the asset. materialCount = valid slots.
+		bagel::MaterialSource materialSources[MAX_MATERIALS]{};
+		uint32_t materialCount = 0;
+
+		// This entity's selected skin row (per-instance) and frustum-cull toggle.
+		uint8_t skinIndex   = 0;
+		bool    frustumCull = true;
+
+		// Direct access to the shared model data (buffers, submeshes, bounds, skin block).
+		Model&       mesh()       { return *model; }
+		const Model& mesh() const { return *model; }
+
+		// Switch this entity's skin. Instant (next draw computes a new row base); ignored if
+		// out of range. numSkins/skinBase come from the model's "<model>.yaml" sidecar.
+		void setSkin(uint32_t i) { if (model && i < model->numSkins) skinIndex = static_cast<uint8_t>(i); }
 
 		// Record a generated model's material source for slot `materialIdx` (= a submesh's
-		// materialIndex). This is what gets serialized; the actual textures are loaded from
-		// these paths and baked into the vertex buffer by the loader on rehydrate.
+		// materialIndex). Serialized; the loader re-bakes textures from these paths on rehydrate.
 		void setMaterialSource(uint32_t materialIdx, const bagel::MaterialSource& src) {
 			assert(materialIdx < MAX_MATERIALS);
 			materialSources[materialIdx] = src;
 			if (materialIdx + 1 > materialCount) materialCount = materialIdx + 1;
 		}
 
-		// Solid/opaque submeshes — drawn in the G-buffer (deferred) pass.
-		SubmeshRange solidSubmeshes() const {
-			return { submeshes, submeshes + solidSubmeshCount };
-		}
-		// Transparent submeshes — drawn in the forward alpha-blended pass.
-		SubmeshRange transparentSubmeshes() const {
-			return { submeshes + solidSubmeshCount, submeshes + submeshCount };
-		}
-		bool hasTransparent() const { return solidSubmeshCount < submeshCount; }
+		// Submesh ranges + transparency test — forwarded from the shared model.
+		SubmeshRange solidSubmeshes()       const { return model->solidSubmeshes(); }
+		SubmeshRange transparentSubmeshes() const { return model->transparentSubmeshes(); }
+		bool         hasTransparent()       const { return model->hasTransparent(); }
 	};
 
 	struct WireframeComponent{
@@ -231,7 +216,7 @@ namespace bagel {
 	// Runtime skeletal-animation state for a skinned entity (paired with a skinned
 	// ModelComponent). The baked layout (paletteBase/jointCount/fps + per-clip frame table)
 	// is filled by the model builder at load; clip/time/playing are per-entity playback. The
-	// SkinnedGBufferRenderSystem advances `time` and resolves animBaseOffset() to push.
+	// AnimatedGBufferRenderSystem advances `time` and resolves animBaseOffset() to push.
 	struct AnimationComponent {
 		// Baked layout (shared identity of the model's animation set).
 		uint32_t paletteBase = 0; // matrix index of (clip 0, frame 0) in the global palette SSBO

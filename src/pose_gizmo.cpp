@@ -149,7 +149,7 @@ namespace bagel {
 		target = entt::null; selJoint = -1; selJoints.clear(); dragAxis = -1; hoverAxis = -1;
 		auto view = registry.view<TransformComponent, ModelComponent, AnimationComponent>();
 		for (auto [e, tc, mc, anim] : view.each()) {
-			if (!mc.isSkinned) continue;
+			if (!mc.mesh().isSkinned) continue;
 			target = e;
 			anim.manualPose = true; // draws now read the dynamic (edited) palette region
 			anim.poseDirty  = true;

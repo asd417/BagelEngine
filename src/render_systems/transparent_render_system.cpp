@@ -44,7 +44,7 @@ namespace bagel {
 		//sort by distance
 		std::vector<std::pair<float, entt::entity>> order;
 		for (auto [entity, transform, model] : view.each()) {
-			if (model.isSkinned) continue; // skinned transparent submeshes are out of scope for now
+			if (model.mesh().isSkinned) continue; // skinned transparent submeshes are out of scope for now
 			if (!model.hasTransparent()) continue;
 			// A planet's transparent submesh is its ocean — drawn by WaterRenderSystem (after this
 			// pass), so skip planets here to avoid drawing the ocean twice.
@@ -72,22 +72,22 @@ namespace bagel {
 			auto& transform = view.get<TransformComponent>(entity);
 			auto& model     = view.get<ModelComponent>(entity);
 
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
-			if (model.indexCount > 0)
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
+			if (model.mesh().indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.mesh().indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			TransparentPushConstantData push{};
 			push.UsesBufferedTransform = 0;
 			push.modelMatrix = transform.getMat4();
 			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
-			push.materialRowBase = model.skinBase + model.skinIndex * model.numSlots;
+			push.materialRowBase = model.mesh().skinBase + model.skinIndex * model.mesh().numSlots;
 			push.time = frameInfo.time;
 			vkCmdPushConstants(frameInfo.commandBuffer, pipelineLayout,
 				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 				0, sizeof(TransparentPushConstantData), &push);
 
 			for (const ModelComponent::Submesh& sm : model.transparentSubmeshes()) {
-				if (model.indexCount > 0)
+				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
 				else
 					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, 1, sm.firstVertex, 0);

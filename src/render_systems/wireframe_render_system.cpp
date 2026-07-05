@@ -243,15 +243,15 @@ namespace bagel {
 		// Single-transform models (the planet is one of these — keep it, that's the whole point).
 		auto singleView = registry.view<TransformComponent, ModelComponent>();
 		for (auto [entity, transform, model] : singleView.each()) {
-			if (model.isSkinned) continue; // skinned verts are bind-pose here; they'd misalign the deformed surface
-			if (model.vertexBuffer == VK_NULL_HANDLE || model.vertexCount == 0) continue;
+			if (model.mesh().isSkinned) continue; // skinned verts are bind-pose here; they'd misalign the deformed surface
+			if (model.mesh().vertexBuffer == VK_NULL_HANDLE || model.mesh().vertexCount == 0) continue;
 			glm::mat4 modelMatrix = transform.getMat4();
-			if (model.frustumCull && !frustum.testAABB(model.aabbMin, model.aabbMax, modelMatrix))
+			if (model.frustumCull && !frustum.testAABB(model.mesh().aabbMin, model.mesh().aabbMax, modelMatrix))
 				continue;
 
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
-			if (model.indexCount > 0)
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
+			if (model.mesh().indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.mesh().indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			WireframePushConstantData push{};
 			push.UsesBufferedTransform = 0;
@@ -261,7 +261,7 @@ namespace bagel {
 			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 			// Solid submeshes only — transparent ones (e.g. the planet ocean) keep their own look.
 			for (const ModelComponent::Submesh& sm : model.solidSubmeshes()) {
-				if (model.indexCount > 0)
+				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
 				else
 					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, 1, sm.firstVertex, 0);
@@ -271,12 +271,12 @@ namespace bagel {
 		// Instanced/buffered-transform models.
 		auto instancedView = registry.view<TransformArrayComponent, ModelComponent>();
 		for (auto [entity, transform, model] : instancedView.each()) {
-			if (model.isSkinned) continue;
-			if (model.vertexBuffer == VK_NULL_HANDLE || model.vertexCount == 0) continue;
+			if (model.mesh().isSkinned) continue;
+			if (model.mesh().vertexBuffer == VK_NULL_HANDLE || model.mesh().vertexCount == 0) continue;
 
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
-			if (model.indexCount > 0)
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
+			if (model.mesh().indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.mesh().indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			WireframePushConstantData push{};
 			push.UsesBufferedTransform   = transform.useBuffer() ? 1 : 0;
@@ -288,7 +288,7 @@ namespace bagel {
 			push.color = wireColor;
 			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 			for (const ModelComponent::Submesh& sm : model.solidSubmeshes()) {
-				if (model.indexCount > 0)
+				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, transform.count(), sm.firstIndex, 0, 0);
 				else
 					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, transform.count(), sm.firstVertex, 0);
@@ -313,10 +313,10 @@ namespace bagel {
 
 		auto view = registry.view<TransformComponent, ModelComponent>();
 		for (auto [entity, transformComp, modelComp] : view.each()) {
-			if (modelComp.aabbMin == modelComp.aabbMax) continue;
+			if (modelComp.mesh().aabbMin == modelComp.mesh().aabbMax) continue;
 
-			glm::vec3 center  = (modelComp.aabbMin + modelComp.aabbMax) * 0.5f;
-			glm::vec3 halfExt = (modelComp.aabbMax - modelComp.aabbMin) * 0.5f;
+			glm::vec3 center  = (modelComp.mesh().aabbMin + modelComp.mesh().aabbMax) * 0.5f;
+			glm::vec3 halfExt = (modelComp.mesh().aabbMax - modelComp.mesh().aabbMin) * 0.5f;
 
 			glm::mat4 bboxMat = transformComp.getMat4()
 				* glm::translate(glm::mat4{1.0f}, center)

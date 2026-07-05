@@ -28,9 +28,9 @@ namespace bagel {
 	// Deferred pass for skeletally-animated models. Draws into the SAME G-buffer as the static
 	// GBufferRenderSystem (shared render pass), per-entity (no buffered/instanced transform),
 	// reading the skin-influence + joint-palette SSBOs. Advances each entity's animation time.
-	class SkinnedGBufferRenderSystem : BGLRenderSystem {
+	class AnimatedGBufferRenderSystem : BGLRenderSystem {
 	public:
-		SkinnedGBufferRenderSystem(
+		AnimatedGBufferRenderSystem(
 			VkRenderPass renderPass,
 			std::vector<VkDescriptorSetLayout> setLayouts,
 			std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,

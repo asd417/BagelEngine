@@ -1,4 +1,4 @@
-#include "skinned_gbuffer_render_system.hpp"
+#include "animated_gbuffer_render_system.hpp"
 #include "../bagel_ecs_components.hpp"
 #include "../bagel_engine_device.hpp"
 #include "../bagel_util.hpp"
@@ -14,7 +14,7 @@
 
 namespace bagel {
 
-	SkinnedGBufferRenderSystem::SkinnedGBufferRenderSystem(
+	AnimatedGBufferRenderSystem::AnimatedGBufferRenderSystem(
 		VkRenderPass renderPass,
 		std::vector<VkDescriptorSetLayout> setLayouts,
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
@@ -31,7 +31,7 @@ namespace bagel {
 			BGLPipeline::setupGBufferPipeline);
 	}
 
-	void SkinnedGBufferRenderSystem::renderEntities(FrameInfo& frameInfo)
+	void AnimatedGBufferRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
 		Frustum frustum;
 		frustum.extractFromVP(frameInfo.camera.getProjection() * frameInfo.camera.getView());
@@ -52,22 +52,22 @@ namespace bagel {
 		// (before shadow + g-buffer) so both passes sample the same pose.
 		auto view = registry.view<TransformComponent, ModelComponent, AnimationComponent>();
 		for (auto [entity, transform, model, anim] : view.each()) {
-			if (!model.isSkinned) continue;
+			if (!model.mesh().isSkinned) continue;
 
 			glm::mat4 modelMatrix = transform.getMat4();
 			// NOTE: AABB cull skipped — the model-space AABB is the bind pose, not the deformed
 			// pose, so it can wrongly cull an animated mesh. A skinned-bounds pass is future work.
 
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
-			if (model.indexCount > 0)
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
+			if (model.mesh().indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.mesh().indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			SkinnedGBufferPushConstantData push{};
 			push.modelMatrix       = modelMatrix;
 			push.scale             = glm::vec4{ transform.getWorldScale(), 1.0f };
-			push.skinVertexBase    = model.skinVertexBase;
+			push.skinVertexBase    = model.mesh().skinVertexBase;
 			push.animBaseOffset    = anim.animBaseOffset();
-			push.materialRowBase   = model.skinBase + model.skinIndex * model.numSlots;
+			push.materialRowBase   = model.mesh().skinBase + model.skinIndex * model.mesh().numSlots;
 			push.fallbackAlbedoMap = frameInfo.fallbackAlbedoMap;
 			vkCmdPushConstants(frameInfo.commandBuffer, pipelineLayout,
 				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -75,7 +75,7 @@ namespace bagel {
 
 			// Solid submeshes only — transparent skinned submeshes are out of scope for now.
 			for (const ModelComponent::Submesh& sm : model.solidSubmeshes()) {
-				if (model.indexCount > 0)
+				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
 				else
 					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, 1, sm.firstVertex, 0);

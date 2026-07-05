@@ -26,6 +26,7 @@
 #include "bagel_buffer.hpp"
 #include "bagel_camera.hpp"
 #include "bagel_ecs_components.hpp"
+#include "bagel_model_cache.hpp"   // ModelCacheManager — free cached model buffers at shutdown
 #include "keyboard_movement_controller.hpp"
 #include "bagel_console_commands.hpp"
 #include "bagel_hierachy.hpp"
@@ -71,6 +72,11 @@ namespace bagel
 
 	Application::~Application()
 	{
+		// Free all cached model geometry while the VkDevice is still alive. By now the derived
+		// app's registry is destroyed, so every ModelComponent is already gone — and since those
+		// own no GPU resources, the buffers live only here. run()'s final vkDeviceWaitIdle left
+		// the GPU idle, so it's safe to destroy them.
+		ModelCacheManager::get().clear();
 		ImGui_ImplVulkan_Shutdown();
 		vkDestroyDescriptorPool(BGLDevice::device(), imguiPool, nullptr);
 	}
@@ -198,7 +204,7 @@ namespace bagel
 			descriptorManager,
 			registry};
 
-		SkinnedGBufferRenderSystem skinnedGBufferRenderSystem{
+		AnimatedGBufferRenderSystem animatedGBufferRenderSystem{
 			bglRenderer.getDeferredRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
@@ -263,7 +269,7 @@ namespace bagel
 			pipelineDescriptorSetLayouts,
 			descriptorManager};
 
-		SkinnedShadowRenderSystem skinnedShadowRenderSystem{
+		AnimatedShadowRenderSystem animatedShadowRenderSystem{
 			bglRenderer.getShadowMapRenderPass(),
 			pipelineDescriptorSetLayouts,
 			descriptorManager,
@@ -483,7 +489,7 @@ namespace bagel
 					{
 						bglRenderer.beginShadowMapPass(primaryCommandBuffer, ci);
 						shadowRenderSystem.renderShadowCasters(frameInfo, ci, ubo.directionalLight.lightSpaceMatrix[ci]);
-						skinnedShadowRenderSystem.renderShadowCasters(frameInfo, ci);
+						animatedShadowRenderSystem.renderShadowCasters(frameInfo, ci);
 						bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 					}
 					bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
@@ -492,7 +498,7 @@ namespace bagel
 				bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "gbuffer_fill");
 				bglRenderer.beginDeferredRenderPass(primaryCommandBuffer);
 				gBufferRenderSystem.renderEntities(frameInfo);
-				skinnedGBufferRenderSystem.renderEntities(frameInfo);
+				animatedGBufferRenderSystem.renderEntities(frameInfo);
 				planetGBufferRenderSystem.renderEntities(frameInfo);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
