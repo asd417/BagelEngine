@@ -24,9 +24,9 @@ namespace bagel {
 	// Renders skeletally-animated shadow casters into the shadow map with the SAME deformed
 	// pose the g-buffer pass uses, so the shadow silhouette tracks the animation instead of
 	// the bind pose. Runs alongside ShadowRenderSystem (which now skips skinned models).
-	class SkinnedShadowRenderSystem : BGLRenderSystem {
+	class AnimatedShadowRenderSystem : BGLRenderSystem {
 	public:
-		SkinnedShadowRenderSystem(
+		AnimatedShadowRenderSystem(
 			VkRenderPass renderPass,
 			std::vector<VkDescriptorSetLayout> setLayouts,
 			std::unique_ptr<BGLBindlessDescriptorManager> const& descriptorManager,

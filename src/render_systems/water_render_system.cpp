@@ -38,7 +38,7 @@ namespace bagel {
 		bool bound = false;
 		VkDeviceSize offsets[] = { 0 };
 		for (auto [entity, transform, model, planet] : view.each()) {
-			if (model.vertexBuffer == VK_NULL_HANDLE || model.vertexCount == 0) continue;
+			if (model.mesh().vertexBuffer == VK_NULL_HANDLE || model.mesh().vertexCount == 0) continue;
 			if (!model.hasTransparent()) continue; // mesh not rebuilt yet (no ocean submesh)
 
 			// Bind pipeline + global descriptor set lazily, only once a planet actually draws.
@@ -54,9 +54,9 @@ namespace bagel {
 				bound = true;
 			}
 
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
-			if (model.indexCount > 0)
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
+			if (model.mesh().indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.mesh().indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			WaterPushConstantData push{};
 			push.modelMatrix = transform.getMat4();
@@ -71,7 +71,7 @@ namespace bagel {
 
 			// Planet mesh is a non-indexed triangle soup; transparentSubmeshes() = the ocean.
 			for (const ModelComponent::Submesh& sm : model.transparentSubmeshes()) {
-				if (model.indexCount > 0)
+				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
 				else
 					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, 1, sm.firstVertex, 0);

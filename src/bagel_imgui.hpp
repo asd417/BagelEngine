@@ -73,9 +73,14 @@ namespace bagel {
 
         auto drawModel = [](const char* label, ModelComponent& m) {
             ImGui::Text("%s: \"%s\"", label, m.loadSettings.source.c_str());
-            ImGui::Text("  submeshes=%u  indexCount=%u  vertexCount=%u", m.submeshCount, m.indexCount, m.vertexCount);
-            ImGui::Text("  ownsBuffers=%s  frustumCull=%s  matSources=%d",
-                m.ownsBuffers ? "yes" : "no", m.frustumCull ? "yes" : "no", (int)m.materialCount);
+            if (m.model) {
+                const Model& g = m.mesh();   // shared, cache-owned geometry
+                ImGui::Text("  submeshes=%u  indexCount=%u  vertexCount=%u", g.submeshCount, g.indexCount, g.vertexCount);
+            } else {
+                ImGui::Text("  (model not resolved)");
+            }
+            ImGui::Text("  frustumCull=%s  matSources=%d",
+                m.frustumCull ? "yes" : "no", (int)m.materialCount);
         };
 
         for (auto entity : registry.storage<entt::entity>()) {

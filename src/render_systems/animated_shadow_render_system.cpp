@@ -1,4 +1,4 @@
-#include "skinned_shadow_render_system.hpp"
+#include "animated_shadow_render_system.hpp"
 #include "../bagel_ecs_components.hpp"
 #include "../bagel_engine_device.hpp"
 
@@ -11,7 +11,7 @@
 
 namespace bagel {
 
-	SkinnedShadowRenderSystem::SkinnedShadowRenderSystem(
+	AnimatedShadowRenderSystem::AnimatedShadowRenderSystem(
 		VkRenderPass renderPass,
 		std::vector<VkDescriptorSetLayout> setLayouts,
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
@@ -28,7 +28,7 @@ namespace bagel {
 			BGLPipeline::setupShadowMapPipeline);
 	}
 
-	void SkinnedShadowRenderSystem::renderShadowCasters(FrameInfo& frameInfo, uint32_t cascadeIndex)
+	void AnimatedShadowRenderSystem::renderShadowCasters(FrameInfo& frameInfo, uint32_t cascadeIndex)
 	{
 		bglPipeline->bind(frameInfo.commandBuffer);
 		vkCmdBindDescriptorSets(
@@ -45,15 +45,15 @@ namespace bagel {
 		// shadow pose matches the g-buffer pose exactly.
 		auto view = registry.view<TransformComponent, ModelComponent, AnimationComponent>();
 		for (auto [entity, transform, model, anim] : view.each()) {
-			if (!model.isSkinned) continue;
+			if (!model.mesh().isSkinned) continue;
 
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
-			if (model.indexCount > 0)
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
+			if (model.mesh().indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.mesh().indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			SkinnedShadowPushData push{};
 			push.modelMatrix    = transform.getMat4();
-			push.skinVertexBase = model.skinVertexBase;
+			push.skinVertexBase = model.mesh().skinVertexBase;
 			push.animBaseOffset = anim.animBaseOffset();
 			push.cascadeIndex   = cascadeIndex;
 			vkCmdPushConstants(frameInfo.commandBuffer, pipelineLayout,
@@ -61,9 +61,9 @@ namespace bagel {
 				0, sizeof(SkinnedShadowPushData), &push);
 
 			// Whole mesh casts (all submeshes, opaque depth).
-			for (uint32_t i = 0; i < model.submeshCount; i++) {
-				const ModelComponent::Submesh& sm = model.submeshes[i];
-				if (model.indexCount > 0)
+			for (uint32_t i = 0; i < model.mesh().submeshCount; i++) {
+				const Model::Submesh& sm = model.mesh().submeshes[i];
+				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
 				else
 					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, 1, sm.firstVertex, 0);

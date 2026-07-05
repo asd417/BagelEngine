@@ -56,29 +56,29 @@ namespace bagel {
 
 		auto singleGroup = registry.view<TransformComponent, ModelComponent>();
 		for (auto [entity, transform, model] : singleGroup.each()) {
-			if (model.isSkinned) continue; // skinned models are drawn by SkinnedGBufferRenderSystem
+			if (model.mesh().isSkinned) continue; // skinned models are drawn by AnimatedGBufferRenderSystem
 			if (registry.all_of<PlanetComponent>(entity)) continue; // drawn by PlanetGBufferRenderSystem
 			glm::mat4 modelMatrix = transform.getMat4();
-			if (model.frustumCull && !frustum.testAABB(model.aabbMin, model.aabbMax, modelMatrix))
+			if (model.frustumCull && !frustum.testAABB(model.mesh().aabbMin, model.mesh().aabbMax, modelMatrix))
 				continue;
 
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
-			if (model.indexCount > 0)
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
+			if (model.mesh().indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.mesh().indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			GBufferPushConstantData push{};
 			push.UsesBufferedTransform = 0;
 			push.modelMatrix = modelMatrix;
 			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
 			push.fallbackAlbedoMap = frameInfo.fallbackAlbedoMap;
-			push.materialRowBase = model.skinBase + model.skinIndex * model.numSlots;
+			push.materialRowBase = model.mesh().skinBase + model.skinIndex * model.mesh().numSlots;
 			SendGBufferPush(frameInfo.commandBuffer, pipelineLayout, push);
 			// Solid submeshes only — transparent ones are drawn later in the forward pass.
 			for (const ModelComponent::Submesh& sm : model.solidSubmeshes()) {
 				if (model.frustumCull && !frustum.testAABB(sm.aabbMin, sm.aabbMax, modelMatrix))
 					continue;
 
-				if (model.indexCount > 0)
+				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
 				else
 					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, 1, sm.firstVertex, 0);
@@ -87,10 +87,10 @@ namespace bagel {
 
 		auto instancedGroup = registry.view<TransformArrayComponent, ModelComponent>();
 		for (auto [entity, transform, model] : instancedGroup.each()) {
-			if (model.isSkinned) continue; // skinned models are not instanced/buffered
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
-			if (model.indexCount > 0)
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			if (model.mesh().isSkinned) continue; // skinned models are not instanced/buffered
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
+			if (model.mesh().indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.mesh().indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			GBufferPushConstantData push{};
 			push.UsesBufferedTransform   = transform.useBuffer() ? 1 : 0;
@@ -99,11 +99,11 @@ namespace bagel {
 				push.modelMatrix = transform.mat4(0);
 				push.scale       = glm::vec4{ transform.getWorldScale(0), 1.0f };
 			}
-			push.materialRowBase = model.skinBase + model.skinIndex * model.numSlots;
+			push.materialRowBase = model.mesh().skinBase + model.skinIndex * model.mesh().numSlots;
 			SendGBufferPush(frameInfo.commandBuffer, pipelineLayout, push);
 			// Solid submeshes only — transparent ones are drawn later in the forward pass.
 			for (const ModelComponent::Submesh& sm : model.solidSubmeshes()) {
-				if (model.indexCount > 0)
+				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, transform.count(), sm.firstIndex, 0, 0);
 				else
 					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, transform.count(), sm.firstVertex, 0);

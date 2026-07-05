@@ -59,13 +59,13 @@ namespace bagel {
 		// shadow.frag.
 		auto singleGroup = registry.view<TransformComponent, ModelComponent>();
 		for (auto [entity, transform, model] : singleGroup.each()) {
-			if (model.isSkinned) continue; // skinned casters use SkinnedShadowRenderSystem (animated pose)
+			if (model.mesh().isSkinned) continue; // skinned casters use AnimatedShadowRenderSystem (animated pose)
 			glm::mat4 modelMatrix = transform.getMat4();
-			if (model.frustumCull && !cascadeFrustum.testAABB(model.aabbMin, model.aabbMax, modelMatrix))
+			if (model.frustumCull && !cascadeFrustum.testAABB(model.mesh().aabbMin, model.mesh().aabbMax, modelMatrix))
 				continue;
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
-			if (model.indexCount > 0)
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
+			if (model.mesh().indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.mesh().indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			ShadowPushData push{};
 			push.UsesBufferedTransform = 0;
@@ -74,9 +74,9 @@ namespace bagel {
 			sendShadowPush(frameInfo.commandBuffer, pipelineLayout, push);
 
 			// Only opaque submeshes cast shadows; transparent ones (e.g. the planet's ocean) must not.
-			for (uint32_t i = 0; i < model.solidSubmeshCount; i++) {
-				const ModelComponent::Submesh& sm = model.submeshes[i];
-				if (model.indexCount > 0)
+			for (uint32_t i = 0; i < model.mesh().solidSubmeshCount; i++) {
+				const Model::Submesh& sm = model.mesh().submeshes[i];
+				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
 				else
 					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, 1, sm.firstVertex, 0);
@@ -86,10 +86,10 @@ namespace bagel {
 		// Instanced entities
 		auto instancedGroup = registry.view<TransformArrayComponent, ModelComponent>();
 		for (auto [entity, transform, model] : instancedGroup.each()) {
-			if (model.isSkinned) continue; // skinned models are not instanced/buffered
-			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.vertexBuffer, offsets);
-			if (model.indexCount > 0)
-				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			if (model.mesh().isSkinned) continue; // skinned models are not instanced/buffered
+			vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &model.mesh().vertexBuffer, offsets);
+			if (model.mesh().indexCount > 0)
+				vkCmdBindIndexBuffer(frameInfo.commandBuffer, model.mesh().indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			ShadowPushData push{};
 			push.UsesBufferedTransform   = transform.useBuffer() ? 1 : 0;
@@ -100,9 +100,9 @@ namespace bagel {
 			sendShadowPush(frameInfo.commandBuffer, pipelineLayout, push);
 
 			// Only opaque submeshes cast shadows; transparent ones (e.g. the planet's ocean) must not.
-			for (uint32_t i = 0; i < model.solidSubmeshCount; i++) {
-				const ModelComponent::Submesh& sm = model.submeshes[i];
-				if (model.indexCount > 0)
+			for (uint32_t i = 0; i < model.mesh().solidSubmeshCount; i++) {
+				const Model::Submesh& sm = model.mesh().submeshes[i];
+				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, transform.count(), sm.firstIndex, 0, 0);
 				else
 					vkCmdDraw(frameInfo.commandBuffer, sm.vertexCount, transform.count(), sm.firstVertex, 0);

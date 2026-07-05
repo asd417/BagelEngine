@@ -351,7 +351,7 @@ namespace bagel
 	}
 	// One textured/skinned entity at origin. Skinned models (glb with JOINTS_0/WEIGHTS_0) get
 	// their skin influences + baked palette uploaded and an AnimationComponent attached by the
-	// builder, so they render through the SkinnedGBufferRenderSystem automatically.
+	// builder, so they render through the AnimatedGBufferRenderSystem automatically.
 	void MyApplication::loadModel(const char *path, float scale, ModelLoadSettings settings)
 	{
 		ModelComponentBuilder builder(bglDevice, registry);
