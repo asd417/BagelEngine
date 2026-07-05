@@ -17,8 +17,8 @@ whose title we can match" — and where there isn't, the connector must be **han
 |---|---|---|---|---|
 | Stud (raised, on top) | `stud.dat`, `stud2.dat` | basename `stud*`, not "Tube"/"Group" | `Male` / `None` | ✅ |
 | Anti-stud tube (underside) | `stud3.dat`, `stud4.dat` | "Stud **Tube** …" | `Female` / `None` | ✅ |
-| Axle hole (cross) | `axlehole.dat`, `axlehol8.dat` | "Axle Hole" | `Axle` / `None` | ✅ |
-| Pin / connector hole (round) | `connhole.dat`, `beamhole.dat` | "Beam Hole" / "Connector Hole" | `Pin` / `None` | ✅ |
+| Axle hole (cross) | `axlehole.dat`, `axlehol8.dat` | "Axle Hole" | `AxleHole` / `None` | ✅ |
+| Pin / connector hole (round) | `connhole.dat`, `beamhole.dat` | "Beam Hole" / "Connector Hole" | `PinHole` / `None` | ✅ |
 | Small ball (towball) | `joint8ball.dat` | basename `joint8ball*` | `Ball` / `Joint8` | ✅ |
 | Small socket | `joint8socket*.dat` | basename `joint8socket*` | `Socket` / `Joint8` | ✅ |
 | Click-lock hinge finger | `clh*.dat` | basename `clh*`; "Single"/"Dual" Finger | `Male`/`Female` / `ClickHinge` | ✅ |

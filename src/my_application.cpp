@@ -25,6 +25,15 @@ namespace bagel
 	// (Map::rehydrate). Called from loadMapFromPath after Map::load.
 	MyApplication::MyApplication() : Application()
 	{
+		// Part picker: scan the placeable-part catalog and stand up the async thumbnail streamer
+		// + browser panel. (bglDevice is fully constructed by the base Application ctor above.)
+		const size_t nParts = partCatalog_.scan(util::enginePath(""));
+		CONSOLE->Log("Lego", "Part catalog: " + std::to_string(nParts) + " placeable parts");
+		thumbnailStreamer_ = std::make_unique<BGLTextureStreamer>(bglDevice, 512);
+		legoBrowser_ = std::make_unique<LegoBrowserPanel>(partCatalog_, *thumbnailStreamer_);
+		legoBrowser_->setOnPick([this](const ldraw::PartCatalogEntry &e) {
+			spawnLegoPart(e.name, glm::vec3(0.0f));   // place at world origin
+		});
 	}
 	void MyApplication::OnSceneLoad()
 	{
@@ -33,6 +42,10 @@ namespace bagel
 
 	void MyApplication::OnUpdate(float dt)
 	{
+		// Publish finished thumbnail uploads + retire evicted textures (once per frame, main thread).
+		if (thumbnailStreamer_)
+			thumbnailStreamer_->beginFrame();
+
 		if (hierarchyRoot == entt::null)
 			return;
 		stackAngle += dt;
@@ -230,6 +243,9 @@ namespace bagel
 		if (ImGui::Button("Lego"))
 			buildScene(6);
 
+		ImGui::SameLine();
+		ImGui::Checkbox("Part Browser", &showLegoBrowser_);
+
 		ImGui::Separator();
 		if (ImGui::Button("Save as map"))
 			saveCurrentMap();
@@ -250,6 +266,9 @@ namespace bagel
 		// terrain is mid-refactor (PlanetComponent no longer exposes a live terrain tree).
 
 		ImGui::End();
+
+		if (showLegoBrowser_ && legoBrowser_)
+			legoBrowser_->draw(&showLegoBrowser_);
 
 		DrawRegistryPanel(registry);
 	}
@@ -400,6 +419,17 @@ namespace bagel
 	// rotation keeps winding/normals correct — no negative-scale mirroring).
 	void MyApplication::loadLegoBrick()
 	{
+		// Smoke test: 32316 = "Technic Beam 5" (studless 1x5 stick with pin holes).
+		spawnLegoPart("32316", glm::vec3(0.0f));
+	}
+
+	// Spawn one LDraw part as a new entity at `pos`. settings.scale bakes the raw LDU geometry
+	// (1 LDU = 0.4 mm) down to engine size at load time. LDraw is -Y up, so a rigid 180° flip
+	// about X puts the studs up (a pure rotation keeps winding/normals correct). Attaches the
+	// baked connectors (gizmo markers) and the convex-hull collider. Does NOT clear the scene,
+	// so it can add bricks to whatever is already loaded (used by the part browser).
+	entt::entity MyApplication::spawnLegoPart(const std::string &partName, const glm::vec3 &pos)
+	{
 		ModelComponentBuilder builder(bglDevice, registry);
 		builder.setTextureLoader(&materialManager->getTextureLoader());
 		builder.setMaterialManager(materialManager.get());
@@ -408,24 +438,20 @@ namespace bagel
 		ModelLoadSettings settings{};
 		settings.scale = 0.1f;
 
+		const std::string part = partName + ".dat";   // ".dat" ext routes to LDrawModelLoader
 		auto entity = registry.create();
 		auto &tc = registry.emplace<TransformComponent>(entity);
+		tc.setTranslation(pos);
 		tc.setRotation({glm::pi<float>(), 0.0f, 0.0f});
-		// 32316 = "Technic Beam 5" (studless 1x5 stick with pin holes).
-		const char *part = "32316.dat";
-		builder.buildComponent(entity, part, settings);
+		builder.buildComponent(entity, part.c_str(), settings);
 
-		// Pull the detected connection points (studs/holes) and store them in model-local
-		// space (raw LDU * loadScale, matching the vertex buffer) so the gizmo pass can
-		// overlay a marker at each. Prefer the offline bake (lego/baked/connections/<part>.conn,
-		// from partsParser) and only fall back to a live recursive re-bake if the
-		// file is missing or the part has no baked entry.
+		// Connectors (offline lego/baked/connections/<part>.conn; live re-bake on cache miss)
+		// -> gizmo markers, stored in model-local space (raw LDU * loadScale).
 		static ldraw::BakedConnectors bakedCache = [] {
 			ldraw::BakedConnectors c;
 			c.setDir(util::enginePath("/lego/baked/connections"));
 			return c;
 		}();
-
 		std::vector<ldraw::ConnectionPoint> liveBake;                // holds fallback result, if used
 		const std::vector<ldraw::ConnectionPoint> *conns = bakedCache.find(part);
 		if (!conns) {
@@ -434,12 +460,11 @@ namespace bagel
 			conns = &liveBake;
 			CONSOLE->Log("Lego", std::string("Connector cache miss for ") + part + " - re-baked live");
 		}
-
 		auto &cc = registry.emplace<LegoConnectionComponent>(entity);
 		auto radiusFor = [](ldraw::ConnectorType t) {
 			switch (t) {
-			case ldraw::ConnectorType::Axle: return 5.0f; // cross hole, a touch tighter
-			default:                    return 6.0f; // stud / tube / pin ~ 6 LDU
+			case ldraw::ConnectorType::AxleHole: return 5.0f; // cross hole, a touch tighter
+			default:                             return 6.0f; // stud / tube / pin ~ 6 LDU
 			}
 		};
 		for (const ldraw::ConnectionPoint &c : *conns) {
@@ -450,12 +475,10 @@ namespace bagel
 			p.type   = static_cast<int>(c.type);
 			cc.points.push_back(p);
 		}
-		CONSOLE->Log("Lego", "Connection markers: " + std::to_string(cc.points.size()));
 
-		// Attach the offline-baked convex-hull collider (lego/baked/collision/<part>.glb).
-		// Points are stored in raw LDU (studs-down, like the render mesh pre-transform), so
-		// scale them by the same load scale; the studs-up 180° flip lives in the entity's
-		// TransformComponent rotation, which we hand to Jolt as the body rotation.
+		// Convex-hull collider (offline lego/baked/collision/<part>.glb). Hull points are raw LDU
+		// (studs-down, like the render mesh pre-transform), so scale them the same; the studs-up
+		// flip lives in the entity's TransformComponent rotation handed to Jolt.
 		static ldraw::BakedCollision collisionCache = [] {
 			ldraw::BakedCollision c;
 			c.setDir(util::enginePath("/lego/baked/collision"));
@@ -477,10 +500,9 @@ namespace bagel
 			info.activate = false;
 			info.layer = PhysicsLayers::NON_MOVING;
 			BGLJolt::GetInstance()->AddConvexHull(entity, scaled, info);
-			CONSOLE->Log("Lego", "Collision hulls: " + std::to_string(scaled.size()));
-		} else {
-			CONSOLE->Log("Lego", std::string("No baked collision for ") + part);
 		}
+		CONSOLE->Log("Lego", "Spawned " + partName);
+		return entity;
 	}
 
 } // namespace bagel

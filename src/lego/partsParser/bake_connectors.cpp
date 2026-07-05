@@ -96,12 +96,12 @@ namespace {
 
 	const char* typeName(ConnectorType t) {
 		switch (t) {
-			case ConnectorType::Male:   return "male";
-			case ConnectorType::Female: return "female";
-			case ConnectorType::Pin:    return "pin";
-			case ConnectorType::Axle:   return "axle";
-			case ConnectorType::Ball:   return "ball";
-			case ConnectorType::Socket: return "socket";
+			case ConnectorType::Male:     return "male";
+			case ConnectorType::Female:   return "female";
+			case ConnectorType::PinHole:  return "pinhole";
+			case ConnectorType::AxleHole: return "axlehole";
+			case ConnectorType::Ball:     return "ball";
+			case ConnectorType::Socket:   return "socket";
 		}
 		return "male";
 	}

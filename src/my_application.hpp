@@ -1,6 +1,9 @@
 #pragma once
 #include "application/bagel_application.hpp"
 #include "bagel_material.hpp"
+#include "bagel_texture_streamer.hpp"                 // async thumbnail streamer (engine-level)
+#include "lego/part_catalog.hpp"                      // placeable-part catalog
+#include "lego/lego_browser_panel.hpp"                // ImGui part browser
 #include "model_loaders/model_load_settings.hpp" // ModelLoadSettings (loadModel default arg)
 #include <memory>
 
@@ -28,6 +31,9 @@ namespace bagel {
 		void loadMonkeyBone();   // skinned/bone-animated test model
 		void loadIKLeg();
 		void loadLegoBrick();    // single LDraw brick (3001.dat) — LDrawModelLoader smoke test
+		// Spawn one LDraw part as a new entity at `pos` (studs up) with its connectors + collider.
+		// Shared by the smoke test and the part-browser placement. Returns the new entity.
+		entt::entity spawnLegoPart(const std::string& partName, const glm::vec3& pos);
 		// NOTE: the geodesic-CDLOD planet (PlanetComponent / PlanetComponentSystem) is
 		// mid-refactor and not wired into the scene list yet. The render system stays
 		// registered in Application, but no planet is built or exposed in the GUI.
@@ -45,6 +51,14 @@ namespace bagel {
 		std::string currentMapName = "sponza"; // active map name (set by build / successful load)
 		entt::entity hierarchyRoot = entt::null;
 		float stackAngle = 0.0f;
+
+		// Part picker. Declaration order matters for teardown: the streamer must outlive the
+		// panel (the panel frees ImGui descriptors that reference the streamer's images), so it
+		// is declared FIRST and thus destroyed LAST.
+		ldraw::PartCatalog                  partCatalog_;
+		std::unique_ptr<BGLTextureStreamer> thumbnailStreamer_;
+		std::unique_ptr<LegoBrowserPanel>   legoBrowser_;
+		bool                                showLegoBrowser_ = true;
 	};
 
 } // namespace bagel

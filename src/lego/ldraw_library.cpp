@@ -73,10 +73,10 @@ namespace bagel::ldraw {
 		int n = 0; for (auto& c : connections) if (c.type == ConnectorType::Female) ++n; return n;
 	}
 	int BakeResult::pinCount() const {
-		int n = 0; for (auto& c : connections) if (c.type == ConnectorType::Pin) ++n; return n;
+		int n = 0; for (auto& c : connections) if (c.type == ConnectorType::PinHole) ++n; return n;
 	}
 	int BakeResult::axleCount() const {
-		int n = 0; for (auto& c : connections) if (c.type == ConnectorType::Axle) ++n; return n;
+		int n = 0; for (auto& c : connections) if (c.type == ConnectorType::AxleHole) ++n; return n;
 	}
 
 	bool Library::resolve(const std::string& normName, std::string& outPath) const {
@@ -180,9 +180,9 @@ namespace bagel::ldraw {
 		// nested pieces, so a 1x5 beam reports 5 holes rather than double-counting.
 		//   "Stud Tube ..."          -> Female  (underside receptacle)
 		//   "Stud ..." (not Group)   -> Male    (raised stud)
-		//   "Technic Axle Hole ..."  -> Axle    (cross-shaped, takes an axle)
+		//   "Technic Axle Hole ..."  -> AxleHole (cross-shaped, takes an axle)
 		//   "... Beam Hole ..." /
-		//   "... Connector Hole ..." -> Pin     (round, takes a pin)
+		//   "... Connector Hole ..." -> PinHole  (round, takes a pin)
 		//   "joint8ball*"            -> Ball   / Joint8      (small towball, male)
 		//   "joint8socket*"          -> Socket / Joint8      (small towball socket, female)
 		//   "clh*" "Click Lock Hinge ... Single/Dual Finger [N-Position]"
@@ -197,10 +197,10 @@ namespace bagel::ldraw {
 			else if (!contains(title, "Group")) { file->isConnector = true; file->connType = ConnectorType::Male; }
 		}
 		else if (contains(title, "Axle Hole")) {
-			file->isConnector = true; file->connType = ConnectorType::Axle;
+			file->isConnector = true; file->connType = ConnectorType::AxleHole;
 		}
 		else if (contains(title, "Beam Hole") || contains(title, "Connector Hole")) {
-			file->isConnector = true; file->connType = ConnectorType::Pin;
+			file->isConnector = true; file->connType = ConnectorType::PinHole;
 		}
 		else if (b.rfind("joint8ball", 0) == 0) {
 			file->isConnector = true; file->connType = ConnectorType::Ball;   file->connFamily = ConnFamily::Joint8;

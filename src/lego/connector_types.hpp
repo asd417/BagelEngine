@@ -9,14 +9,16 @@
 
 namespace bagel::ldraw {
 
-	// What kind of LEGO connector an individual primitive represents.
-	//   Male   = raised stud on top.
-	//   Female = underside tube/receptacle a stud mates into.
-	//   Pin    = Technic round pin/connector hole (beam hole, connector hole).
-	//   Axle   = Technic cross-shaped axle hole.
-	//   Ball   = ball/towball (male half of a ball-and-socket).
-	//   Socket = ball socket (female half).
-	enum class ConnectorType { Male, Female, Pin, Axle, Ball, Socket };
+	// What kind of LEGO connector an individual primitive represents. These name the connector
+	// itself; PinHole/AxleHole are the female HOLES (the male pin/axle that goes through them is
+	// a whole part, not a primitive, so it is not detected -- see CONNECTORS.md).
+	//   Male     = raised stud on top.
+	//   Female   = underside tube/receptacle a stud mates into.
+	//   PinHole  = Technic round pin/connector hole (beam hole, connector hole).
+	//   AxleHole = Technic cross-shaped axle hole.
+	//   Ball     = ball/towball (male half of a ball-and-socket).
+	//   Socket   = ball socket (female half).
+	enum class ConnectorType { Male, Female, PinHole, AxleHole, Ball, Socket };
 
 	// Which mechanical family a connector belongs to -- disambiguates connectors that share a
 	// ConnectorType but can't mate across families, and selects the joint model.

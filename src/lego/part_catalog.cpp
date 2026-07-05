@@ -1,4 +1,4 @@
-#include "part_library.hpp"
+#include "part_catalog.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -39,7 +39,7 @@ namespace bagel::ldraw {
 		}
 	}
 
-	size_t PartLibrary::scan(const std::string& engineDir) {
+	size_t PartCatalog::scan(const std::string& engineDir) {
 		entries_.clear();
 		skipped_ = 0;
 
@@ -77,12 +77,12 @@ namespace bagel::ldraw {
 		return entries_.size();
 	}
 
-	void PartLibrary::sortByName() {
+	void PartCatalog::sortByName() {
 		std::sort(entries_.begin(), entries_.end(),
 			[](const PartCatalogEntry& a, const PartCatalogEntry& b) { return a.name < b.name; });
 	}
 
-	void PartLibrary::sortByTitle() {
+	void PartCatalog::sortByTitle() {
 		std::sort(entries_.begin(), entries_.end(),
 			[](const PartCatalogEntry& a, const PartCatalogEntry& b) {
 				if (a.title != b.title) return a.title < b.title;

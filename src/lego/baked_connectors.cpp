@@ -29,11 +29,11 @@ namespace bagel::ldraw {
 		}
 
 		ConnectorType typeFromName(const std::string& s) {
-			if (s == "female") return ConnectorType::Female;
-			if (s == "pin")    return ConnectorType::Pin;
-			if (s == "axle")   return ConnectorType::Axle;
-			if (s == "ball")   return ConnectorType::Ball;
-			if (s == "socket") return ConnectorType::Socket;
+			if (s == "female")   return ConnectorType::Female;
+			if (s == "pinhole")  return ConnectorType::PinHole;
+			if (s == "axlehole") return ConnectorType::AxleHole;
+			if (s == "ball")     return ConnectorType::Ball;
+			if (s == "socket")   return ConnectorType::Socket;
 			return ConnectorType::Male;
 		}
 

@@ -23,7 +23,7 @@ namespace bagel::ldraw {
 		std::string collisionPath;  // baked/collision/<name>.glb
 	};
 
-	class PartLibrary {
+	class PartCatalog {
 	public:
 		// Scan under `engineDir` (the folder containing lego/). Drives off the connections dir
 		// (a placeable part must have connectors), requiring each part to also have a thumbnail,
