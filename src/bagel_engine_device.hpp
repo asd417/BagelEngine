@@ -68,6 +68,11 @@ namespace bagel {
         VkSurfaceKHR surface() const { return surface_; }
         VkQueue graphicsQueue() const { return graphicsQueue_; }
         VkQueue presentQueue() const { return presentQueue_; }
+        // A second graphics-family queue reserved for background uploads (e.g. BGLTextureStreamer).
+        // Present only when the graphics family exposes >= 2 queues; falls back to the graphics
+        // queue otherwise (callers must then externally synchronize submits themselves).
+        VkQueue uploadQueue() const { return hasUploadQueue_ ? uploadQueue_ : graphicsQueue_; }
+        bool    hasUploadQueue() const { return hasUploadQueue_; }
 
         SwapChainSupportDetails getSwapChainSupport() { return querySwapChainSupport(physicalDevice); }
         uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -140,6 +145,8 @@ namespace bagel {
         VkSurfaceKHR surface_;
         VkQueue graphicsQueue_;
         VkQueue presentQueue_;
+        VkQueue uploadQueue_ = VK_NULL_HANDLE;   // 2nd graphics-family queue (background uploads)
+        bool    hasUploadQueue_ = false;
 
         ImmediateUploadContext _uploadContext;
 
