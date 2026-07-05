@@ -177,17 +177,26 @@ namespace bagel
     {
         QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
+        // Ask for a 2nd queue on the graphics family (if available) to serve as a dedicated
+        // background upload queue -- lets a worker thread submit uploads without a mutex on the
+        // main render submit (same family => no queue-ownership transfer needed).
+        uint32_t qfCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &qfCount, nullptr);
+        std::vector<VkQueueFamilyProperties> qfProps(qfCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &qfCount, qfProps.data());
+        const uint32_t graphicsQueueCount = (qfProps[indices.graphicsFamily].queueCount >= 2) ? 2u : 1u;
+
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
         std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily, indices.presentFamily};
 
-        float queuePriority = 1.0f;
+        const float queuePriorities[2] = {1.0f, 1.0f};
         for (uint32_t queueFamily : uniqueQueueFamilies)
         {
             VkDeviceQueueCreateInfo queueCreateInfo = {};
             queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             queueCreateInfo.queueFamilyIndex = queueFamily;
-            queueCreateInfo.queueCount = 1;
-            queueCreateInfo.pQueuePriorities = &queuePriority;
+            queueCreateInfo.queueCount = (queueFamily == indices.graphicsFamily) ? graphicsQueueCount : 1;
+            queueCreateInfo.pQueuePriorities = queuePriorities;
             queueCreateInfos.push_back(queueCreateInfo);
         }
         VkPhysicalDeviceFeatures deviceFeatures = {};
@@ -244,6 +253,12 @@ namespace bagel
 
         vkGetDeviceQueue(_device, indices.graphicsFamily, 0, &graphicsQueue_);
         vkGetDeviceQueue(_device, indices.presentFamily, 0, &presentQueue_);
+        if (graphicsQueueCount >= 2)
+        {
+            vkGetDeviceQueue(_device, indices.graphicsFamily, 1, &uploadQueue_);
+            hasUploadQueue_ = true;
+            std::cout << "Reserved a dedicated background upload queue (graphics family, queue 1)\n";
+        }
     }
 
     void BGLDevice::createCommandPool()
