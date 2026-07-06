@@ -252,6 +252,23 @@ namespace bagel {
 		void RemoveAllBodies();
 		void AddSphere(entt::entity ent, float radius, PhysicsBodyCreationInfo &info);
 		void AddBox(entt::entity ent, glm::vec3 halfExtent, PhysicsBodyCreationInfo& info);
+		// Convex-hull collider baked offline (lego/baked/collision/<part>.glb). Each inner
+		// vector is one hull's point cloud in body-local space; one hull -> ConvexHullShape,
+		// many -> a StaticCompoundShape of hulls. Points must already be in the entity's
+		// local/model scale (the caller scales the raw-LDU bake by the load scale).
+		void AddConvexHull(entt::entity ent, const std::vector<std::vector<glm::vec3>>& hulls,
+		                   PhysicsBodyCreationInfo& info);
+		// Fuse each solid group into ONE body: the members' existing collider shapes are combined
+		// into a compound placed at each part's pose relative to the group's reference (first) part,
+		// the per-part bodies are dropped, and the followers get a JoltGroupMemberComponent so
+		// ApplyGroupTransforms() can ride them along. Groups of size < 2 are ignored (singletons keep
+		// their own body). `groups` is any entity partition — e.g. LegoConnectionGraph::binSolidGroups()
+		// — which keeps this domain-agnostic (no LEGO dependency). `type` is the group body's motion type.
+		void BuildBodiesPerGroup(const std::vector<std::vector<entt::entity>>& groups,
+		                         PhysicsType type = PhysicsType::DYNAMIC);
+		// Drive every JoltGroupMemberComponent follower from its shared group body. Call each frame
+		// right after ApplyPhysicsTransform() (which drives the reference parts that own the bodies).
+		void ApplyGroupTransforms();
 		void SetSimulationTimescale(float _s) { simTimeScale = _s; }
 		glm::vec3 GetGravity();
 		void SetGravity(glm::vec3 gravity);

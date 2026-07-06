@@ -3,11 +3,30 @@
 #include "../bagel_model.hpp"
 #include "../bagel_util.hpp"
 
+#include <glm/gtc/quaternion.hpp>  // mat3_cast / quat_cast / mat4_cast
+
 #include "bagel_imgui.hpp"
 #define CONSOLE ConsoleApp::Instance()
 
 namespace bagel {
 	BGLJolt* BGLJolt::instance = nullptr;
+
+	// Extract Euler angles in the X*Y*Z order that TransformComponent::computeMat4() reassembles,
+	// so the stored eulers reproduce R exactly. (glm::eulerAngles uses a different order, which is
+	// why round-tripping physics orientations through it looked wrong.) R is column-major: R[col][row].
+	static glm::vec3 eulerXYZFromRot(const glm::mat3& R)
+	{
+		float ey = glm::asin(glm::clamp(R[2][0], -1.0f, 1.0f));   // math[0][2] = sin(y)
+		float ex, ez;
+		if (glm::abs(R[2][0]) < 0.99999f) {
+			ex = glm::atan(-R[2][1], R[2][2]);   // math[1][2], math[2][2]
+			ez = glm::atan(-R[1][0], R[0][0]);   // math[0][1], math[0][0]
+		} else {
+			ex = glm::atan(R[0][1], R[1][1]);    // gimbal lock (y ≈ ±90°): fold x+z, pin z = 0
+			ez = 0.0f;
+		}
+		return { ex, ey, ez };
+	}
 
 	BGLJolt::BGLJolt(BGLDevice& _bglDevice, entt::registry& r ) : registry{ r }, bglDevice{ _bglDevice } {
 		physicsSystem.Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, broad_phase_layer_interface, object_vs_broadphase_layer_filter, object_vs_object_layer_filter);
@@ -125,28 +144,11 @@ namespace bagel {
 			JPH::Quat  newQuat = bodyInterface->GetRotation(physComp.bodyID);
 			glm::vec3 newVec = { newPos.GetX(), newPos.GetY(), newPos.GetZ() };
 
-			// TransformComponent stores Euler angles that computeMat4() reassembles as
-			// R = Rx * Ry * Rz (Euler XYZ). glm::eulerAngles() extracts a *different* order, so
-			// round-tripping through it rotated bodies wrong. Invert computeMat4()'s convention
-			// directly from the physics orientation instead.
-			// NOTE: glm::qua's ctor is (w, x, y, z) — w first.
+			// NOTE: glm::qua's ctor is (w, x, y, z) — w first. Extract eulers in computeMat4()'s
+			// X*Y*Z order (see eulerXYZFromRot) so render matches physics.
 			glm::quat q{ newQuat.GetW(), newQuat.GetX(), newQuat.GetY(), newQuat.GetZ() };
-			glm::mat3 R = glm::mat3_cast(q);   // column-major, so R[col][row]
-			// math element [row][col]: [0][2]=sin(y), [1][2]=-cos(y)sin(x), [2][2]=cos(x)cos(y),
-			//                           [0][1]=-cos(y)sin(z), [0][0]=cos(y)cos(z)
-			float ey = glm::asin(glm::clamp(R[2][0], -1.0f, 1.0f));
-			float ex, ez;
-			if (glm::abs(R[2][0]) < 0.99999f) {
-				ex = glm::atan(-R[2][1], R[2][2]);
-				ez = glm::atan(-R[1][0], R[0][0]);
-			} else {
-				// Gimbal lock (y ≈ ±90°): x and z are coupled; fold them and pin z = 0.
-				ex = glm::atan(R[0][1], R[1][1]);
-				ez = 0.0f;
-			}
-
 			transComp.setTranslation(newVec);
-			transComp.setRotation({ ex, ey, ez });
+			transComp.setRotation(eulerXYZFromRot(glm::mat3_cast(q)));
 		}
 
 		// Destroy the fallen entities' Jolt bodies (the components have no destructor that does
@@ -157,6 +159,94 @@ namespace bagel {
 				bodyInterface->DestroyBody(pc->bodyID);
 			}
 			registry.destroy(e);
+		}
+	}
+
+	void BGLJolt::BuildBodiesPerGroup(const std::vector<std::vector<entt::entity>>& groups, PhysicsType type)
+	{
+		const JPH::ObjectLayer layer = (type == PhysicsType::STATIC) ? PhysicsLayers::NON_MOVING
+		                                                             : PhysicsLayers::MOVING;
+		const JPH::EActivation act = (type == PhysicsType::STATIC) ? JPH::EActivation::DontActivate
+		                                                          : JPH::EActivation::Activate;
+
+		for (const std::vector<entt::entity>& group : groups) {
+			if (group.size() < 2) continue;   // singletons keep their own per-part body
+
+			// Reference frame = the first member's world pose. Everything is derived from
+			// computeMat4() (the render transform), so physics ends up aligned with the mesh.
+			entt::entity ref = group.front();
+			auto* refTc = registry.try_get<TransformComponent>(ref);
+			if (!refTc) continue;
+			const glm::mat4 refWorld = refTc->computeMat4();
+			const glm::mat4 invRef   = glm::inverse(refWorld);
+
+			// Combine each member's existing collider shape into a compound at its pose relative
+			// to the reference. Remember each member + its local offset for the follow-up wiring.
+			JPH::StaticCompoundShapeSettings comp;
+			std::vector<std::pair<entt::entity, glm::mat4>> members;
+			for (entt::entity m : group) {
+				auto* tc = registry.try_get<TransformComponent>(m);
+				auto* pc = registry.try_get<JoltPhysicsComponent>(m);
+				if (!tc || !pc || pc->settings.GetShape() == nullptr) continue;
+				const glm::mat4 rel = invRef * tc->computeMat4();   // member relative to ref
+				const glm::vec3 rp  = glm::vec3(rel[3]);
+				const glm::quat rq  = glm::quat_cast(glm::mat3(rel));
+				comp.AddShape(JPH::Vec3(rp.x, rp.y, rp.z),
+				              JPH::Quat(rq.x, rq.y, rq.z, rq.w),
+				              pc->settings.GetShape());
+				members.emplace_back(m, rel);
+			}
+			if (members.size() < 2) continue;   // not enough valid members to fuse
+
+			JPH::ShapeSettings::ShapeResult res = comp.Create();
+			if (res.HasError()) {
+				CONSOLE->Log("Physics", std::string("group compound failed: ") + res.GetError().c_str());
+				continue;
+			}
+
+			// Drop the members' individual bodies + components before creating the group body.
+			for (auto& [m, rel] : members) {
+				RemoveEntityBody(m);
+				registry.remove<JoltPhysicsComponent>(m);
+				registry.remove<JoltGroupMemberComponent>(m);   // in case of a re-group
+			}
+
+			// One body for the whole group, at the reference's world pose.
+			const glm::vec3 bp = glm::vec3(refWorld[3]);
+			const glm::quat bq = glm::quat_cast(glm::mat3(refWorld));
+			JPH::BodyCreationSettings bodySettings(res.Get(),
+				JPH::RVec3(bp.x, bp.y, bp.z), JPH::Quat(bq.x, bq.y, bq.z, bq.w),
+				(JPH::EMotionType)type, layer);
+			JPH::BodyID groupBody = bodyInterface->CreateAndAddBody(bodySettings, act);
+
+			// The reference part owns the body (normal JoltPhysicsComponent -> ApplyPhysicsTransform
+			// drives it, RemoveAllBodies frees it). Every other member follows it at its offset.
+			auto& rpc = registry.emplace_or_replace<JoltPhysicsComponent>(ref);
+			rpc.settings = bodySettings;
+			rpc.bodyID   = groupBody;
+			for (auto& [m, rel] : members) {
+				if (m == ref) continue;
+				auto& gm = registry.emplace_or_replace<JoltGroupMemberComponent>(m);
+				gm.groupBody   = groupBody;
+				gm.localOffset = rel;   // member relative to ref == relative to body origin
+			}
+		}
+	}
+
+	void BGLJolt::ApplyGroupTransforms()
+	{
+		auto view = registry.view<TransformComponent, JoltGroupMemberComponent>();
+		for (auto [entity, transComp, gm] : view.each()) {
+			if (gm.groupBody.IsInvalid()) continue;
+			JPH::RVec3 bpos = bodyInterface->GetPosition(gm.groupBody);
+			JPH::Quat  brot = bodyInterface->GetRotation(gm.groupBody);
+			glm::quat bq{ brot.GetW(), brot.GetX(), brot.GetY(), brot.GetZ() };
+			glm::mat4 bodyWorld = glm::mat4_cast(bq);
+			bodyWorld[3] = glm::vec4(bpos.GetX(), bpos.GetY(), bpos.GetZ(), 1.0f);
+
+			const glm::mat4 world = bodyWorld * gm.localOffset;
+			transComp.setTranslation(glm::vec3(world[3]));
+			transComp.setRotation(eulerXYZFromRot(glm::mat3(world)));
 		}
 	}
 
