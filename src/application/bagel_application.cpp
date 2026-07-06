@@ -419,6 +419,7 @@ namespace bagel
 					BGLJolt::GetInstance()->ApplyTransformToKinematic(frameTime);
 					BGLJolt::GetInstance()->Step(frameTime, 3);
 					BGLJolt::GetInstance()->ApplyPhysicsTransform();
+					BGLJolt::GetInstance()->ApplyGroupTransforms();   // followers ride their group body
 				}
 				recordSection(S_PHYSICS, tMs(t0, Clock::now()));
 			}
