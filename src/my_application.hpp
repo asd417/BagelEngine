@@ -31,6 +31,7 @@ namespace bagel {
 		void loadMonkeyBone();   // skinned/bone-animated test model
 		void loadIKLeg();
 		void loadLegoBrick();    // single LDraw brick (3001.dat) — LDrawModelLoader smoke test
+		void loadLegoGround();   // flat floor quad + thin static box collider (top face at y=0)
 		// Spawn one LDraw part as a new entity at `pos` (studs up) with its connectors + collider.
 		// Shared by the smoke test and the part-browser placement. Returns the new entity.
 		entt::entity spawnLegoPart(const std::string& partName, const glm::vec3& pos);

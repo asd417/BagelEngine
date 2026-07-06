@@ -129,13 +129,13 @@ namespace {
 	// Write a part's connectors as a per-part human-readable text file (see baked_connectors.hpp
 	// for the format). Overwrites unless the existing file is marked "# source: manual".
 	bool writeConnFile(const fs::path& path,
-	                   const std::string& partName,
+					   const std::string& partTitle,
 	                   const std::vector<bagel::ldraw::ConnectionPoint>& conns) {
 		if (fs::exists(path) && isManualConnFile(path)) return false;   // preserve hand edits
 		std::ofstream os(path, std::ios::trunc);
 		if (!os) return false;
-		os << "# source: baked\n"
-		   << "# BagelEngine connectors -- part " << partName << "\n"
+		os << "source: baked\n"
+		   << "# BagelEngine connectors -- part " << partTitle << "\n"
 		   << "# fields: type family detents  px py pz  ax ay az   (axis = +Y/stud direction)\n";
 		for (const auto& c : conns) {
 			const glm::vec3 axis = glm::normalize(glm::vec3(c.orient[1]));   // +Y column
@@ -366,10 +366,10 @@ int main(int argc, char** argv) {
 
 	// Build the work list: explicit names, or every top-level parts/*.dat.
 	std::vector<std::string> partNames;
+	const fs::path partsDir = fs::path(root) / "parts";
 	if (!explicitParts.empty()) {
 		partNames = explicitParts;
 	} else {
-		const fs::path partsDir = fs::path(root) / "parts";
 		if (!fs::exists(partsDir)) {
 			std::cerr << "[bake] no parts/ under root: " << partsDir.string() << "\n";
 			return 1;
@@ -426,6 +426,7 @@ int main(int argc, char** argv) {
 	size_t collSkipped = 0;
 	size_t processed = 0;
 	for (const std::string& name : partNames) {
+		
 		auto r = lib.bake(name);
 
 		// Thumbnail: render the flattened mesh (present in r.mesh before we discard it),
@@ -459,8 +460,10 @@ int main(int argc, char** argv) {
 		if (connectors && !r.connections.empty()) {
 			totalConns += r.connections.size();
 			const fs::path conn = fs::path(connDir) / (name + ".conn");
+			const std::filesystem::path dat = partsDir / (name + ".dat");
+			std::string title = bagel::ldraw::readTitle(dat);
 			if (skipExistingConn && fs::exists(conn)) ++connSkipped;
-			else if (writeConnFile(conn, name, r.connections)) ++connWritten;
+			else if (writeConnFile(conn, title, r.connections)) ++connWritten;
 			else ++connSkipped;   // manual-locked or write failure
 		}
 		if (++processed % 1000 == 0) {

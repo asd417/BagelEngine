@@ -140,6 +140,7 @@ namespace bagel
 		case 6:
 			//createLights();
 			createDirectionalLight();
+			loadLegoGround();
 			loadLegoBrick();
 			break;
 		default:
@@ -423,6 +424,44 @@ namespace bagel
 		spawnLegoPart("32316", glm::vec3(0.0f));
 	}
 
+	// Flat ground for the lego scene: a procedural floor quad (y=0, sized by scaleVec) for the
+	// visual, plus a thin STATIC box collider whose TOP face sits at y=0 so it lines up with the
+	// quad and gives dropped bricks something to land on.
+	void MyApplication::loadLegoGround()
+	{
+		constexpr float kHalfSize = 10.0f;      // 20 x 20 unit ground plane
+		constexpr float kHalfThickness = 0.5f;  // collider thickness (invisible; below the quad)
+
+		ModelComponentBuilder builder(bglDevice, registry);
+		builder.setTextureLoader(&materialManager->getTextureLoader());
+		builder.setMaterialManager(materialManager.get());
+		builder.setSkinManager(skinManager.get());
+
+		// generateFloor() lays out the quad using scaleVec.x/.z (see model_loaders/generated.cpp),
+		// so the mesh is already full-size; leave the entity transform at identity.
+		ModelLoadSettings settings{};
+		settings.scaleVec = {kHalfSize * 2.0f, 1.0f, kHalfSize * 2.0f};
+
+		auto entity = registry.create();
+		auto &tc = registry.emplace<TransformComponent>(entity);   // at origin
+		// generateFloor() already sizes the quad via scaleVec, so keep the transform at identity
+		// scale (the TransformComponent default is 0.1, which would shrink the visible quad to
+		// 1/10 of the collider — the same double-scale trap as the bricks above).
+		tc.setScale({1.0f, 1.0f, 1.0f});
+		builder.buildComponent(entity, "/models/floor.obj", settings);
+
+		// Thin static box; centered kHalfThickness below origin so its top face is flush with y=0.
+		BGLJolt::PhysicsBodyCreationInfo info{};
+		info.pos = {0.0f, -kHalfThickness, 0.0f};
+		info.rot = {0.0f, 0.0f, 0.0f};
+		info.physicsType = PhysicsType::STATIC;
+		info.activate = false;
+		info.layer = PhysicsLayers::NON_MOVING;
+		BGLJolt::GetInstance()->AddBox(entity, {kHalfSize, kHalfThickness, kHalfSize}, info);
+
+		CONSOLE->Log("Lego", "Spawned ground plane");
+	}
+
 	// Spawn one LDraw part as a new entity at `pos`. settings.scale bakes the raw LDU geometry
 	// (1 LDU = 0.4 mm) down to engine size at load time. LDraw is -Y up, so a rigid 180° flip
 	// about X puts the studs up (a pure rotation keeps winding/normals correct). Attaches the
@@ -443,6 +482,11 @@ namespace bagel
 		auto &tc = registry.emplace<TransformComponent>(entity);
 		tc.setTranslation(pos);
 		tc.setRotation({glm::pi<float>(), 0.0f, 0.0f});
+		// settings.scale already bakes the LDU geometry to engine size, so the transform must be
+		// identity scale. The TransformComponent default is 0.1 (see transform.hpp); leaving it
+		// would scale the RENDER mesh a second time (0.1*0.1) while the Jolt collider — which
+		// ignores transform scale — stays at the bake size, so the two would mismatch 10x.
+		tc.setScale({1.0f, 1.0f, 1.0f});
 		builder.buildComponent(entity, part.c_str(), settings);
 
 		// Connectors (offline lego/baked/connections/<part>.conn; live re-bake on cache miss)
@@ -496,9 +540,9 @@ namespace bagel
 			BGLJolt::PhysicsBodyCreationInfo info{};
 			info.pos = tc.getWorldTranslation();
 			info.rot = tc.getWorldRotation();
-			info.physicsType = PhysicsType::STATIC;      // in place for now; flip to DYNAMIC in real scenes
-			info.activate = false;
-			info.layer = PhysicsLayers::NON_MOVING;
+			info.physicsType = PhysicsType::DYNAMIC;     // bricks fall + collide (ground is STATIC)
+			info.activate = true;
+			info.layer = PhysicsLayers::MOVING;
 			BGLJolt::GetInstance()->AddConvexHull(entity, scaled, info);
 		}
 		CONSOLE->Log("Lego", "Spawned " + partName);

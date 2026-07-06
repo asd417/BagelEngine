@@ -310,7 +310,7 @@ namespace bagel
 
 		initCommand();
 
-		BGLJolt::GetInstance()->SetGravity({0, -0.0f, 0});
+		BGLJolt::GetInstance()->SetGravity({0, -9.81f, 0});
 		BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
 		BGLJolt::GetInstance()->SetComponentActivityAll(true);
 

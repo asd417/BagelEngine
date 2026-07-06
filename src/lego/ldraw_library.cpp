@@ -9,6 +9,25 @@
 
 namespace bagel::ldraw {
 
+	// Read a part's title = the first "0 <title>" line of its .dat, with the leading "0",
+	// whitespace, and LDraw title markers (~ = _ |) stripped. Empty if unreadable.
+	std::string readTitle(const std::filesystem::path& datPath) {
+		std::ifstream f(datPath);
+		if (!f) return "";
+		std::string line;
+		while (std::getline(f, line)) {
+			size_t a = line.find_first_not_of(" \t\r\n\xEF\xBB\xBF");   // trim + UTF-8 BOM
+			if (a == std::string::npos) continue;                        // blank line
+			line = line.substr(a);
+			if (line.empty() || line[0] != '0') return "";               // not a title line
+			size_t d = line.find_first_not_of(" \t~=_|", 1);             // drop "0" + markers
+			std::string title = (d == std::string::npos) ? "" : line.substr(d);
+			size_t b = title.find_last_not_of(" \t\r\n");
+			return b == std::string::npos ? "" : title.substr(0, b + 1);
+		}
+		return "";
+	}
+
 	namespace {
 		std::string toLower(std::string s) {
 			std::transform(s.begin(), s.end(), s.begin(),

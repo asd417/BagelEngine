@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <memory>
 #include <cstdint>
+#include <filesystem>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -45,7 +46,7 @@ namespace bagel::ldraw {
 	// tell a collinear axle/pin hinge (one group) from an offset-parallel rigid set (many).
 	// Group ids are part-local; idempotent, so it is safe on hand-authored connector lists too.
 	void assignAxisGroups(std::vector<ConnectionPoint>& conns);
-
+	std::string readTitle(const std::filesystem::path &datPath);
 	// Flattened, transformed geometry. positions/normals are parallel; indices are
 	// 3-per-triangle. Not welded (the engine-side loader can weld/index later).
 	struct BakedMesh {
