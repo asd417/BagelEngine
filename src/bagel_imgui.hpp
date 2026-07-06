@@ -84,6 +84,10 @@ namespace bagel {
                 m.frustumCull ? "yes" : "no", (int)m.materialCount);
         };
 
+        // Deferred delete: the Remove button can't destroy mid-iteration (that invalidates the
+        // storage view), so remember the target and destroy it after the loop.
+        entt::entity toDelete = entt::null;
+
         for (auto entity : registry.storage<entt::entity>()) {
             // Show the recycled index (low bits) rather than the packed identifier, whose high
             // bits hold the version that climbs every time a slot is destroyed and reused.
@@ -220,10 +224,19 @@ namespace bagel {
                 if (registry.all_of<JoltKinematicComponent>(entity)) ImGui::TextUnformatted("JoltKinematic");
                 if (registry.all_of<InfoComponent>(entity))          ImGui::TextUnformatted("Info");
 
+                ImGui::Separator();
+                if (ImGui::SmallButton("Remove Entity")) toDelete = entity;
+
                 ImGui::TreePop();
             }
             ImGui::PopID();
         }
+
+        if (registry.valid(toDelete)) {
+            BGLJolt::GetInstance()->RemoveEntityBody(toDelete); // drop the Jolt body first (no-op if none)
+            registry.destroy(toDelete);
+        }
+
         ImGui::End();
     }
 
