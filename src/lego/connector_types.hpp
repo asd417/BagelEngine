@@ -30,7 +30,7 @@ namespace bagel::ldraw {
 	enum class ConnFamily { None, Joint8, Constraction, ClickHinge, Duplo };
 
 	// The mating type of a connection (which two connectors met). Produced by the detector
-	// from the two connectors' ConnectorType+ConnFamily; drives ConnectionsGraph::resolveJoint.
+	// from the two connectors' ConnectorType+ConnFamily; drives LegoConnectionGraph::resolveJoint.
 	// See src/lego/CONNECTORS.md.
 	enum MateType {
 		MALE_FEMALE,     // stud in tube             -- can rotate

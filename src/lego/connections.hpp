@@ -1,9 +1,8 @@
 #pragma once
-#include "connector_types.hpp"   // shared ConnectorType / ConnFamily / MateType / JointKind
+#include "connector_types.hpp"          // shared ConnectorType / ConnFamily / MateType / JointKind
+#include "../bagel_connection_graph.hpp" // generic engine-level ConnectionGraph<Edge>
 #include <entt.hpp>
-#include <algorithm>
 #include <cstdint>
-#include <unordered_map>
 #include <vector>
 namespace bagel
 {
@@ -20,6 +19,8 @@ namespace bagel
     // graph can name them (and their enumerators) unqualified.
     using namespace ldraw;
 
+    // One directed edge in the LEGO connection graph: the LEGO-specific payload the generic
+    // ConnectionGraph carries. `other` (required by ConnectionGraph) names the far part.
     struct Connection
     {
         entt::entity other;          // the part on the far end of this edge
@@ -29,9 +30,12 @@ namespace bagel
         MateType type;
         ConnFamily family;           // mechanical family of the connection (ball system, hinge, ...)
     };
-    // connections between all parts
-    // used to resolve physics hinge settings
-    class ConnectionsGraph
+
+    // LEGO-specific view over the generic entity graph: stores connector mate data on each edge
+    // and adds joint classification + solid-group binning. The storage, connected-component logic,
+    // and lifecycle live in bagel::ConnectionGraph (engine-generic); everything LEGO — the edge
+    // payload, resolveJoint, and "solid = rigidly welded" — lives here.
+    class LegoConnectionGraph
     {
     public:
         // Record a connection between two parts' connectors. Stores both directions; each
@@ -40,50 +44,29 @@ namespace bagel
                            entt::entity other, uint8_t connectorOther, uint8_t axisGroupOther,
                            MateType type, ConnFamily family)
         {
-            connections[my].push_back({other, connector, connectorOther, axisGroup, type, family});
-            connections[other].push_back({my, connectorOther, connector, axisGroupOther, type, family});
+            graph.addConnection(
+                my,    Connection{other, connector, connectorOther, axisGroup,      type, family},
+                other, Connection{my,    connectorOther, connector, axisGroupOther, type, family});
         }
         // remove a specific edge (both directions)
-        void removeConnection(entt::entity my, entt::entity other)
-        {
-            stripEdges(my, other);
-            stripEdges(other, my);
-        }
+        void removeConnection(entt::entity my, entt::entity other) { graph.removeConnection(my, other); }
         // remove ALL edges of an entity — call this from registry.on_destroy<BrickTag>
-        void removeEntity(entt::entity e)
-        {
-            auto it = connections.find(e);
-            if (it == connections.end())
-                return;
-            for (const Connection &c : it->second) // strip only the mirror side while we
-                stripEdges(c.other, e);            // still hold e's list intact
-            connections.erase(e);                  // then drop e's list in one shot
-        }
-        const std::vector<Connection> *neighbors(entt::entity e) const
-        {
-            auto it = connections.find(e);
-            return it == connections.end() ? nullptr : &it->second;
-        }
-        bool areConnected(entt::entity a, entt::entity b) const
-        {
-            if (auto it = connections.find(a); it != connections.end())
-                for (const Connection &c : it->second)
-                    if (c.other == b)
-                        return true;
-            return false;
-        }
+        void removeEntity(entt::entity e) { graph.removeEntity(e); }
+        const std::vector<Connection> *neighbors(entt::entity e) const { return graph.neighbors(e); }
+        bool areConnected(entt::entity a, entt::entity b) const { return graph.areConnected(a, b); }
+
         // Classify the joint between `a` and `b` from all connections they share. Pure graph
         // data — no geometry lookup, since each edge carries its axisGroup. Order matters:
         // ball and click-hinge win over the stud/axle collinearity logic.
         JointKind resolveJoint(entt::entity a, entt::entity b) const
         {
-            auto it = connections.find(a);
-            if (it == connections.end())
+            const std::vector<Connection> *adj = graph.neighbors(a);
+            if (adj == nullptr)
                 return JointKind::None;
 
             int n = 0, group = -1;
             bool sameGroup = true, hasBall = false, hasClick = false, hasAxleslot = false;
-            for (const Connection &c : it->second)
+            for (const Connection &c : *adj)
             {
                 if (c.other != b)
                     continue;
@@ -104,19 +87,19 @@ namespace bagel
                              : JointKind::Rigid;             // offset-parallel -> welded
         }
 
-    private:
-        // drop every edge in a's list that points at b
-        void stripEdges(entt::entity a, entt::entity b)
+        // Partition every part into "solid groups": maximal sets welded together through Rigid
+        // joints. Parts joined only by movable joints (Hinge / ClickHinge / Ball) land in different
+        // groups — each solid group is meant to become one rigid body, with the movable joints
+        // becoming constraints between groups. Parts with no edges aren't returned; the caller
+        // treats each such isolated part as its own singleton group. Feeds BGLJolt::BuildBodiesPerGroup.
+        std::vector<std::vector<entt::entity>> binSolidGroups() const
         {
-            auto it = connections.find(a);
-            if (it == connections.end())
-                return;
-            auto &v = it->second;
-            v.erase(std::remove_if(v.begin(), v.end(),
-                                   [b](const Connection &c)
-                                   { return c.other == b; }),
-                    v.end());
+            return graph.binGroups([this](entt::entity a, entt::entity b) {
+                return resolveJoint(a, b) == JointKind::Rigid;
+            });
         }
-        std::unordered_map<entt::entity, std::vector<Connection>> connections;
+
+    private:
+        ConnectionGraph<Connection> graph;   // generic engine-level connectivity + grouping
     };
 }
