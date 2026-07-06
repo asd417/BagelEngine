@@ -239,6 +239,9 @@ namespace bagel {
 		void SetComponentActivity(entt::entity ent, bool activity);
 		// True if the body is currently awake (used by the inspector's sleep readout).
 		bool IsBodyActive(entt::entity ent);
+		// Remove + destroy the live Jolt body(ies) for one entity (physics and/or kinematic), if
+		// any. Call BEFORE registry.destroy(ent) so the body doesn't leak in the physics system.
+		void RemoveEntityBody(entt::entity ent);
 		void ApplyTransformToKinematic(float dt);
 		void ApplyPhysicsTransform();
 		// Recreate live Jolt bodies for every entity carrying a Jolt component from its

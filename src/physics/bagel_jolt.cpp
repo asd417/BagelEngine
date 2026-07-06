@@ -76,6 +76,17 @@ namespace bagel {
 		return bodyInterface->IsActive(comp->bodyID);
 	}
 
+	void BGLJolt::RemoveEntityBody(entt::entity ent)
+	{
+		auto destroy = [&](JPH::BodyID id) {
+			if (id.IsInvalid()) return;
+			bodyInterface->RemoveBody(id);
+			bodyInterface->DestroyBody(id);
+		};
+		if (auto* pc = registry.try_get<JoltPhysicsComponent>(ent))   destroy(pc->bodyID);
+		if (auto* kc = registry.try_get<JoltKinematicComponent>(ent)) destroy(kc->bodyID);
+	}
+
 	void BGLJolt::ApplyTransformToKinematic(float dt)
 	{
 		auto entView = registry.view<TransformComponent, JoltKinematicComponent>();
@@ -101,22 +112,51 @@ namespace bagel {
 
 	void BGLJolt::ApplyPhysicsTransform()
 	{
+		// Kill floor: anything that falls past this Y is out of the world; queue it for deletion
+		// (can't destroy mid-iteration — that invalidates the view).
+		constexpr float kKillY = -1000.0f;
+		std::vector<entt::entity> fell;
+
 		auto entView = registry.view<TransformComponent, JoltPhysicsComponent>();
 		for (auto [ entity, transComp, physComp ] : entView.each()) {
 
-			JPH::RVec3 newPos = bodyInterface->GetPosition(physComp.bodyID);
-			JPH::Quat newQuat = bodyInterface->GetRotation(physComp.bodyID);
+			JPH::RVec3 newPos  = bodyInterface->GetPosition(physComp.bodyID);
+			if (newPos.GetY() < kKillY) { fell.push_back(entity); continue; }
+			JPH::Quat  newQuat = bodyInterface->GetRotation(physComp.bodyID);
+			glm::vec3 newVec = { newPos.GetX(), newPos.GetY(), newPos.GetZ() };
 
-			// Rotation order: RotZ * RotY * RotX * point;
-			glm::vec3 newVec = { newPos.GetX(), newPos.GetY(),newPos.GetZ() };
-			JPH::RVec3 newEuler = newQuat.GetEulerAngles();
-			glm::vec3 newRot = { newEuler.GetX(), newEuler.GetY(), newEuler.GetZ() };
-
-			glm::qua<float> q{ newQuat.GetW(), newQuat.GetX(),newQuat.GetY(), newQuat.GetZ() };
-			glm::vec3 gvec = glm::eulerAngles(q);
+			// TransformComponent stores Euler angles that computeMat4() reassembles as
+			// R = Rx * Ry * Rz (Euler XYZ). glm::eulerAngles() extracts a *different* order, so
+			// round-tripping through it rotated bodies wrong. Invert computeMat4()'s convention
+			// directly from the physics orientation instead.
+			// NOTE: glm::qua's ctor is (w, x, y, z) — w first.
+			glm::quat q{ newQuat.GetW(), newQuat.GetX(), newQuat.GetY(), newQuat.GetZ() };
+			glm::mat3 R = glm::mat3_cast(q);   // column-major, so R[col][row]
+			// math element [row][col]: [0][2]=sin(y), [1][2]=-cos(y)sin(x), [2][2]=cos(x)cos(y),
+			//                           [0][1]=-cos(y)sin(z), [0][0]=cos(y)cos(z)
+			float ey = glm::asin(glm::clamp(R[2][0], -1.0f, 1.0f));
+			float ex, ez;
+			if (glm::abs(R[2][0]) < 0.99999f) {
+				ex = glm::atan(-R[2][1], R[2][2]);
+				ez = glm::atan(-R[1][0], R[0][0]);
+			} else {
+				// Gimbal lock (y ≈ ±90°): x and z are coupled; fold them and pin z = 0.
+				ex = glm::atan(R[0][1], R[1][1]);
+				ez = 0.0f;
+			}
 
 			transComp.setTranslation(newVec);
-			transComp.setRotation(newRot);
+			transComp.setRotation({ ex, ey, ez });
+		}
+
+		// Destroy the fallen entities' Jolt bodies (the components have no destructor that does
+		// this) and then the entities themselves.
+		for (entt::entity e : fell) {
+			if (auto* pc = registry.try_get<JoltPhysicsComponent>(e); pc && !pc->bodyID.IsInvalid()) {
+				bodyInterface->RemoveBody(pc->bodyID);
+				bodyInterface->DestroyBody(pc->bodyID);
+			}
+			registry.destroy(e);
 		}
 	}
 
