@@ -33,7 +33,6 @@ layout(location=5) flat out VS_OUT vs_out;
 
 struct ObjectData {
 	mat4 modelMatrix;
-	vec4 scale;
 };
 layout(set = 0, binding = 5) readonly buffer objTransform {
 	ObjectData objects[];
@@ -58,14 +57,11 @@ layout(push_constant) uniform Push {
 
 void main() {
 	mat4 modelMatrix;
-	vec4 scale;
 
 	if (push.UsesBufferedTransform != 0) {
-		scale       = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].scale;
 		modelMatrix = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].modelMatrix;
 		vs_out.isInstancedTransform = 1;
 	} else {
-		scale       = push.scale;
 		modelMatrix = push.modelMatrix;
 		vs_out.isInstancedTransform = 0;
 	}

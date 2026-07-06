@@ -9,7 +9,7 @@ layout(location=0) in vec3 position;
 
 // CASCADE_COUNT, DirectionalLight, and GlobalUBO (binding 4) come from ubo.glsl via pbr.glsl.
 
-struct ObjectData { mat4 modelMatrix; vec4 scale; };
+struct ObjectData { mat4 modelMatrix; };
 layout(set=0, binding=5) readonly buffer objTransform {
     ObjectData objects[];
 } objTransformArray[];

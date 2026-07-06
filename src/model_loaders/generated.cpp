@@ -119,12 +119,14 @@ namespace bagel
             v.uv = uv[i];
             vertices.push_back(v);
         }
+        // Winding matches generateCube()'s +y top face (0,2,1)(0,3,2) so the front face
+        // agrees with the up normal; the reverse order rendered the quad facing down.
         indices.push_back(base);
+        indices.push_back(base + 2);
         indices.push_back(base + 1);
-        indices.push_back(base + 2);
         indices.push_back(base);
-        indices.push_back(base + 2);
         indices.push_back(base + 3);
+        indices.push_back(base + 2);
         SubmeshInfo sm{};
         sm.firstIndex = 0;
         sm.indexCount = static_cast<uint32_t>(indices.size());

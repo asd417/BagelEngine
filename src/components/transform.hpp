@@ -38,14 +38,18 @@ namespace bagel {
 		glm::vec3	getScale() const { return scale; }
 		void		setScale(const glm::vec3& _scale) { scale = _scale; }
 		glm::vec3	getRotation() const { return rotation; }
+		glm::vec3	getRotationDegrees() const { return {rotation.x * 180 / 3.1415926535f, rotation.y * 180 / 3.1415926535f, rotation.z * 180 / 3.1415926535f}; }
 		void		setRotation(const glm::vec3& _rotation) { rotation = _rotation; }
+		void 		setRotationDegrees(const glm::vec3 &_rotation) { rotation = {_rotation.x / 180 * 3.1415926535, _rotation.y / 180 * 3.1415926535, _rotation.z / 180 * 3.1415926535}; }
 		glm::vec3	getLocalTranslation() const { return localTranslation; }
 		void		setLocalTranslation(const glm::vec3& _translation) { localTranslation = _translation; }
 		glm::vec3	getLocalScale() const { return localScale; }
 		void		setLocalScale(const glm::vec3& _scale){ localScale = _scale; }
 		glm::vec3	getLocalRotation() const { return localRotation; }
+		glm::vec3	getLocalRotationDegrees() const { return {localRotation.x * 180 / 3.1415926535f, localRotation.y * 180 / 3.1415926535f, localRotation.z * 180 / 3.1415926535f}; }
 		void		setLocalRotation(const glm::vec3& _rotation) { localRotation = _rotation; }
-
+		void 		setLocalRotationDegrees(const glm::vec3 &_rotation) { localRotation = {_rotation.x / 180 * 3.1415926535, _rotation.y / 180 * 3.1415926535, _rotation.z / 180 * 3.1415926535}; }
+		
 		glm::vec3	getWorldTranslation() const { return translation + localTranslation; };
 		glm::vec3	getWorldScale() const { return { scale.x * localScale.x, scale.y * localScale.y, scale.z * localScale.z}; };
 		glm::vec3	getWorldRotation() const { return rotation + localRotation; };
@@ -67,8 +71,7 @@ namespace bagel {
 
 	struct TransformArrayComponent {
 		struct TransformBufferUnit {
-			glm::mat4 modelMatrix{ 1.0f };
-			glm::vec4 scale{ 1.0f };
+			glm::mat4 modelMatrix{ 1.0f };   // already bakes scale (see mat4()); no separate scale needed
 		};
 		//TransformComponent will by default hold 1 transform value
 
