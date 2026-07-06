@@ -135,8 +135,7 @@ namespace bagel {
     {
         for (int i = 0; i < maxIndex; i++) {
             TransformBufferUnit objData{};
-            objData.modelMatrix = mat4(i);
-            objData.scale = glm::vec4{ getWorldScale(i), 1.0f };
+            objData.modelMatrix = mat4(i);   // mat4() bakes scale in, so no separate scale field
 
             bufferComponent.writeToBuffer(&objData, sizeof(objData), i * sizeof(TransformBufferUnit));
         }
