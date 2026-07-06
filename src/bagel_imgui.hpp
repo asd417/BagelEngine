@@ -14,9 +14,10 @@
 #include "entt.hpp"
 #include <glm/glm.hpp>
 #include "bagel_ecs_components.hpp"
+#include "physics/bagel_jolt.hpp"   // BGLJolt singleton for the inspector's sleep controls
 
 namespace bagel {
-
+    
     char* ClearConsole(void* ptr);
     char* HelpCommand(void* ptr);
     char* HistoryCommand(void* ptr);
@@ -89,15 +90,24 @@ namespace bagel {
             const uint32_t idx = static_cast<uint32_t>(entt::entt_traits<entt::entity>::to_entity(entity));
             const uint32_t ver = static_cast<uint32_t>(entt::entt_traits<entt::entity>::to_version(entity));
             ImGui::PushID(static_cast<int>(entt::to_integral(entity))); // unique across versions
-            if (ImGui::TreeNode("ent", "Entity %u (v%u)", idx, ver)) {
+            if (ImGui::TreeNode("ent", "Entity %u", idx)) { 
                 if (registry.all_of<Transient>(entity))
                     ImGui::TextColored(ImVec4(1.f, 0.7f, 0.2f, 1.f), "[Transient] (excluded from maps)");
 
                 if (auto* t = registry.try_get<TransformComponent>(entity)) {
                     glm::vec3 p = t->getTranslation();
                     if (ImGui::DragFloat3("Translation", &p.x, 0.05f)) t->setTranslation(p);
+                    glm::vec3 r = t->getRotationDegrees();
+                    if (ImGui::DragFloat3("Rotation", &r.x, 0.05f,-360, 360 )) t->setRotationDegrees(r);
                     glm::vec3 s = t->getScale();
                     if (ImGui::DragFloat3("Scale", &s.x, 0.01f)) t->setScale(s);
+
+                    glm::vec3 lp = t->getLocalTranslation();
+                    if (ImGui::DragFloat3("Local Translation", &lp.x, 0.05f)) t->setLocalTranslation(lp);
+                    glm::vec3 lr = t->getLocalRotationDegrees();
+                    if (ImGui::DragFloat3("Local Rotation", &lr.x, 0.05f,-360, 360)) t->setLocalRotationDegrees(lr);
+                    glm::vec3 ls = t->getLocalScale();
+                    if (ImGui::DragFloat3("Local Scale", &ls.x, 0.01f)) t->setLocalScale(ls);
                 }
                 if (auto* ta = registry.try_get<TransformArrayComponent>(entity))
                     ImGui::Text("TransformArray: %u instances, buffered=%s", ta->count(), ta->useBuffer() ? "yes" : "no");
@@ -199,7 +209,14 @@ namespace bagel {
                 }
                 if (auto* db = registry.try_get<DataBufferComponent>(entity))
                     ImGui::Text("DataBuffer: handle=%u", db->getBufferHandle());
-                if (registry.all_of<JoltPhysicsComponent>(entity))   ImGui::TextUnformatted("JoltPhysics");
+                if (registry.all_of<JoltPhysicsComponent>(entity)) {
+                    ImGui::TextUnformatted("JoltPhysics");
+                    BGLJolt* jolt = BGLJolt::GetInstance();
+                    ImGui::Text("  state: %s", jolt->IsBodyActive(entity) ? "awake" : "asleep");
+                    if (ImGui::SmallButton("Wake"))  jolt->SetComponentActivity(entity, true);
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("Sleep")) jolt->SetComponentActivity(entity, false);
+                }
                 if (registry.all_of<JoltKinematicComponent>(entity)) ImGui::TextUnformatted("JoltKinematic");
                 if (registry.all_of<InfoComponent>(entity))          ImGui::TextUnformatted("Info");
 
