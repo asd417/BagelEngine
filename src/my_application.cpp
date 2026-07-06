@@ -429,9 +429,6 @@ namespace bagel
 	// quad and gives dropped bricks something to land on.
 	void MyApplication::loadLegoGround()
 	{
-		constexpr float kHalfSize = 10.0f;      // 20 x 20 unit ground plane
-		constexpr float kHalfThickness = 0.5f;  // collider thickness (invisible; below the quad)
-
 		ModelComponentBuilder builder(bglDevice, registry);
 		builder.setTextureLoader(&materialManager->getTextureLoader());
 		builder.setMaterialManager(materialManager.get());
@@ -440,7 +437,7 @@ namespace bagel
 		// generateFloor() lays out the quad using scaleVec.x/.z (see model_loaders/generated.cpp),
 		// so the mesh is already full-size; leave the entity transform at identity.
 		ModelLoadSettings settings{};
-		settings.scaleVec = {kHalfSize * 2.0f, 1.0f, kHalfSize * 2.0f};
+		settings.scaleVec = {100.0f, 1.0f, 100.0f};
 
 		auto entity = registry.create();
 		auto &tc = registry.emplace<TransformComponent>(entity);   // at origin
@@ -450,14 +447,13 @@ namespace bagel
 		tc.setScale({1.0f, 1.0f, 1.0f});
 		builder.buildComponent(entity, "/models/floor.obj", settings);
 
-		// Thin static box; centered kHalfThickness below origin so its top face is flush with y=0.
 		BGLJolt::PhysicsBodyCreationInfo info{};
-		info.pos = {0.0f, -kHalfThickness, 0.0f};
+		info.pos = {0.0f, 0, 0.0f};
 		info.rot = {0.0f, 0.0f, 0.0f};
 		info.physicsType = PhysicsType::STATIC;
 		info.activate = false;
 		info.layer = PhysicsLayers::NON_MOVING;
-		BGLJolt::GetInstance()->AddBox(entity, {kHalfSize, kHalfThickness, kHalfSize}, info);
+		BGLJolt::GetInstance()->AddBox(entity, {100.0f, 0, 100.0f}, info);
 
 		CONSOLE->Log("Lego", "Spawned ground plane");
 	}
@@ -475,12 +471,12 @@ namespace bagel
 		builder.setSkinManager(skinManager.get());
 
 		ModelLoadSettings settings{};
-		settings.scale = 0.1f;
+		settings.scale = 0.01f;
 
 		const std::string part = partName + ".dat";   // ".dat" ext routes to LDrawModelLoader
 		auto entity = registry.create();
 		auto &tc = registry.emplace<TransformComponent>(entity);
-		tc.setTranslation(pos);
+		tc.setTranslation({0,5,0});
 		tc.setRotation({glm::pi<float>(), 0.0f, 0.0f});
 		// settings.scale already bakes the LDU geometry to engine size, so the transform must be
 		// identity scale. The TransformComponent default is 0.1 (see transform.hpp); leaving it
