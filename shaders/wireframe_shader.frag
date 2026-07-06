@@ -19,7 +19,6 @@ const float gamma = 2.2;
 
 struct ObjectData{
 	mat4 modelMatrix;
-	vec4 scale;
 };
 layout (set = 0, binding = 5) readonly buffer objTransform {
 	ObjectData objects[];
@@ -29,7 +28,6 @@ layout (set = 0, binding = 6) uniform sampler2D samplerColor[];
 
 layout(push_constant) uniform Push {
 	mat4 modelMatrix;
-	vec4 scale;
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
 	vec4 color;

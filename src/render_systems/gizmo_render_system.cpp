@@ -133,10 +133,16 @@ namespace bagel {
 	void GizmoRenderSystem::drawMesh(VkCommandBuffer cmd, VkBuffer vb, uint32_t vertCount,
 	                                 const glm::mat4& model, float scale, const glm::vec4& color)
 	{
+		// The wireframe shader no longer takes a separate push.scale — it applies the model matrix
+		// directly. Fold the uniform scale into the matrix's basis columns (== model * scale(s)),
+		// which reproduces the old per-column scaling exactly.
+		glm::mat4 scaledModel = model;
+		scaledModel[0] *= scale;
+		scaledModel[1] *= scale;
+		scaledModel[2] *= scale;
 		WireframePushConstantData push{};
 		push.UsesBufferedTransform = 0;
-		push.modelMatrix = model;
-		push.scale = glm::vec4{ scale, scale, scale, 1.0f };
+		push.modelMatrix = scaledModel;
 		push.color = color;
 		vkCmdPushConstants(cmd, pipelineLayout,
 			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,

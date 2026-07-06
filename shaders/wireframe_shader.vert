@@ -23,7 +23,6 @@ layout(location=3) out int isInstancedTransform;
 
 struct ObjectData{
 	mat4 modelMatrix;
-	vec4 scale;
 };
 layout (set = 0, binding = 5) readonly buffer objTransform {
 	ObjectData objects[];
@@ -33,43 +32,28 @@ layout (set = 0, binding = 6) uniform sampler2D samplerColor[];
 
 layout(push_constant) uniform Push {
 	mat4 modelMatrix;
-	vec4 scale;
 	uint BufferedTransformHandle;
 	uint UsesBufferedTransform;
 } push;
 
 //Executed once per vertex
 void main() {
-	vec4 positionWorld;
 	vec3 graphicsPos = vec3(position.x,position.y,position.z);
 	mat4 modelMatrix;
-	mat4 normalMatrix;
-	vec4 scale;
 	if(push.UsesBufferedTransform != 0){
-		scale = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].scale;
 		modelMatrix = objTransformArray[push.BufferedTransformHandle].objects[gl_InstanceIndex].modelMatrix;
 		isInstancedTransform = 1;
 	} else {
-		scale = push.scale;
 		modelMatrix = push.modelMatrix;
 		isInstancedTransform = 0;
 	}
-	normalMatrix = modelMatrix;
-	
-	modelMatrix[0] = modelMatrix[0] * scale.x;
-	modelMatrix[1] = modelMatrix[1] * scale.y;
-	modelMatrix[2] = modelMatrix[2] * scale.z;
-	normalMatrix[0] = normalMatrix[0] * (1/scale.x);
-	normalMatrix[1] = normalMatrix[1] * (1/scale.y);
-	normalMatrix[2] = normalMatrix[2] * (1/scale.z);
+	// modelMatrix already bakes scale in (TransformComponent::computeMat4 / TransformArrayComponent::mat4),
+	// so use it directly — matching gbuffer_fill.vert. Re-applying a separate scale here double-scaled.
+	mat3 normalMatrix = transpose(inverse(mat3(modelMatrix)));
 
-	positionWorld = modelMatrix * vec4(graphicsPos,1.0);
-	vec4 pos = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
-	//pos.y = -1 * pos.y;
-	gl_Position = pos;
-	vec4 invScale = vec4(1/push.scale.x, 1/push.scale.y, 1/push.scale.z, 1);
-	//scale model matrix with inverse scale to get normalMatrix
-	fragNormalWorld = normalize(mat3(normalMatrix) * normal);
+	vec4 positionWorld = modelMatrix * vec4(graphicsPos,1.0);
+	gl_Position = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
+	fragNormalWorld = normalize(normalMatrix * normal);
 	isInstancedTransform = 0;
 
 	fragPosWorld = positionWorld.xyz;

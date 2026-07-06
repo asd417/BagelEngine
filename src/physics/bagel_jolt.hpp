@@ -235,6 +235,8 @@ namespace bagel {
 		void Step(float dt, JPH::uint stepCount = 1);
 		void SetComponentActivityAll(bool activity);
 		void SetComponentActivity(entt::entity ent, bool activity);
+		// True if the body is currently awake (used by the inspector's sleep readout).
+		bool IsBodyActive(entt::entity ent);
 		void ApplyTransformToKinematic(float dt);
 		void ApplyPhysicsTransform();
 		// Recreate live Jolt bodies for every entity carrying a Jolt component from its

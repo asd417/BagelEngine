@@ -69,6 +69,13 @@ namespace bagel {
 		else bodyInterface->DeactivateBody(comp->bodyID);
 	}
 
+	bool BGLJolt::IsBodyActive(entt::entity ent)
+	{
+		auto* comp = registry.try_get<JoltPhysicsComponent>(ent);
+		if (comp == nullptr || comp->bodyID.IsInvalid()) return false;
+		return bodyInterface->IsActive(comp->bodyID);
+	}
+
 	void BGLJolt::ApplyTransformToKinematic(float dt)
 	{
 		auto entView = registry.view<TransformComponent, JoltKinematicComponent>();

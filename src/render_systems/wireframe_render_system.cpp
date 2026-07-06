@@ -197,7 +197,6 @@ namespace bagel {
 			WireframePushConstantData push{};
 			push.UsesBufferedTransform = 0;
 			push.modelMatrix = transformComp.getMat4();
-			push.scale = glm::vec4{ transformComp.getWorldScale(), 1.0 };
 			for (uint32_t i = 0; i < modelDescComp.submeshCount; i++) {
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 				DrawByIndexCount(frameInfo.commandBuffer, modelDescComp.vertexCount, modelDescComp.indexCount, 1, modelDescComp.submeshes[i].firstIndex);
@@ -213,7 +212,6 @@ namespace bagel {
 			push.BufferedTransformHandle = transformComp.bufferHandle;
 			if (!transformComp.useBuffer()) {
 				push.modelMatrix = transformComp.mat4(0);
-				push.scale = glm::vec4{ transformComp.getWorldScale(0), 1.0 };
 			}
 			for (uint32_t i = 0; i < modelDescComp.submeshCount; i++) {
 				SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
@@ -256,7 +254,6 @@ namespace bagel {
 			WireframePushConstantData push{};
 			push.UsesBufferedTransform = 0;
 			push.modelMatrix = modelMatrix;
-			push.scale       = glm::vec4{ transform.getWorldScale(), 1.0f };
 			push.color       = wireColor;
 			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 			// Solid submeshes only — transparent ones (e.g. the planet ocean) keep their own look.
@@ -283,7 +280,6 @@ namespace bagel {
 			push.BufferedTransformHandle = transform.bufferHandle;
 			if (!transform.useBuffer()) {
 				push.modelMatrix = transform.mat4(0);
-				push.scale       = glm::vec4{ transform.getWorldScale(0), 1.0f };
 			}
 			push.color = wireColor;
 			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
@@ -325,7 +321,6 @@ namespace bagel {
 			WireframePushConstantData push{};
 			push.UsesBufferedTransform = 0;
 			push.modelMatrix = bboxMat;
-			push.scale = glm::vec4{1.0f};
 			push.color = glm::vec4{0.0f, 1.0f, 0.0f, 1.0f};
 			SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
 			vkCmdDrawIndexed(frameInfo.commandBuffer, BBOX_INDEX_COUNT, 1, 0, 0, 0);
