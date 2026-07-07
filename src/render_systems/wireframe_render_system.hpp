@@ -42,6 +42,9 @@ namespace bagel {
 		// per-entity WireframeComponent — drawn with a TRIANGLE_LIST polygon-line pipeline.
 		void renderModelsWireframe(FrameInfo& frameInfo);
 		void renderBBoxes(FrameInfo& frameInfo);
+		// Draw a single highlight bbox (distinct color) around one entity — the selection outline.
+		// No-op if the entity is invalid or has no drawable ModelComponent bounds.
+		void renderSelection(FrameInfo& frameInfo, entt::entity entity);
 		~WireframeRenderSystem();
 	private:
 		entt::registry& registry;

@@ -42,7 +42,11 @@ namespace bagel {
 	{
 		static constexpr JPH::ObjectLayer NON_MOVING = 0;
 		static constexpr JPH::ObjectLayer MOVING = 1;
-		static constexpr JPH::ObjectLayer NUM_LAYERS = 2;
+		// LEGO assemblies: collide with the static world (ground) ONLY — never with each other or
+		// other moving bodies. Assembled shapes are driven by constraints/grouping, not contacts,
+		// so mutual collision is pure cost + jitter. Shares the MOVING broadphase tree.
+		static constexpr JPH::ObjectLayer LEGO = 2;
+		static constexpr JPH::ObjectLayer NUM_LAYERS = 3;
 	};
 
 	enum PhysicsType
@@ -136,6 +140,8 @@ namespace bagel {
 				return inLayer2 == BroadPhaseLayers::MOVING;
 			case PhysicsLayers::MOVING:
 				return true;
+			case PhysicsLayers::LEGO:
+				return inLayer2 == BroadPhaseLayers::NON_MOVING; // lego pieces only test vs ground
 			default:
 				JPH_ASSERT(false);
 				return false;
@@ -154,6 +160,7 @@ namespace bagel {
 			// Create a mapping table from object to broad phase layer
 			mObjectToBroadPhase[PhysicsLayers::NON_MOVING] = BroadPhaseLayers::NON_MOVING;
 			mObjectToBroadPhase[PhysicsLayers::MOVING] = BroadPhaseLayers::MOVING;
+			mObjectToBroadPhase[PhysicsLayers::LEGO] = BroadPhaseLayers::MOVING; // lego bodies move
 		}
 
 		virtual JPH::uint GetNumBroadPhaseLayers() const override
@@ -189,12 +196,20 @@ namespace bagel {
 	public:
 		virtual bool ShouldCollide(JPH::ObjectLayer inObject1, JPH::ObjectLayer inObject2) const override
 		{
+			// LEGO pieces collide with the static world (ground) only — never with each other and
+			// never with other moving bodies. Handled first so the rule stays symmetric regardless
+			// of argument order.
+			if (inObject1 == PhysicsLayers::LEGO || inObject2 == PhysicsLayers::LEGO)
+			{
+				JPH::ObjectLayer other = (inObject1 == PhysicsLayers::LEGO) ? inObject2 : inObject1;
+				return other == PhysicsLayers::NON_MOVING;
+			}
 			switch (inObject1)
 			{
 			case PhysicsLayers::NON_MOVING:
 				return inObject2 == PhysicsLayers::MOVING; // Non moving only collides with moving
 			case PhysicsLayers::MOVING:
-				return true; // Moving collides with everything
+				return true; // Moving collides with everything (LEGO already handled above)
 			default:
 				JPH_ASSERT(false);
 				return false;
@@ -260,21 +275,41 @@ namespace bagel {
 		// local/model scale (the caller scales the raw-LDU bake by the load scale).
 		void AddConvexHull(entt::entity ent, const std::vector<std::vector<glm::vec3>>& hulls,
 		                   PhysicsBodyCreationInfo& info);
-		// Fuse each solid group into ONE body: the members' existing collider shapes are combined
-		// into a compound placed at each part's pose relative to the group's reference (first) part,
-		// the per-part bodies are dropped, and the followers get a JoltGroupMemberComponent so
-		// ApplyGroupTransforms() can ride them along. Groups of size < 2 are ignored (singletons keep
-		// their own body). `groups` is any entity partition — e.g. LegoConnectionGraph::binSolidGroups()
-		// — which keeps this domain-agnostic (no LEGO dependency). `type` is the group body's motion type.
+		// Fuse each solid group into ONE body: the members' baked collider shapes (ColliderShapeComponent)
+		// are combined into a compound placed at each part's pose relative to the group's reference
+		// (first) part, tagged with the member entity as sub-shape user data (for raycast picking), and
+		// the followers get a JoltGroupMemberComponent so ApplyGroupTransforms() can ride them along.
+		// Groups of size < 2 are ignored (singletons keep their own body). `groups` is any entity
+		// partition — e.g. LegoConnectionGraph::binSolidGroups() — so this stays domain-agnostic.
 		void BuildBodiesPerGroup(const std::vector<std::vector<entt::entity>>& groups,
-		                         PhysicsType type = PhysicsType::DYNAMIC);
+		                         PhysicsType type = PhysicsType::DYNAMIC,
+		                         JPH::ObjectLayer layer = PhysicsLayers::MOVING);
+		// Rebuild ONE solid group's body from its current member list — call after an edit adds or
+		// removes a part (bricks are placed/removed at human tempo, so rebuilding a StaticCompound is
+		// cheap; MutableCompoundShape is unnecessary). Tears down the group's existing body/components
+		// first. A size-1 group collapses back to a single per-part body from its ColliderShapeComponent.
+		void RebuildGroupBody(const std::vector<entt::entity>& group,
+		                      PhysicsType type = PhysicsType::DYNAMIC,
+		                      JPH::ObjectLayer layer = PhysicsLayers::MOVING);
 		// Drive every JoltGroupMemberComponent follower from its shared group body. Call each frame
 		// right after ApplyPhysicsTransform() (which drives the reference parts that own the bodies).
 		void ApplyGroupTransforms();
+		// Map a raycast hit (body + sub-shape) back to the block entity it struck: reads the entity
+		// tag from the group compound's sub-shape user data, or the body user data for a lone part.
+		// Returns entt::null if it can't be resolved.
+		entt::entity resolveRaycastToBlock(JPH::BodyID body, JPH::SubShapeID subShape) const;
+		// Convenience: cast a world-space ray into the physics scene and return the block entity under
+		// it (entt::null on miss). `dir` need not be normalized; it is scaled by `maxDist`. If `outHit`
+		// is non-null it receives the world hit point.
+		entt::entity PickEntity(glm::vec3 origin, glm::vec3 dir, float maxDist = 1000.0f,
+		                        glm::vec3* outHit = nullptr) const;
 		void SetSimulationTimescale(float _s) { simTimeScale = _s; }
 		glm::vec3 GetGravity();
 		void SetGravity(glm::vec3 gravity);
 	private:
+		// Build one group's compound body (assumes the group's old bodies/components are already torn
+		// down). Returns the new body id, or an invalid id if fewer than 2 members had shapes.
+		JPH::BodyID buildGroupCompound(const std::vector<entt::entity>& group, PhysicsType type, JPH::ObjectLayer layer);
 		BGLJolt(BGLDevice& _bglDevice, entt::registry& _registry);
 		~BGLJolt();
 

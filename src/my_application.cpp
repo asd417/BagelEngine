@@ -538,7 +538,7 @@ namespace bagel
 			info.rot = tc.getWorldRotation();
 			info.physicsType = PhysicsType::DYNAMIC;     // bricks fall + collide (ground is STATIC)
 			info.activate = true;
-			info.layer = PhysicsLayers::MOVING;
+			info.layer = PhysicsLayers::LEGO;            // collide with ground only, not each other
 			BGLJolt::GetInstance()->AddConvexHull(entity, scaled, info);
 		}
 		CONSOLE->Log("Lego", "Spawned " + partName);

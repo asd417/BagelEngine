@@ -5,11 +5,20 @@
 
 #include <glm/gtc/quaternion.hpp>  // mat3_cast / quat_cast / mat4_cast
 
+#include <Jolt/Physics/Collision/RayCast.h>          // RRayCast
+#include <Jolt/Physics/Collision/CastResult.h>       // RayCastResult
+#include <Jolt/Physics/Collision/NarrowPhaseQuery.h> // physicsSystem.GetNarrowPhaseQuery().CastRay
+
 #include "bagel_imgui.hpp"
 #define CONSOLE ConsoleApp::Instance()
 
 namespace bagel {
 	BGLJolt* BGLJolt::instance = nullptr;
+
+	// High bit of a body's user data flags "this is a fused group body — resolve a raycast to the
+	// specific block via the compound's sub-shape user data." Ordinary bodies store their entity id
+	// (a 32-bit value, so this bit is clear) directly in the low bits.
+	static constexpr JPH::uint64 kGroupBodyFlag = JPH::uint64(1) << 63;
 
 	// Extract Euler angles in the X*Y*Z order that TransformComponent::computeMat4() reassembles,
 	// so the stored eulers reproduce R exactly. (glm::eulerAngles uses a different order, which is
@@ -162,75 +171,144 @@ namespace bagel {
 		}
 	}
 
-	void BGLJolt::BuildBodiesPerGroup(const std::vector<std::vector<entt::entity>>& groups, PhysicsType type)
+	// Tear down whatever live body/group-wiring a set of parts currently has, so the group can be
+	// (re)built cleanly. RemoveEntityBody frees the ref's group body (or a part's own body); the
+	// components are then dropped. ColliderShapeComponent is intentionally left intact.
+	static void teardownGroupBodies(entt::registry& reg, BGLJolt& jolt, const std::vector<entt::entity>& group)
 	{
-		const JPH::ObjectLayer layer = (type == PhysicsType::STATIC) ? PhysicsLayers::NON_MOVING
-		                                                             : PhysicsLayers::MOVING;
+		for (entt::entity m : group) {
+			jolt.RemoveEntityBody(m);
+			reg.remove<JoltPhysicsComponent>(m);
+			reg.remove<JoltGroupMemberComponent>(m);
+		}
+	}
+
+	JPH::BodyID BGLJolt::buildGroupCompound(const std::vector<entt::entity>& group, PhysicsType type, JPH::ObjectLayer layer)
+	{
+		if (group.empty()) return {};
+		// Reference frame = the first member's world pose. Everything is derived from computeMat4()
+		// (the render transform), so physics ends up aligned with the mesh.
+		entt::entity ref = group.front();
+		auto* refTc = registry.try_get<TransformComponent>(ref);
+		if (!refTc) return {};
+		const glm::mat4 refWorld = refTc->computeMat4();
+		const glm::mat4 invRef   = glm::inverse(refWorld);
+
+		// Combine each member's baked shape into a compound at its pose relative to the reference,
+		// tagging the sub-shape with the member entity so a raycast can resolve back to the block.
+		JPH::StaticCompoundShapeSettings comp;
+		std::vector<std::pair<entt::entity, glm::mat4>> members;
+		for (entt::entity m : group) {
+			auto* tc = registry.try_get<TransformComponent>(m);
+			auto* sc = registry.try_get<ColliderShapeComponent>(m);
+			if (!tc || !sc || sc->shape == nullptr) continue;
+			const glm::mat4 rel = invRef * tc->computeMat4();   // member relative to ref
+			const glm::vec3 rp  = glm::vec3(rel[3]);
+			const glm::quat rq  = glm::quat_cast(glm::mat3(rel));
+			comp.AddShape(JPH::Vec3(rp.x, rp.y, rp.z),
+			              JPH::Quat(rq.x, rq.y, rq.z, rq.w),
+			              sc->shape.GetPtr(), entt::to_integral(m)); // sub-shape user data = block entity
+			members.emplace_back(m, rel);
+		}
+		if (members.size() < 2) return {};   // not enough valid members to fuse
+
+		JPH::ShapeSettings::ShapeResult res = comp.Create();
+		if (res.HasError()) {
+			CONSOLE->Log("Physics", std::string("group compound failed: ") + res.GetError().c_str());
+			return {};
+		}
+
 		const JPH::EActivation act = (type == PhysicsType::STATIC) ? JPH::EActivation::DontActivate
 		                                                          : JPH::EActivation::Activate;
+		const glm::vec3 bp = glm::vec3(refWorld[3]);
+		const glm::quat bq = glm::quat_cast(glm::mat3(refWorld));
+		JPH::BodyCreationSettings bodySettings(res.Get(),
+			JPH::RVec3(bp.x, bp.y, bp.z), JPH::Quat(bq.x, bq.y, bq.z, bq.w),
+			(JPH::EMotionType)type, layer);
+		bodySettings.mUserData = kGroupBodyFlag;   // mark as a group body -> pick via sub-shape data
+		JPH::BodyID groupBody = bodyInterface->CreateAndAddBody(bodySettings, act);
 
+		// The reference part owns the body (normal JoltPhysicsComponent -> ApplyPhysicsTransform
+		// drives it, RemoveAllBodies frees it). Every other member follows it at its offset.
+		auto& rpc = registry.emplace_or_replace<JoltPhysicsComponent>(ref);
+		rpc.settings = bodySettings;
+		rpc.bodyID   = groupBody;
+		for (auto& [m, rel] : members) {
+			if (m == ref) continue;
+			auto& gm = registry.emplace_or_replace<JoltGroupMemberComponent>(m);
+			gm.groupBody   = groupBody;
+			gm.localOffset = rel;   // member relative to ref == relative to body origin
+		}
+		return groupBody;
+	}
+
+	void BGLJolt::BuildBodiesPerGroup(const std::vector<std::vector<entt::entity>>& groups, PhysicsType type, JPH::ObjectLayer layer)
+	{
 		for (const std::vector<entt::entity>& group : groups) {
 			if (group.size() < 2) continue;   // singletons keep their own per-part body
-
-			// Reference frame = the first member's world pose. Everything is derived from
-			// computeMat4() (the render transform), so physics ends up aligned with the mesh.
-			entt::entity ref = group.front();
-			auto* refTc = registry.try_get<TransformComponent>(ref);
-			if (!refTc) continue;
-			const glm::mat4 refWorld = refTc->computeMat4();
-			const glm::mat4 invRef   = glm::inverse(refWorld);
-
-			// Combine each member's existing collider shape into a compound at its pose relative
-			// to the reference. Remember each member + its local offset for the follow-up wiring.
-			JPH::StaticCompoundShapeSettings comp;
-			std::vector<std::pair<entt::entity, glm::mat4>> members;
-			for (entt::entity m : group) {
-				auto* tc = registry.try_get<TransformComponent>(m);
-				auto* pc = registry.try_get<JoltPhysicsComponent>(m);
-				if (!tc || !pc || pc->settings.GetShape() == nullptr) continue;
-				const glm::mat4 rel = invRef * tc->computeMat4();   // member relative to ref
-				const glm::vec3 rp  = glm::vec3(rel[3]);
-				const glm::quat rq  = glm::quat_cast(glm::mat3(rel));
-				comp.AddShape(JPH::Vec3(rp.x, rp.y, rp.z),
-				              JPH::Quat(rq.x, rq.y, rq.z, rq.w),
-				              pc->settings.GetShape());
-				members.emplace_back(m, rel);
-			}
-			if (members.size() < 2) continue;   // not enough valid members to fuse
-
-			JPH::ShapeSettings::ShapeResult res = comp.Create();
-			if (res.HasError()) {
-				CONSOLE->Log("Physics", std::string("group compound failed: ") + res.GetError().c_str());
-				continue;
-			}
-
-			// Drop the members' individual bodies + components before creating the group body.
-			for (auto& [m, rel] : members) {
-				RemoveEntityBody(m);
-				registry.remove<JoltPhysicsComponent>(m);
-				registry.remove<JoltGroupMemberComponent>(m);   // in case of a re-group
-			}
-
-			// One body for the whole group, at the reference's world pose.
-			const glm::vec3 bp = glm::vec3(refWorld[3]);
-			const glm::quat bq = glm::quat_cast(glm::mat3(refWorld));
-			JPH::BodyCreationSettings bodySettings(res.Get(),
-				JPH::RVec3(bp.x, bp.y, bp.z), JPH::Quat(bq.x, bq.y, bq.z, bq.w),
-				(JPH::EMotionType)type, layer);
-			JPH::BodyID groupBody = bodyInterface->CreateAndAddBody(bodySettings, act);
-
-			// The reference part owns the body (normal JoltPhysicsComponent -> ApplyPhysicsTransform
-			// drives it, RemoveAllBodies frees it). Every other member follows it at its offset.
-			auto& rpc = registry.emplace_or_replace<JoltPhysicsComponent>(ref);
-			rpc.settings = bodySettings;
-			rpc.bodyID   = groupBody;
-			for (auto& [m, rel] : members) {
-				if (m == ref) continue;
-				auto& gm = registry.emplace_or_replace<JoltGroupMemberComponent>(m);
-				gm.groupBody   = groupBody;
-				gm.localOffset = rel;   // member relative to ref == relative to body origin
-			}
+			teardownGroupBodies(registry, *this, group);
+			buildGroupCompound(group, type, layer);
 		}
+	}
+
+	void BGLJolt::RebuildGroupBody(const std::vector<entt::entity>& group, PhysicsType type, JPH::ObjectLayer layer)
+	{
+		teardownGroupBodies(registry, *this, group);
+		if (group.size() >= 2) { buildGroupCompound(group, type, layer); return; }
+		if (group.size() == 1) {
+			// Collapsed to a lone part: recreate a single body from its kept ColliderShapeComponent.
+			entt::entity e = group.front();
+			auto* tc = registry.try_get<TransformComponent>(e);
+			auto* sc = registry.try_get<ColliderShapeComponent>(e);
+			if (!tc || !sc || sc->shape == nullptr) return;
+			const glm::mat4 w = tc->computeMat4();
+			const glm::vec3 p = glm::vec3(w[3]);
+			const glm::quat q = glm::quat_cast(glm::mat3(w));
+			const JPH::EActivation act = (type == PhysicsType::STATIC) ? JPH::EActivation::DontActivate
+			                                                          : JPH::EActivation::Activate;
+			JPH::BodyCreationSettings bs(sc->shape.GetPtr(), JPH::RVec3(p.x, p.y, p.z),
+				JPH::Quat(q.x, q.y, q.z, q.w), (JPH::EMotionType)type, layer);
+			bs.mUserData = entt::to_integral(e);
+			auto& pc = registry.emplace_or_replace<JoltPhysicsComponent>(e);
+			pc.settings = bs;
+			pc.bodyID   = bodyInterface->CreateAndAddBody(bs, act);
+		}
+	}
+
+	entt::entity BGLJolt::resolveRaycastToBlock(JPH::BodyID body, JPH::SubShapeID subShape) const
+	{
+		if (body.IsInvalid()) return entt::null;
+		const JPH::uint64 bu = bodyInterface->GetUserData(body);
+		if (bu & kGroupBodyFlag) {
+			// Group compound: the block is the TOP-LEVEL sub-shape's user data. Peel only that level
+			// (GetSubShapeIndexFromID) — the brick's own nested hull compound underneath is ignored.
+			JPH::RefConst<JPH::Shape> shape = bodyInterface->GetShape(body);
+			if (shape != nullptr && shape->GetType() == JPH::EShapeType::Compound) {
+				const JPH::CompoundShape* comp = static_cast<const JPH::CompoundShape*>(shape.GetPtr());
+				JPH::SubShapeID remainder;
+				JPH::uint32 idx = comp->GetSubShapeIndexFromID(subShape, remainder);
+				entt::entity e{ comp->GetCompoundUserData(idx) };
+				return registry.valid(e) ? e : entt::null;
+			}
+			return entt::null;
+		}
+		// Lone part (or ground): body user data is the entity directly.
+		entt::entity e{ static_cast<entt::id_type>(bu) };
+		return registry.valid(e) ? e : entt::null;
+	}
+
+	entt::entity BGLJolt::PickEntity(glm::vec3 origin, glm::vec3 dir, float maxDist, glm::vec3* outHit) const
+	{
+		JPH::RRayCast ray{ JPH::RVec3(origin.x, origin.y, origin.z),
+		                   JPH::Vec3(dir.x, dir.y, dir.z) * maxDist };
+		JPH::RayCastResult hit;
+		if (!physicsSystem.GetNarrowPhaseQuery().CastRay(ray, hit))
+			return entt::null;
+		if (outHit) {
+			JPH::RVec3 p = ray.GetPointOnRay(hit.mFraction);
+			*outHit = { (float)p.GetX(), (float)p.GetY(), (float)p.GetZ() };
+		}
+		return resolveRaycastToBlock(hit.mBodyID, hit.mSubShapeID2);
 	}
 
 	void BGLJolt::ApplyGroupTransforms()
@@ -288,6 +366,7 @@ namespace bagel {
 	void BGLJolt::AddSphere(entt::entity ent, float radius, PhysicsBodyCreationInfo& info) {
 		JPH::EActivation activity = info.activate ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
 		JPH::BodyCreationSettings sphereSettings(new JPH::SphereShape(radius), JPH::RVec3(info.pos.x, info.pos.y, info.pos.z), JPH::Quat::sEulerAngles({ info.rot.x,info.rot.y,info.rot.z }), (JPH::EMotionType)info.physicsType, info.layer);
+		sphereSettings.mUserData = entt::to_integral(ent);   // body -> entity (for raycast picking)
 		if (info.physicsType == PhysicsType::KINEMATIC) {
 			auto& jpc = registry.emplace<JoltKinematicComponent>(ent);
 			jpc.settings = sphereSettings; // persisted recipe; bodyID below is transient
@@ -305,6 +384,7 @@ namespace bagel {
 		// Use a baked BoxShape (not BoxShapeSettings) so the shape can be serialized via
 		// BodyCreationSettings::SaveWithChildren when the entity is written to a map.
 		JPH::BodyCreationSettings boxSettings(new JPH::BoxShape({halfExtent.x,halfExtent.y,halfExtent.z}), JPH::RVec3(info.pos.x, info.pos.y, info.pos.z), JPH::Quat::sEulerAngles({ info.rot.x,info.rot.y,info.rot.z }), (JPH::EMotionType)info.physicsType, info.layer);
+		boxSettings.mUserData = entt::to_integral(ent);   // body -> entity (for raycast picking)
 
 		if (info.physicsType == PhysicsType::KINEMATIC) {
 			auto& jpc = registry.emplace<bagel::JoltKinematicComponent>(ent);
@@ -363,12 +443,18 @@ namespace bagel {
 			+ std::to_string(b.mMin.GetX()) + "," + std::to_string(b.mMin.GetY()) + "," + std::to_string(b.mMin.GetZ()) + "] .. ["
 			+ std::to_string(b.mMax.GetX()) + "," + std::to_string(b.mMax.GetY()) + "," + std::to_string(b.mMax.GetZ()) + "]");
 
+		// Keep the baked shape on the entity so a solid group can be (re)built from its members'
+		// shapes later without re-baking (see buildGroupCompound / RebuildGroupBody).
+		registry.emplace_or_replace<ColliderShapeComponent>(ent).shape = shape;
+
 		JPH::EActivation activity = info.activate ? JPH::EActivation::Activate : JPH::EActivation::DontActivate;
 		// Baked shape (not settings) so it serializes via BodyCreationSettings::SaveWithChildren.
 		JPH::BodyCreationSettings bodySettings(shape.GetPtr(),
 			JPH::RVec3(info.pos.x, info.pos.y, info.pos.z),
 			JPH::Quat::sEulerAngles({ info.rot.x, info.rot.y, info.rot.z }),
 			(JPH::EMotionType)info.physicsType, info.layer);
+		// Tag the body with its entity so a raycast on a lone (ungrouped) part resolves directly.
+		bodySettings.mUserData = entt::to_integral(ent);
 
 		if (info.physicsType == PhysicsType::KINEMATIC) {
 			auto& jpc = registry.emplace<bagel::JoltKinematicComponent>(ent);
