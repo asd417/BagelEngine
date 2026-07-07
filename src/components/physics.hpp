@@ -12,6 +12,13 @@ namespace bagel {
 		JPH::BodyCreationSettings settings; // for recreation of the body
 	};
 
+	// The entity's own baked collider shape, kept independently of whatever live body it currently
+	// participates in. Set when the collider is created (AddConvexHull); survives being fused into
+	// a group compound so a solid group can be (re)built from its members' shapes without re-baking.
+	struct ColliderShapeComponent {
+		JPH::RefConst<JPH::Shape> shape;
+	};
+
 	// A part fused into a multi-part solid group (see LegoConnectionGraph::binSolidGroups /
 	// BGLJolt::BuildBodiesPerGroup). The group's single rigid body lives on the group's reference
 	// part as a normal JoltPhysicsComponent; every OTHER member carries this instead and rides

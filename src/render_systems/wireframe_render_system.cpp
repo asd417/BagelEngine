@@ -326,5 +326,35 @@ namespace bagel {
 			vkCmdDrawIndexed(frameInfo.commandBuffer, BBOX_INDEX_COUNT, 1, 0, 0, 0);
 		}
 	}
+
+	void WireframeRenderSystem::renderSelection(FrameInfo& frameInfo, entt::entity entity)
+	{
+		if (entity == entt::null || !registry.valid(entity)) return;
+		auto* transformComp = registry.try_get<TransformComponent>(entity);
+		auto* modelComp     = registry.try_get<ModelComponent>(entity);
+		if (!transformComp || !modelComp) return;
+		if (modelComp->mesh().aabbMin == modelComp->mesh().aabbMax) return; // no drawable bounds
+
+		bglPipeline->bind(frameInfo.commandBuffer);
+		vkCmdBindDescriptorSets(frameInfo.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipelineLayout, 0, 1, &frameInfo.globalDescriptorSets, 0, nullptr);
+
+		VkDeviceSize zero = 0;
+		vkCmdBindVertexBuffers(frameInfo.commandBuffer, 0, 1, &bboxVertexBuffer, &zero);
+		vkCmdBindIndexBuffer(frameInfo.commandBuffer, bboxIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+		glm::vec3 center  = (modelComp->mesh().aabbMin + modelComp->mesh().aabbMax) * 0.5f;
+		glm::vec3 halfExt = (modelComp->mesh().aabbMax - modelComp->mesh().aabbMin) * 0.5f;
+		glm::mat4 bboxMat = transformComp->getMat4()
+			* glm::translate(glm::mat4{1.0f}, center)
+			* glm::scale(glm::mat4{1.0f}, halfExt);
+
+		WireframePushConstantData push{};
+		push.UsesBufferedTransform = 0;
+		push.modelMatrix = bboxMat;
+		push.color = glm::vec4{1.0f, 0.85f, 0.1f, 1.0f}; // amber selection outline
+		SendPushConstantData(frameInfo.commandBuffer, pipelineLayout, push);
+		vkCmdDrawIndexed(frameInfo.commandBuffer, BBOX_INDEX_COUNT, 1, 0, 0, 0);
+	}
 }
 

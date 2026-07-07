@@ -73,6 +73,8 @@ namespace bagel
 		bool showImgui = true; // ` (grave) key toggles all ImGui panels
 		bool showWireframe = false;
 		bool drawBBox = false;
+		// Entity selected by left-click physics raycast (BGLJolt::PickEntity); entt::null if none.
+		entt::entity selectedEntity = entt::null;
 		bool bloomEnabled = cfg::kBloomEnabled;
 		bool smaaEnabled = true; // SMAA neighborhood blend (R_SMAA); off = passthrough
 		float bloomIntensity = cfg::kBloomIntensity;
@@ -171,6 +173,9 @@ namespace bagel
 		void initImgui();
 
 		void updateAnimation(double frameTime);
+		// Reused scratch for updateAnimation's manual-pose palette resolve; resized in place each
+		// frame so the per-frame path doesn't heap-allocate after the first grow.
+		std::vector<glm::mat4> paletteScratch;
 		// Cache Mat4 transform of all entities. No updates to transformcomponents are allowed after this point.
 		void cacheTransforms();
 

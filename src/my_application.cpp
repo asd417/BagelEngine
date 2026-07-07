@@ -378,6 +378,137 @@ namespace bagel
 	void MyApplication::loadMonkeyBone() { loadModel("/models/monkey_bone_anim/monkeybone.glb", 1.0f); }
 	void MyApplication::loadIKLeg() { loadModel("/models/ikleg/ikbone.glb", 1.0f); }
 
+	// Single LDraw brick at origin, routed to LDrawModelLoader by the ".dat" extension.
+	// settings.scale bakes the raw LDU geometry (1 LDU = 0.4 mm) down to engine size at
+	// load time. LDraw is -Y up, so a rigid 180° flip about X puts the studs up (a pure
+	// rotation keeps winding/normals correct — no negative-scale mirroring).
+	void MyApplication::loadLegoBrick()
+	{
+		// Smoke test: 32316 = "Technic Beam 5" (studless 1x5 stick with pin holes).
+		spawnLegoPart("32316", glm::vec3(0.0f));
+	}
+
+	// Flat ground for the lego scene: a procedural floor quad (y=0, sized by scaleVec) for the
+	// visual, plus a thin STATIC box collider whose TOP face sits at y=0 so it lines up with the
+	// quad and gives dropped bricks something to land on.
+	void MyApplication::loadLegoGround()
+	{
+		ModelComponentBuilder builder(bglDevice, registry);
+		builder.setTextureLoader(&materialManager->getTextureLoader());
+		builder.setMaterialManager(materialManager.get());
+		builder.setSkinManager(skinManager.get());
+
+		// generateFloor() lays out the quad using scaleVec.x/.z (see model_loaders/generated.cpp),
+		// so the mesh is already full-size; leave the entity transform at identity.
+		ModelLoadSettings settings{};
+		settings.scaleVec = {100.0f, 1.0f, 100.0f};
+
+		auto entity = registry.create();
+		auto &tc = registry.emplace<TransformComponent>(entity);   // at origin
+		// generateFloor() already sizes the quad via scaleVec, so keep the transform at identity
+		// scale (the TransformComponent default is 0.1, which would shrink the visible quad to
+		// 1/10 of the collider — the same double-scale trap as the bricks above).
+		tc.setScale({1.0f, 1.0f, 1.0f});
+		builder.buildComponent(entity, "/models/floor.obj", settings);
+
+		BGLJolt::PhysicsBodyCreationInfo info{};
+		info.pos = {0.0f, 0, 0.0f};
+		info.rot = {0.0f, 0.0f, 0.0f};
+		info.physicsType = PhysicsType::STATIC;
+		info.activate = false;
+		info.layer = PhysicsLayers::NON_MOVING;
+		BGLJolt::GetInstance()->AddBox(entity, {100.0f, 0, 100.0f}, info);
+
+		CONSOLE->Log("Lego", "Spawned ground plane");
+	}
+
+	// Spawn one LDraw part as a new entity at `pos`. settings.scale bakes the raw LDU geometry
+	// (1 LDU = 0.4 mm) down to engine size at load time. LDraw is -Y up, so a rigid 180° flip
+	// about X puts the studs up (a pure rotation keeps winding/normals correct). Attaches the
+	// baked connectors (gizmo markers) and the convex-hull collider. Does NOT clear the scene,
+	// so it can add bricks to whatever is already loaded (used by the part browser).
+	entt::entity MyApplication::spawnLegoPart(const std::string &partName, const glm::vec3 &pos)
+	{
+		ModelComponentBuilder builder(bglDevice, registry);
+		builder.setTextureLoader(&materialManager->getTextureLoader());
+		builder.setMaterialManager(materialManager.get());
+		builder.setSkinManager(skinManager.get());
+
+		ModelLoadSettings settings{};
+		settings.scale = 0.01f;
+
+		const std::string part = partName + ".dat";   // ".dat" ext routes to LDrawModelLoader
+		auto entity = registry.create();
+		auto &tc = registry.emplace<TransformComponent>(entity);
+		tc.setTranslation({0,5,0});
+		tc.setRotation({glm::pi<float>(), 0.0f, 0.0f});
+		// settings.scale already bakes the LDU geometry to engine size, so the transform must be
+		// identity scale. The TransformComponent default is 0.1 (see transform.hpp); leaving it
+		// would scale the RENDER mesh a second time (0.1*0.1) while the Jolt collider — which
+		// ignores transform scale — stays at the bake size, so the two would mismatch 10x.
+		tc.setScale({1.0f, 1.0f, 1.0f});
+		builder.buildComponent(entity, part.c_str(), settings);
+
+		// Connectors (offline lego/baked/connections/<part>.conn; live re-bake on cache miss)
+		// -> gizmo markers, stored in model-local space (raw LDU * loadScale).
+		static ldraw::BakedConnectors bakedCache = [] {
+			ldraw::BakedConnectors c;
+			c.setDir(util::enginePath("/lego/baked/connections"));
+			return c;
+		}();
+		std::vector<ldraw::ConnectionPoint> liveBake;                // holds fallback result, if used
+		const std::vector<ldraw::ConnectionPoint> *conns = bakedCache.find(part);
+		if (!conns) {
+			ldraw::Library lib(util::enginePath("/lego/ldraw"));
+			liveBake = std::move(lib.bake(part).connections);
+			conns = &liveBake;
+			CONSOLE->Log("Lego", std::string("Connector cache miss for ") + part + " - re-baked live");
+		}
+		auto &cc = registry.emplace<LegoConnectionComponent>(entity);
+		auto radiusFor = [](ldraw::ConnectorType t) {
+			switch (t) {
+			case ldraw::ConnectorType::AxleHole: return 5.0f; // cross hole, a touch tighter
+			default:                             return 6.0f; // stud / tube / pin ~ 6 LDU
+			}
+		};
+		for (const ldraw::ConnectionPoint &c : *conns) {
+			LegoConnectionPoint p;
+			p.pos    = c.pos * settings.scale;
+			p.orient = c.orient;
+			p.radius = radiusFor(c.type) * settings.scale;
+			p.type   = static_cast<int>(c.type);
+			cc.points.push_back(p);
+		}
+
+		// Convex-hull collider (offline lego/baked/collision/<part>.glb). Hull points are raw LDU
+		// (studs-down, like the render mesh pre-transform), so scale them the same; the studs-up
+		// flip lives in the entity's TransformComponent rotation handed to Jolt.
+		static ldraw::BakedCollision collisionCache = [] {
+			ldraw::BakedCollision c;
+			c.setDir(util::enginePath("/lego/baked/collision"));
+			return c;
+		}();
+		if (const auto *hulls = collisionCache.find(part)) {
+			std::vector<std::vector<glm::vec3>> scaled;
+			scaled.reserve(hulls->size());
+			for (const auto &h : *hulls) {
+				std::vector<glm::vec3> s;
+				s.reserve(h.size());
+				for (const glm::vec3 &v : h) s.push_back(v * settings.scale);
+				scaled.push_back(std::move(s));
+			}
+			BGLJolt::PhysicsBodyCreationInfo info{};
+			info.pos = tc.getWorldTranslation();
+			info.rot = tc.getWorldRotation();
+			info.physicsType = PhysicsType::DYNAMIC;     // bricks fall + collide (ground is STATIC)
+			info.activate = true;
+			info.layer = PhysicsLayers::LEGO;            // collide with ground only, not each other
+			BGLJolt::GetInstance()->AddConvexHull(entity, scaled, info);
+		}
+		CONSOLE->Log("Lego", "Spawned " + partName);
+		return entity;
+	}
+
 } // namespace bagel
 
 int main()

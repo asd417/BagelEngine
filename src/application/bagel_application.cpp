@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <array>
+#include <cassert>
 #include <chrono>
 #include <thread>
 #include <vector>
@@ -337,6 +338,7 @@ namespace bagel
 #endif
 
 		bool gravePrev = false; // edge-detect the hard-coded ` UI-toggle key
+		bool mouseLeftPrev = false; // edge-detect left-click for brick picking
 		HierachySystem hierachy(registry);
 		auto frameLastTime = Clock::now();
 		while (!bglWindow.shouldClose())
@@ -389,6 +391,31 @@ namespace bagel
 			float fovY = 2.0f * atanf(tanf(fovX * 0.5f) / aspect);
 			camera.setPerspectiveProjection(fovY, aspect, cameraNear, cameraFar);
 			recordSection(S_CAMERA, tMs(t0, Clock::now()));
+
+			// Left-click brick picking: cast a ray from the cursor into the physics scene and select
+			// the block under it (BGLJolt::PickEntity resolves group compounds down to the block).
+			{
+				GLFWwindow *win = bglWindow.getGLFWWindow();
+				const bool mouseLeftDown = glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+				if (mouseLeftDown && !mouseLeftPrev && !ImGui::GetIO().WantCaptureMouse)
+				{
+					VkExtent2D ext = bglRenderer.getExtent();
+					double mx, my;
+					glfwGetCursorPos(win, &mx, &my);
+					const float ndcX = static_cast<float>(2.0 * mx / ext.width - 1.0);
+					const float ndcY = static_cast<float>(2.0 * my / ext.height - 1.0); // Vulkan y-down
+					glm::vec4 farP = glm::inverse(camera.getProjection() * camera.getView()) * glm::vec4(ndcX, ndcY, 1.0f, 1.0f);
+					farP /= farP.w;
+					const glm::vec3 origin = camera.getPosition();
+					const glm::vec3 dir = glm::normalize(glm::vec3(farP) - origin);
+					selectedEntity = BGLJolt::GetInstance()->PickEntity(origin, dir);
+					if (registry.valid(selectedEntity))
+						CONSOLE->Log("Pick", "Selected entity " + std::to_string(static_cast<uint32_t>(entt::to_integral(selectedEntity))));
+					else
+						CONSOLE->Log("Pick", "Nothing under cursor");
+				}
+				mouseLeftPrev = mouseLeftDown;
+			}
 
 			// Bone-posing gizmo input/logic (G toggles edit mode; W/E switch translate/rotate).
 			{
@@ -587,6 +614,7 @@ namespace bagel
 				}
 				if (drawBBox)
 					wireframeRenderSystem.renderBBoxes(frameInfo);
+				wireframeRenderSystem.renderSelection(frameInfo, selectedEntity); // amber outline on the picked block
 				gizmoRenderSystem.render(frameInfo, poseGizmo);
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), primaryCommandBuffer);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
@@ -716,9 +744,11 @@ namespace bagel
 					// editPose + IK -> final pose (same helper the gizmo uses to place markers).
 					Pose finalPose;
 					applyManualPose(anim.skeleton, anim.editPose, anim.ikSetups, finalPose);
-					std::vector<glm::mat4> palette(anim.jointCount);
-					resolvePalette(anim.skeleton, finalPose, palette.data());
-					skinManager->writePalette(anim.dynamicPaletteBase, palette.data(), anim.jointCount);
+					// Reuse the persistent scratch buffer: after it has grown once, resize() to a
+					// size <= capacity does no allocation, so the per-frame path stays alloc-free.
+					paletteScratch.resize(anim.jointCount);
+					resolvePalette(anim.skeleton, finalPose, paletteScratch.data());
+					skinManager->writePalette(anim.dynamicPaletteBase, paletteScratch.data(), anim.jointCount);
 					anim.poseDirty = false;
 				}
 				continue;
