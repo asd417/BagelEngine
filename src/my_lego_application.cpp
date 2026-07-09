@@ -1,4 +1,4 @@
-#include "my_application.hpp"
+#include "my_lego_application.hpp"
 #include "bagel_hierachy.hpp"
 #include "physics/bagel_jolt.hpp"
 #include "map/bagel_map_io.hpp"
