@@ -5,8 +5,6 @@
 #include "bagel_util.hpp"
 #include "bagel_imgui.hpp"						// ImGui + ConsoleApp (CONSOLE)
 #include "model_loaders/bagel_model_loader.hpp" // BGLModel::Vertex (planet wire upload)
-#include "lego/components/lego_connection_component.hpp"	// LegoConnectionComponent (gizmo markers)
-#include "lego/lego_model_builder.hpp"					// LegoModelComponentBuilder (.dat rehydrate)
 
 #include <iostream>
 #include <cmath>
@@ -21,20 +19,7 @@ namespace bagel
 
 	// rehydrateModelType<T> + the scene rehydrate pass moved to map/bagel_map_io.{hpp,cpp}
 	// (Map::rehydrate). Called from loadMapFromPath after Map::load.
-	MyApplication::MyApplication() : Application()
-	{
-		// Part picker: scan the placeable-part catalog and stand up the async thumbnail streamer
-		// + browser panel. (bglDevice is fully constructed by the base Application ctor above.)
-		const size_t nParts = partCatalog_.scan(util::enginePath(""));
-		CONSOLE->Log("Lego", "Part catalog: " + std::to_string(nParts) + " placeable parts");
-		thumbnailStreamer_ = std::make_unique<BGLTextureStreamer>(bglDevice, 512);
-		legoBrowser_ = std::make_unique<LegoBrowserPanel>(partCatalog_, *thumbnailStreamer_);
-		partSystem_ = std::make_unique<ldraw::PartSystem>(bglDevice, registry, *materialManager, *skinManager);
-		legoBrowser_->setOnPick([this](const ldraw::PartCatalogEntry &e)
-								{
-									partSystem_->spawnLegoPart(e.name, glm::vec3(0.0f)); // place at world origin
-								});
-	}
+	MyApplication::MyApplication() : Application() {}
 	void MyApplication::OnSceneLoad()
 	{
 		buildScene(2); // start on the hierarchy scene
@@ -42,12 +27,8 @@ namespace bagel
 
 	void MyApplication::OnUpdate(BGLCamera &camera, float dt)
 	{
-		// Publish finished thumbnail uploads + retire evicted textures (once per frame, main thread).
-		if (thumbnailStreamer_)
-			thumbnailStreamer_->beginFrame();
-
-		// Left-click brick picking: cast a ray from the cursor into the physics scene and select
-		// the block under it (BGLJolt::PickEntity resolves group compounds down to the block).
+		// Left-click picking: cast a ray from the cursor into the physics scene and select
+		// the entity under it (BGLJolt::PickEntity resolves group compounds down to the member).
 		{
 			GLFWwindow *win = bglWindow.getGLFWWindow();
 			const bool mouseLeftDown = glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
@@ -60,33 +41,12 @@ namespace bagel
 				glm::vec3 hitPos;
 				selectedEntity = BGLJolt::GetInstance()->PickEntity(r, &hitPos);
 				if (registry.valid(selectedEntity))
-				{
 					CONSOLE->Log("Pick", "Selected entity " + std::to_string(static_cast<uint32_t>(entt::to_integral(selectedEntity))));
-					auto &brick = registry.get<LegoConnectionComponent>(selectedEntity);
-					
-				}
 				else
 					CONSOLE->Log("Pick", "Nothing under cursor");
 			}
 			mouseLeftPrev = mouseLeftDown;
 		}
-	}
-
-	// Build the app-owned overlay render system now that the swapchain render pass + descriptor
-	// layouts exist (called once by Application::run before the frame loop).
-	void MyApplication::OnRenderInit(VkRenderPass swapchainPass,
-	                                 const std::vector<VkDescriptorSetLayout> &setLayouts)
-	{
-		legoConnectionRenderSystem_ = std::make_unique<LegoConnectionRenderSystem>(
-			swapchainPass, setLayouts, bglDevice);
-	}
-
-	// Draw the LEGO connection markers in the swapchain pass (called each frame by Application::run
-	// at the overlay stage, after the scene + engine gizmo, before ImGui).
-	void MyApplication::OnSwapchainOverlay(FrameInfo &frameInfo)
-	{
-		if (legoConnectionRenderSystem_)
-			legoConnectionRenderSystem_->render(frameInfo);
 	}
 
 	// ---- Map panel + pipeline ----------------------------------------------
@@ -163,12 +123,6 @@ namespace bagel
 			createDirectionalLight();
 			loadIKLeg();
 			break;
-		case 6:
-			// createLights();
-			createDirectionalLight();
-			loadLegoGround();
-			loadLegoBrick();
-			break;
 		default:
 			break;
 		}
@@ -204,9 +158,8 @@ namespace bagel
 		// Map::load unloaded the old scene (GPU idle); reset the skin-table allocator before
 		// rehydrate rebuilds the loaded models' blocks.
 		materialManager->clearSkinTable();
-		// rebuild transient GPU/material/physics state (moved to map/bagel_map_io.*). Pass a
-		// LEGO-aware builder so saved ".dat" parts rebuild through LDrawModelLoader.
-		LegoModelComponentBuilder rebuildBuilder(bglDevice, registry);
+		// rebuild transient GPU/material/physics state (moved to map/bagel_map_io.*)
+		ModelComponentBuilder rebuildBuilder(bglDevice, registry);
 		Map::rehydrate(registry, rebuildBuilder, *materialManager, *skinManager);
 		// NOTE: planet rehydration (PlanetComponent -> mesh rebuild) is disabled while the
 		// geodesic-CDLOD terrain is mid-refactor. Maps containing planets will load their
@@ -432,50 +385,6 @@ namespace bagel
 	void MyApplication::loadDragon() { loadModel("/models/chinesedragon.gltf", 0.3f); }
 	void MyApplication::loadMonkeyBone() { loadModel("/models/monkey_bone_anim/monkeybone.glb", 1.0f); }
 	void MyApplication::loadIKLeg() { loadModel("/models/ikleg/ikbone.glb", 1.0f); }
-
-	// Single LDraw brick at origin, routed to LDrawModelLoader by the ".dat" extension.
-	// settings.scale bakes the raw LDU geometry (1 LDU = 0.4 mm) down to engine size at
-	// load time. LDraw is -Y up, so a rigid 180° flip about X puts the studs up (a pure
-	// rotation keeps winding/normals correct — no negative-scale mirroring).
-	void MyApplication::loadLegoBrick()
-	{
-		// Smoke test: 32316 = "Technic Beam 5" (studless 1x5 stick with pin holes).
-		partSystem_->spawnLegoPart("32316", glm::vec3(0.0f));
-	}
-
-	// Flat ground for the lego scene: a procedural floor quad (y=0, sized by scaleVec) for the
-	// visual, plus a thin STATIC box collider whose TOP face sits at y=0 so it lines up with the
-	// quad and gives dropped bricks something to land on.
-	void MyApplication::loadLegoGround()
-	{
-		ModelComponentBuilder builder(bglDevice, registry);
-		builder.setTextureLoader(&materialManager->getTextureLoader());
-		builder.setMaterialManager(materialManager.get());
-		builder.setSkinManager(skinManager.get());
-
-		// generateFloor() lays out the quad using scaleVec.x/.z (see model_loaders/generated.cpp),
-		// so the mesh is already full-size; leave the entity transform at identity.
-		ModelLoadSettings settings{};
-		settings.scaleVec = {100.0f, 1.0f, 100.0f};
-
-		auto entity = registry.create();
-		auto &tc = registry.emplace<TransformComponent>(entity); // at origin
-		// generateFloor() already sizes the quad via scaleVec, so keep the transform at identity
-		// scale (the TransformComponent default is 0.1, which would shrink the visible quad to
-		// 1/10 of the collider — the same double-scale trap as the bricks above).
-		tc.setScale({1.0f, 1.0f, 1.0f});
-		builder.buildComponent(entity, "/models/floor.obj", settings);
-
-		BGLJolt::PhysicsBodyCreationInfo info{};
-		info.pos = {0.0f, 0, 0.0f};
-		info.rot = {0.0f, 0.0f, 0.0f};
-		info.physicsType = PhysicsType::STATIC;
-		info.activate = false;
-		info.layer = PhysicsLayers::NON_MOVING;
-		BGLJolt::GetInstance()->AddBox(entity, {100.0f, 0, 100.0f}, info);
-
-		CONSOLE->Log("Lego", "Spawned ground plane");
-	}
 
 } // namespace bagel
 
