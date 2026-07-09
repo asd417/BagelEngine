@@ -1,8 +1,8 @@
 #pragma once
 // Debug component: the connection points (studs / holes) detected for a LEGO part,
 // stored in the part's MODEL-LOCAL space (i.e. already multiplied by the load scale,
-// so they line up with the vertex buffer). GizmoRenderSystem::renderConnections draws
-// a ring + axis marker at each, transformed by the entity's TransformComponent.
+// so they line up with the vertex buffer). LegoConnectionRenderSystem draws a ring +
+// axis marker at each, transformed by the entity's TransformComponent.
 //
 // POD + glm only on purpose: the render system includes this without dragging in the
 // ldraw parser. loadLegoBrick() fills it from bagel::ldraw::ConnectionPoint.
