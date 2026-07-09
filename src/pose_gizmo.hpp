@@ -113,10 +113,14 @@ namespace bagel {
 		// helpers (implemented in the .cpp)
 		glm::vec3 axisDir(int i) const; // world dir of axis i (world axis, or bone-local in local space)
 		void   refreshTarget();
-		void   makeRay(GLFWwindow* window, const BGLCamera& camera, float vpW, float vpH,
-		               glm::vec3& outOrigin, glm::vec3& outDir) const;
 		int    pickJoint(const glm::vec3& o, const glm::vec3& d) const;
 		int    pickAxis(const glm::vec3& o, const glm::vec3& d, glm::vec3& outHit, float& outAxisCoord) const;
+		// The whole drag reduces to ONE world-space rigid delta M, independent of what is being
+		// moved: newWorld = M * startWorld, for every selected item. Translate mode makes M a pure
+		// translation, rotate mode a rotation about the frozen pivot. `outRot` is M's rotation part,
+		// handed back so callers need not re-extract it. False if the ray misses the axis/plane.
+		bool   computeDragDelta(const glm::vec3& o, const glm::vec3& d,
+		                        glm::mat4& outM, glm::quat& outRot) const;
 		void   applyDrag(const glm::vec3& o, const glm::vec3& d);
 		// multi-selection helpers
 		bool   isSelected(int j) const;        // membership in selJoints

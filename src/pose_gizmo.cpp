@@ -2,6 +2,7 @@
 
 #include "bagel_ecs_components.hpp"          // TransformComponent, ModelComponent, AnimationComponent
 #include "animation/bagel_animation.hpp"     // resolveGlobals
+#include "math/bagel_math.hpp"               // Ray, orthoBasis/rotationOf, closestOnAxis/rayPlane/raySphere
 
 #include <GLFW/glfw3.h>
 #include "imgui.h"
@@ -56,63 +57,12 @@ namespace bagel {
 				? entityModel * globals[parent] : entityModel;
 			DragJoint dj{};
 			dj.joint         = j;
-			dj.parentWorldInv = glm::inverse(parentWorld);
-			dj.parentRot      = glm::quat_cast(glm::mat3(parentWorld));
+			dj.parentWorldInv = glm::inverse(parentWorld); // full inverse: translation must undo scale too
+			dj.parentRot      = rotationOf(parentWorld);
 			dj.startWorldPos  = jointWorldPos[j];
-			dj.startWorldRot  = glm::quat_cast(glm::mat3(jointWorldMat[j]));
+			dj.startWorldRot  = rotationOf(jointWorldMat[j]);
 			dragJoints.push_back(dj);
 		}
-	}
-
-	static glm::vec3 axisVec(int i) {
-		return (i == 0) ? glm::vec3(1, 0, 0) : (i == 1) ? glm::vec3(0, 1, 0) : glm::vec3(0, 0, 1);
-	}
-
-	// Closest approach between ray (o,d) and infinite line through p along unit a.
-	// Returns the line parameter s (signed world distance along a from p) and the two closest
-	// points. False if near-parallel or the closest ray point is behind the camera.
-	static bool closestOnAxis(const glm::vec3& o, const glm::vec3& d, const glm::vec3& p,
-	                          const glm::vec3& a, float& s, glm::vec3& axisPoint, glm::vec3& rayPoint)
-	{
-		const glm::vec3 e = p - o;
-		const float ad = glm::dot(a, d);
-		const float dd = glm::dot(d, d);
-		const float ae = glm::dot(a, e);
-		const float de = glm::dot(d, e);
-		const float denom = ad * ad - dd;
-		if (glm::abs(denom) < 1e-6f) return false;
-		const float t = (ae * ad - de) / denom;
-		s = t * ad - ae;
-		axisPoint = p + s * a;
-		rayPoint  = o + t * d;
-		return t > 0.0f;
-	}
-
-	static bool rayPlane(const glm::vec3& o, const glm::vec3& d, const glm::vec3& c,
-	                     const glm::vec3& n, glm::vec3& hit)
-	{
-		const float dn = glm::dot(d, n);
-		if (glm::abs(dn) < 1e-6f) return false;
-		const float t = glm::dot(c - o, n) / dn;
-		if (t <= 0.0f) return false;
-		hit = o + t * d;
-		return true;
-	}
-
-	static bool raySphere(const glm::vec3& o, const glm::vec3& d, const glm::vec3& c, float r, float& tHit)
-	{
-		const glm::vec3 oc = o - c;
-		const float a = glm::dot(d, d);
-		const float b = 2.0f * glm::dot(oc, d);
-		const float cc = glm::dot(oc, oc) - r * r;
-		const float disc = b * b - 4.0f * a * cc;
-		if (disc < 0.0f) return false;
-		const float sq = std::sqrt(disc);
-		float t = (-b - sq) / (2.0f * a);
-		if (t < 0.0f) t = (-b + sq) / (2.0f * a);
-		if (t < 0.0f) return false;
-		tHit = t;
-		return true;
 	}
 
 	// Screen-constant marker radius for a joint at world position p (so far joints stay pickable).
@@ -133,15 +83,7 @@ namespace bagel {
 	{
 		if (!localSpace || selJoint < 0 || selJoint >= static_cast<int>(globals.size()))
 			return glm::mat4{ 1.0f };
-		const glm::mat4 jw = entityModel * globals[selJoint];
-		const glm::vec3 x = glm::vec3(jw[0]), y = glm::vec3(jw[1]), z = glm::vec3(jw[2]);
-		const float lx = glm::length(x), ly = glm::length(y), lz = glm::length(z);
-		if (lx < 1e-6f || ly < 1e-6f || lz < 1e-6f) return glm::mat4{ 1.0f };
-		glm::mat4 B{ 1.0f };
-		B[0] = glm::vec4(x / lx, 0.0f);
-		B[1] = glm::vec4(y / ly, 0.0f);
-		B[2] = glm::vec4(z / lz, 0.0f);
-		return B;
+		return glm::mat4{ orthoBasis(entityModel * globals[selJoint]) };
 	}
 
 	void PoseGizmo::refreshTarget()
@@ -162,19 +104,6 @@ namespace bagel {
 		editMode = on;
 		if (on) refreshTarget();
 		else { hoverAxis = -1; dragAxis = -1; }
-	}
-
-	void PoseGizmo::makeRay(GLFWwindow* window, const BGLCamera& camera, float vpW, float vpH,
-	                        glm::vec3& outOrigin, glm::vec3& outDir) const
-	{
-		double mx, my; glfwGetCursorPos(window, &mx, &my);
-		const float ndcX = static_cast<float>(2.0 * mx / vpW - 1.0);
-		const float ndcY = static_cast<float>(2.0 * my / vpH - 1.0); // Vulkan: y-down, top = -1
-		const glm::mat4 invVP = glm::inverse(camera.getProjection() * camera.getView());
-		glm::vec4 farP = invVP * glm::vec4(ndcX, ndcY, 1.0f, 1.0f);
-		farP /= farP.w;
-		outOrigin = camera.getPosition();
-		outDir    = glm::normalize(glm::vec3(farP) - outOrigin);
 	}
 
 	int PoseGizmo::pickJoint(const glm::vec3& o, const glm::vec3& d) const
@@ -217,39 +146,56 @@ namespace bagel {
 		return best;
 	}
 
-	void PoseGizmo::applyDrag(const glm::vec3& o, const glm::vec3& d)
+	bool PoseGizmo::computeDragDelta(const glm::vec3& o, const glm::vec3& d,
+	                                 glm::mat4& outM, glm::quat& outRot) const
 	{
-		if (dragAxis < 0 || dragJoints.empty()) return;
-		auto& anim = registry.get<AnimationComponent>(target);
 		const glm::vec3 axis = dragStartAxis;   // FIXED world-space axis captured at mouse-down
 		const glm::vec3 c = dragStartCenter;    // FIXED pivot (selection centroid) captured at mouse-down
 
 		if (gmode == GizmoMode::Translate) {
 			float s; glm::vec3 ap, rp;
-			if (!closestOnAxis(o, d, c, axis, s, ap, rp)) return;
-			const glm::vec3 worldDelta = (s - dragStartAxisCoord) * axis;
-			// Shift every batched joint by the same world delta; orientation is untouched.
-			for (const DragJoint& dj : dragJoints) {
-				const glm::vec3 wp = dj.startWorldPos + worldDelta;
-				anim.editPose[dj.joint].translation = glm::vec3(dj.parentWorldInv * glm::vec4(wp, 1.0f));
-			}
-		} else {
-			glm::vec3 hit;
-			if (!rayPlane(o, d, c, axis, hit)) return;
-			glm::vec3 v0 = dragStartHit - c;
-			glm::vec3 v1 = hit - c;
-			if (glm::length(v0) < 1e-5f || glm::length(v1) < 1e-5f) return;
-			v0 = glm::normalize(v0); v1 = glm::normalize(v1);
-			float ang = std::acos(glm::clamp(glm::dot(v0, v1), -1.0f, 1.0f));
-			if (glm::dot(glm::cross(v0, v1), axis) < 0.0f) ang = -ang;
-			const glm::quat Qw = glm::angleAxis(ang, glm::normalize(axis)); // world-space rotation about the pivot
-			// Orbit each batched joint around the pivot (position) and co-rotate its orientation.
-			// For a single selection the pivot is the joint itself, so this reduces to spin-in-place.
-			for (const DragJoint& dj : dragJoints) {
-				const glm::vec3 wp = c + Qw * (dj.startWorldPos - c);
-				const glm::quat wr = Qw * dj.startWorldRot;
-				anim.editPose[dj.joint].translation = glm::vec3(dj.parentWorldInv * glm::vec4(wp, 1.0f));
-				anim.editPose[dj.joint].rotation    = glm::normalize(glm::inverse(dj.parentRot) * wr);
+			if (!closestOnAxis(o, d, c, axis, s, ap, rp)) return false;
+			outM   = glm::translate(glm::mat4{ 1.0f }, (s - dragStartAxisCoord) * axis);
+			outRot = glm::quat{ 1.0f, 0.0f, 0.0f, 0.0f };
+			return true;
+		}
+
+		// Rotate: signed angle swept between the mouse-down hit and the current hit, in the plane
+		// whose normal is the frozen axis. The delta orbits points around the pivot: T(c) R T(-c).
+		glm::vec3 hit;
+		if (!rayPlane(o, d, c, axis, hit)) return false;
+		glm::vec3 v0 = dragStartHit - c;
+		glm::vec3 v1 = hit - c;
+		if (glm::length(v0) < 1e-5f || glm::length(v1) < 1e-5f) return false;
+		v0 = glm::normalize(v0); v1 = glm::normalize(v1);
+		float ang = std::acos(glm::clamp(glm::dot(v0, v1), -1.0f, 1.0f));
+		if (glm::dot(glm::cross(v0, v1), axis) < 0.0f) ang = -ang;
+		outRot = glm::angleAxis(ang, glm::normalize(axis));
+		outM   = glm::translate(glm::mat4{ 1.0f }, c) * glm::mat4_cast(outRot)
+		       * glm::translate(glm::mat4{ 1.0f }, -c);
+		return true;
+	}
+
+	void PoseGizmo::applyDrag(const glm::vec3& o, const glm::vec3& d)
+	{
+		if (dragAxis < 0 || dragJoints.empty()) return;
+		glm::mat4 M; glm::quat Mrot;
+		if (!computeDragDelta(o, d, M, Mrot)) return;
+
+		auto& anim = registry.get<AnimationComponent>(target);
+		// One rule for every batched joint: newWorld = M * startWorld, off the anchors frozen at
+		// mouse-down. For a single selection the pivot is the joint itself, so rotate reduces to
+		// spin-in-place; for a batch the joints orbit the centroid and co-rotate.
+		for (const DragJoint& dj : dragJoints) {
+			const glm::vec3 wp = glm::vec3(M * glm::vec4(dj.startWorldPos, 1.0f));
+			anim.editPose[dj.joint].translation = glm::vec3(dj.parentWorldInv * glm::vec4(wp, 1.0f));
+
+			// Translate leaves orientation alone. Writing it back would be a no-op in exact math
+			// (Mrot is identity), but startWorldRot is read from the IK-CORRECTED display pose, so
+			// it would bake the solver's output into the authored editPose on any IK-driven joint.
+			if (gmode == GizmoMode::Rotate) {
+				const glm::quat wr = Mrot * dj.startWorldRot;
+				anim.editPose[dj.joint].rotation = glm::normalize(glm::inverse(dj.parentRot) * wr);
 			}
 		}
 		anim.poseDirty = true;
@@ -324,7 +270,9 @@ namespace bagel {
 			(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)  == GLFW_PRESS ||
 			 glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
 
-		glm::vec3 ro, rd; makeRay(window, camera, vpW, vpH, ro, rd);
+		double mx, my; glfwGetCursorPos(window, &mx, &my);
+		const Ray mouseRay = camera.mouseRayCast(static_cast<uint32_t>(vpW), static_cast<uint32_t>(vpH), mx, my);
+		const glm::vec3 ro = mouseRay.origin, rd = mouseRay.direction;
 		const bool mouseLeft = !io.WantCaptureMouse && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
 
 		if (mouseLeft && !mouseLeftPrev) {

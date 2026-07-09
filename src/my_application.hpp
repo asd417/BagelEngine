@@ -3,7 +3,9 @@
 #include "bagel_material.hpp"
 #include "bagel_texture_streamer.hpp"                 // async thumbnail streamer (engine-level)
 #include "lego/part_catalog.hpp"                      // placeable-part catalog
+#include "lego/part_system.hpp"                       // spawns placeable parts into the scene
 #include "lego/lego_browser_panel.hpp"                // ImGui part browser
+#include "lego/lego_connection_render_system.hpp"     // LEGO connection-marker overlay
 #include "model_loaders/model_load_settings.hpp" // ModelLoadSettings (loadModel default arg)
 #include <memory>
 
@@ -13,9 +15,14 @@ namespace bagel {
 	public:
 		MyApplication();
 		void OnSceneLoad() override;
-		void OnUpdate(float dt) override;
+		void OnUpdate(BGLCamera& camera, float dt) override;
 		void OnDrawGui() override;   // draws the Maps panel (build / save / load)
 		std::string consoleLoadMap(const std::string& name) override; // "map <name>" console command
+		// Build the LEGO connection-marker overlay once the swapchain pass exists, then draw it
+		// each frame — keeps app-specific rendering out of the engine loop.
+		void OnRenderInit(VkRenderPass swapchainPass,
+		                  const std::vector<VkDescriptorSetLayout>& setLayouts) override;
+		void OnSwapchainOverlay(FrameInfo& frameInfo) override;
 
 	private:
 		// Scene content (each builds its own lights so it stands alone after a clear)
@@ -32,12 +39,11 @@ namespace bagel {
 		void loadIKLeg();
 		void loadLegoBrick();    // single LDraw brick (3001.dat) — LDrawModelLoader smoke test
 		void loadLegoGround();   // flat floor quad + thin static box collider (top face at y=0)
-		// Spawn one LDraw part as a new entity at `pos` (studs up) with its connectors + collider.
-		// Shared by the smoke test and the part-browser placement. Returns the new entity.
-		entt::entity spawnLegoPart(const std::string& partName, const glm::vec3& pos);
 		// NOTE: the geodesic-CDLOD planet (PlanetComponent / PlanetComponentSystem) is
 		// mid-refactor and not wired into the scene list yet. The render system stays
 		// registered in Application, but no planet is built or exposed in the GUI.
+
+		bool mouseLeftPrev = false; // edge-detect left-click for brick picking
 
 		// Map pipeline
 		void buildScene(int index);     // clear + build one of the 3 scenes live
@@ -60,6 +66,14 @@ namespace bagel {
 		std::unique_ptr<BGLTextureStreamer> thumbnailStreamer_;
 		std::unique_ptr<LegoBrowserPanel>   legoBrowser_;
 		bool                                showLegoBrowser_ = true;
+
+		// Built in the ctor body: needs the base Application's material + skin managers, which
+		// only exist once the Application ctor has run.
+		std::unique_ptr<ldraw::PartSystem>  partSystem_;
+
+		// App-owned overlay render system, built in OnRenderInit (needs the swapchain render pass),
+		// drawn in OnSwapchainOverlay.
+		std::unique_ptr<LegoConnectionRenderSystem> legoConnectionRenderSystem_;
 	};
 
 } // namespace bagel

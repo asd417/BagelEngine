@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
 
 namespace bagel {
 
@@ -71,25 +70,31 @@ namespace bagel {
 		}
 	}
 
+	// Resolve joint `j`'s model-space matrix, recursing into its parent first. Order-independent:
+	// joints may be stored in any order; each global is computed once and memoized in outGlobals,
+	// with `done` tracking which are resolved. outGlobals is pre-sized, so the returned reference
+	// stays valid across the recursion.
+	static const glm::mat4& resolveJoint(const SkeletonData& skel, const Pose& localPose,
+										 std::vector<glm::mat4>& outGlobals, std::vector<char>& done, int j)
+	{
+		if (!done[j])
+		{
+			const int n = static_cast<int>(outGlobals.size());
+			const glm::mat4 local = (j < static_cast<int>(localPose.size())) ? localPose[j].matrix() : glm::mat4(1.0f);
+			const int p = skel.parents[j];
+			outGlobals[j] = (p >= 0 && p < n) ? resolveJoint(skel, localPose, outGlobals, done, p) * local : local;
+			done[j] = 1;
+		}
+		return outGlobals[j];
+	}
+
 	void resolveGlobals(const SkeletonData& skel, const Pose& localPose, std::vector<glm::mat4>& outGlobals)
 	{
 		const int n = static_cast<int>(skel.jointCount());
 		outGlobals.assign(n, glm::mat4(1.0f));
 		std::vector<char> done(n, 0);
 
-		// Resolve a joint's model-space matrix, recursing into its parent first. Order-independent:
-		// joints may be stored in any order; each global is computed once and memoized.
-		std::function<const glm::mat4&(int)> resolve = [&](int j) -> const glm::mat4& {
-			if (!done[j])
-			{
-				const glm::mat4 local = (j < static_cast<int>(localPose.size())) ? localPose[j].matrix() : glm::mat4(1.0f);
-				const int p = skel.parents[j];
-				outGlobals[j] = (p >= 0 && p < n) ? resolve(p) * local : local;
-				done[j] = 1;
-			}
-			return outGlobals[j];
-		};
-		for (int j = 0; j < n; ++j) resolve(j);
+		for (int j = 0; j < n; ++j) resolveJoint(skel, localPose, outGlobals, done, j);
 	}
 
 	void globalsToPalette(const SkeletonData& skel, const std::vector<glm::mat4>& globals, glm::mat4* outPalette)

@@ -27,7 +27,7 @@
 #include "bagel_buffer.hpp"
 #include "bagel_camera.hpp"
 #include "bagel_ecs_components.hpp"
-#include "bagel_model_cache.hpp"   // ModelCacheManager — free cached model buffers at shutdown
+#include "bagel_model_cache.hpp" // ModelCacheManager — free cached model buffers at shutdown
 #include "keyboard_movement_controller.hpp"
 #include "bagel_console_commands.hpp"
 #include "bagel_hierachy.hpp"
@@ -337,9 +337,15 @@ namespace bagel
 			hFpsTimer = CreateWaitableTimerW(nullptr, FALSE, nullptr); // fallback for older Windows 10
 #endif
 
-		bool gravePrev = false; // edge-detect the hard-coded ` UI-toggle key
-		bool mouseLeftPrev = false; // edge-detect left-click for brick picking
+		bool gravePrev = false;		// edge-detect the hard-coded ` UI-toggle key
+		
 		HierachySystem hierachy(registry);
+
+		// Let a derived app build its own render systems now that the swapchain pass + layouts
+		// exist (drawn later via OnSwapchainOverlay). Keeps app-specific rendering — e.g. LEGO —
+		// out of the engine loop.
+		OnRenderInit(bglRenderer.getSwapChainRenderPass(), pipelineDescriptorSetLayouts);
+
 		auto frameLastTime = Clock::now();
 		while (!bglWindow.shouldClose())
 		{
@@ -392,30 +398,6 @@ namespace bagel
 			camera.setPerspectiveProjection(fovY, aspect, cameraNear, cameraFar);
 			recordSection(S_CAMERA, tMs(t0, Clock::now()));
 
-			// Left-click brick picking: cast a ray from the cursor into the physics scene and select
-			// the block under it (BGLJolt::PickEntity resolves group compounds down to the block).
-			{
-				GLFWwindow *win = bglWindow.getGLFWWindow();
-				const bool mouseLeftDown = glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
-				if (mouseLeftDown && !mouseLeftPrev && !ImGui::GetIO().WantCaptureMouse)
-				{
-					VkExtent2D ext = bglRenderer.getExtent();
-					double mx, my;
-					glfwGetCursorPos(win, &mx, &my);
-					const float ndcX = static_cast<float>(2.0 * mx / ext.width - 1.0);
-					const float ndcY = static_cast<float>(2.0 * my / ext.height - 1.0); // Vulkan y-down
-					glm::vec4 farP = glm::inverse(camera.getProjection() * camera.getView()) * glm::vec4(ndcX, ndcY, 1.0f, 1.0f);
-					farP /= farP.w;
-					const glm::vec3 origin = camera.getPosition();
-					const glm::vec3 dir = glm::normalize(glm::vec3(farP) - origin);
-					selectedEntity = BGLJolt::GetInstance()->PickEntity(origin, dir);
-					if (registry.valid(selectedEntity))
-						CONSOLE->Log("Pick", "Selected entity " + std::to_string(static_cast<uint32_t>(entt::to_integral(selectedEntity))));
-					else
-						CONSOLE->Log("Pick", "Nothing under cursor");
-				}
-				mouseLeftPrev = mouseLeftDown;
-			}
 
 			// Bone-posing gizmo input/logic (G toggles edit mode; W/E switch translate/rotate).
 			{
@@ -428,7 +410,7 @@ namespace bagel
 
 			{
 				t0 = Clock::now();
-				OnUpdate(frameTime);
+				OnUpdate(camera, frameTime);
 				recordSection(S_UPDATE, tMs(t0, Clock::now()));
 			}
 
@@ -446,7 +428,7 @@ namespace bagel
 					BGLJolt::GetInstance()->ApplyTransformToKinematic(frameTime);
 					BGLJolt::GetInstance()->Step(frameTime, 3);
 					BGLJolt::GetInstance()->ApplyPhysicsTransform();
-					BGLJolt::GetInstance()->ApplyGroupTransforms();   // followers ride their group body
+					BGLJolt::GetInstance()->ApplyGroupTransforms(); // followers ride their group body
 				}
 				recordSection(S_PHYSICS, tMs(t0, Clock::now()));
 			}
@@ -616,7 +598,7 @@ namespace bagel
 					wireframeRenderSystem.renderBBoxes(frameInfo);
 				wireframeRenderSystem.renderSelection(frameInfo, selectedEntity); // amber outline on the picked block
 				gizmoRenderSystem.render(frameInfo, poseGizmo);
-				gizmoRenderSystem.renderConnections(frameInfo); // LEGO stud/hole markers
+				OnSwapchainOverlay(frameInfo); // app-specific overlays (e.g. LEGO connection markers)
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), primaryCommandBuffer);
 				bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 				bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);

@@ -586,9 +586,11 @@ namespace bagel {
 	void BGLTextureLoader::loadSTBImageInStagingBuffer(const char* filePath, VkFormat format)
 	{
 		int width_int; int height_int; int channels;
-		stbi_info(filePath, &width_int, &height_int, &channels);
-		//std::cout << filePath << " is " << width_int << "x" << height_int << " and has " << channels << " channels\n";
-		unsigned char* pixels = stbi_load(filePath, &width_int, &height_int, &channels, 0);
+		// STBI_rgb_alpha: stb expands to 4 channels itself (padding alpha to 255, and splatting
+		// grayscale across rgb), so no manual re-pack buffer is needed. `channels` reports the
+		// file's original channel count and is not used for the layout. Matches the other stb
+		// call sites (bagel_texture_streamer.cpp, model_loaders/gltf.cpp).
+		unsigned char* pixels = stbi_load(filePath, &width_int, &height_int, &channels, STBI_rgb_alpha);
 		if (!pixels) {
 			std::cout
 				<< "Unable to load image: "
@@ -600,19 +602,7 @@ namespace bagel {
 		height = height_int;
 		mipLvl = 1;             // only level 0 is decoded here; the rest is generated on the GPU
 		genMipchain = true;     // stb source -> generate the mip chain via blits
-		imageSize = width * height * 4;
-
-		unsigned char* modified = new unsigned char[imageSize];
-		const unsigned char alpha = 255;
-
-		for (size_t i = 0, j = 0; i < imageSize; i += 4, j += channels) {
-			for (uint8_t ii = 0; ii < channels; ii++) {
-				modified[i+ii] = pixels[j + ii];     // channels
-			}
-			for (uint8_t iii = 0; iii < 4-channels; iii++) {
-				modified[i + channels + iii] = alpha;     // extra channels
-			}          
-		}
+		imageSize = static_cast<size_t>(width) * height * 4;
 
 		stagingBuffer = new BGLBuffer(
 			bglDevice,
@@ -622,10 +612,10 @@ namespace bagel {
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
 		);
 		stagingBuffer->map();
-		stagingBuffer->writeToBuffer(modified);
+		stagingBuffer->writeToBuffer(pixels);
 		populateBufferCopyRegionSTB(buffCpyRegions, width, height);
 
-		delete pixels;
+		stbi_image_free(pixels);   // stb allocates with malloc; `delete` here was UB
 	}
 
 	void BGLTextureLoader::loadKTXImageInStagingBuffer(const char* filePath, VkFormat format)

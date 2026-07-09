@@ -25,6 +25,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include "../bagel_engine_device.hpp"
 #include "../bagel_model.hpp"
+#include "math/bagel_math.hpp"
 
 // All Jolt symbols are in the JPH namespace
 // If you want your code to compile using single or double precision write 0.0_r to get a Real value that compiles to double or float depending if JPH_DOUBLE_PRECISION is set or not.
@@ -42,10 +43,10 @@ namespace bagel {
 	{
 		static constexpr JPH::ObjectLayer NON_MOVING = 0;
 		static constexpr JPH::ObjectLayer MOVING = 1;
-		// LEGO assemblies: collide with the static world (ground) ONLY — never with each other or
-		// other moving bodies. Assembled shapes are driven by constraints/grouping, not contacts,
-		// so mutual collision is pure cost + jitter. Shares the MOVING broadphase tree.
-		static constexpr JPH::ObjectLayer LEGO = 2;
+		// Moving bodies that collide with the static world (ground) ONLY — never with each other or
+		// other moving bodies. For assemblies driven by constraints/grouping rather than contacts
+		// (e.g. LEGO parts), mutual collision is pure cost + jitter. Shares the MOVING broadphase tree.
+		static constexpr JPH::ObjectLayer GROUND_ONLY = 2;
 		static constexpr JPH::ObjectLayer NUM_LAYERS = 3;
 	};
 
@@ -140,8 +141,8 @@ namespace bagel {
 				return inLayer2 == BroadPhaseLayers::MOVING;
 			case PhysicsLayers::MOVING:
 				return true;
-			case PhysicsLayers::LEGO:
-				return inLayer2 == BroadPhaseLayers::NON_MOVING; // lego pieces only test vs ground
+			case PhysicsLayers::GROUND_ONLY:
+				return inLayer2 == BroadPhaseLayers::NON_MOVING; // only tests against the static world
 			default:
 				JPH_ASSERT(false);
 				return false;
@@ -160,7 +161,7 @@ namespace bagel {
 			// Create a mapping table from object to broad phase layer
 			mObjectToBroadPhase[PhysicsLayers::NON_MOVING] = BroadPhaseLayers::NON_MOVING;
 			mObjectToBroadPhase[PhysicsLayers::MOVING] = BroadPhaseLayers::MOVING;
-			mObjectToBroadPhase[PhysicsLayers::LEGO] = BroadPhaseLayers::MOVING; // lego bodies move
+			mObjectToBroadPhase[PhysicsLayers::GROUND_ONLY] = BroadPhaseLayers::MOVING; // these bodies move
 		}
 
 		virtual JPH::uint GetNumBroadPhaseLayers() const override
@@ -196,12 +197,12 @@ namespace bagel {
 	public:
 		virtual bool ShouldCollide(JPH::ObjectLayer inObject1, JPH::ObjectLayer inObject2) const override
 		{
-			// LEGO pieces collide with the static world (ground) only — never with each other and
+			// GROUND_ONLY bodies collide with the static world only — never with each other and
 			// never with other moving bodies. Handled first so the rule stays symmetric regardless
 			// of argument order.
-			if (inObject1 == PhysicsLayers::LEGO || inObject2 == PhysicsLayers::LEGO)
+			if (inObject1 == PhysicsLayers::GROUND_ONLY || inObject2 == PhysicsLayers::GROUND_ONLY)
 			{
-				JPH::ObjectLayer other = (inObject1 == PhysicsLayers::LEGO) ? inObject2 : inObject1;
+				JPH::ObjectLayer other = (inObject1 == PhysicsLayers::GROUND_ONLY) ? inObject2 : inObject1;
 				return other == PhysicsLayers::NON_MOVING;
 			}
 			switch (inObject1)
@@ -303,6 +304,7 @@ namespace bagel {
 		// is non-null it receives the world hit point.
 		entt::entity PickEntity(glm::vec3 origin, glm::vec3 dir, float maxDist = 1000.0f,
 		                        glm::vec3* outHit = nullptr) const;
+		entt::entity PickEntity(Ray ray, glm::vec3 *outHit = nullptr) const;
 		void SetSimulationTimescale(float _s) { simTimeScale = _s; }
 		glm::vec3 GetGravity();
 		void SetGravity(glm::vec3 gravity);

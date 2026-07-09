@@ -5,10 +5,8 @@
 #include "bagel_util.hpp"
 #include "bagel_imgui.hpp"						// ImGui + ConsoleApp (CONSOLE)
 #include "model_loaders/bagel_model_loader.hpp" // BGLModel::Vertex (planet wire upload)
-#include "lego/ldraw_library.hpp"                // ldraw::Library (connection-point bake)
-#include "lego/baked_connectors.hpp"             // ldraw::BakedConnectors (offline connector cache)
-#include "lego/baked_collision.hpp"              // ldraw::BakedCollision (offline convex-hull cache)
-#include "lego/lego_connection_component.hpp"    // LegoConnectionComponent (gizmo markers)
+#include "lego/components/lego_connection_component.hpp"	// LegoConnectionComponent (gizmo markers)
+#include "lego/lego_model_builder.hpp"					// LegoModelComponentBuilder (.dat rehydrate)
 
 #include <iostream>
 #include <cmath>
@@ -31,32 +29,64 @@ namespace bagel
 		CONSOLE->Log("Lego", "Part catalog: " + std::to_string(nParts) + " placeable parts");
 		thumbnailStreamer_ = std::make_unique<BGLTextureStreamer>(bglDevice, 512);
 		legoBrowser_ = std::make_unique<LegoBrowserPanel>(partCatalog_, *thumbnailStreamer_);
-		legoBrowser_->setOnPick([this](const ldraw::PartCatalogEntry &e) {
-			spawnLegoPart(e.name, glm::vec3(0.0f));   // place at world origin
-		});
+		partSystem_ = std::make_unique<ldraw::PartSystem>(bglDevice, registry, *materialManager, *skinManager);
+		legoBrowser_->setOnPick([this](const ldraw::PartCatalogEntry &e)
+								{
+									partSystem_->spawnLegoPart(e.name, glm::vec3(0.0f)); // place at world origin
+								});
 	}
 	void MyApplication::OnSceneLoad()
 	{
 		buildScene(6); // TEMP: verify connection gizmo
 	}
 
-	void MyApplication::OnUpdate(float dt)
+	void MyApplication::OnUpdate(BGLCamera &camera, float dt)
 	{
 		// Publish finished thumbnail uploads + retire evicted textures (once per frame, main thread).
 		if (thumbnailStreamer_)
 			thumbnailStreamer_->beginFrame();
 
-		if (hierarchyRoot == entt::null)
-			return;
-		stackAngle += dt;
+		// Left-click brick picking: cast a ray from the cursor into the physics scene and select
+		// the block under it (BGLJolt::PickEntity resolves group compounds down to the block).
+		{
+			GLFWwindow *win = bglWindow.getGLFWWindow();
+			const bool mouseLeftDown = glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+			if (mouseLeftDown && !mouseLeftPrev && !ImGui::GetIO().WantCaptureMouse)
+			{
+				VkExtent2D ext = bglRenderer.getExtent();
+				double mx, my;
+				glfwGetCursorPos(win, &mx, &my);
+				Ray r = camera.mouseRayCast(ext.width, ext.height, mx, my);
+				glm::vec3 hitPos;
+				selectedEntity = BGLJolt::GetInstance()->PickEntity(r, &hitPos);
+				if (registry.valid(selectedEntity))
+				{
+					CONSOLE->Log("Pick", "Selected entity " + std::to_string(static_cast<uint32_t>(entt::to_integral(selectedEntity))));
+					auto &brick = registry.get<LegoConnectionComponent>(selectedEntity);
+					
+				}
+				else
+					CONSOLE->Log("Pick", "Nothing under cursor");
+			}
+			mouseLeftPrev = mouseLeftDown;
+		}
+	}
 
-		auto &tc = registry.get<TransformComponent>(hierarchyRoot);
-		tc.setTranslation({8.0f * cosf(stackAngle * 0.4f),
-						   1.0f + 0.5f * sinf(stackAngle * 0.7f),
-						   8.0f * sinf(stackAngle * 0.4f)});
-		tc.setRotation({sinf(stackAngle * 0.5f) * 0.3f,
-						stackAngle * 0.8f,
-						cosf(stackAngle * 0.3f) * 0.2f});
+	// Build the app-owned overlay render system now that the swapchain render pass + descriptor
+	// layouts exist (called once by Application::run before the frame loop).
+	void MyApplication::OnRenderInit(VkRenderPass swapchainPass,
+	                                 const std::vector<VkDescriptorSetLayout> &setLayouts)
+	{
+		legoConnectionRenderSystem_ = std::make_unique<LegoConnectionRenderSystem>(
+			swapchainPass, setLayouts, bglDevice);
+	}
+
+	// Draw the LEGO connection markers in the swapchain pass (called each frame by Application::run
+	// at the overlay stage, after the scene + engine gizmo, before ImGui).
+	void MyApplication::OnSwapchainOverlay(FrameInfo &frameInfo)
+	{
+		if (legoConnectionRenderSystem_)
+			legoConnectionRenderSystem_->render(frameInfo);
 	}
 
 	// ---- Map panel + pipeline ----------------------------------------------
@@ -138,7 +168,7 @@ namespace bagel
 			loadIKLeg();
 			break;
 		case 6:
-			//createLights();
+			// createLights();
 			createDirectionalLight();
 			loadLegoGround();
 			loadLegoBrick();
@@ -178,8 +208,10 @@ namespace bagel
 		// Map::load unloaded the old scene (GPU idle); reset the skin-table allocator before
 		// rehydrate rebuilds the loaded models' blocks.
 		materialManager->clearSkinTable();
-		// rebuild transient GPU/material/physics state (moved to map/bagel_map_io.*)
-		Map::rehydrate(registry, bglDevice, *materialManager, *skinManager);
+		// rebuild transient GPU/material/physics state (moved to map/bagel_map_io.*). Pass a
+		// LEGO-aware builder so saved ".dat" parts rebuild through LDrawModelLoader.
+		LegoModelComponentBuilder rebuildBuilder(bglDevice, registry);
+		Map::rehydrate(registry, rebuildBuilder, *materialManager, *skinManager);
 		// NOTE: planet rehydration (PlanetComponent -> mesh rebuild) is disabled while the
 		// geodesic-CDLOD terrain is mid-refactor. Maps containing planets will load their
 		// recipe but not rebuild the terrain mesh.
@@ -421,7 +453,7 @@ namespace bagel
 	void MyApplication::loadLegoBrick()
 	{
 		// Smoke test: 32316 = "Technic Beam 5" (studless 1x5 stick with pin holes).
-		spawnLegoPart("32316", glm::vec3(0.0f));
+		partSystem_->spawnLegoPart("32316", glm::vec3(0.0f));
 	}
 
 	// Flat ground for the lego scene: a procedural floor quad (y=0, sized by scaleVec) for the
@@ -440,7 +472,7 @@ namespace bagel
 		settings.scaleVec = {100.0f, 1.0f, 100.0f};
 
 		auto entity = registry.create();
-		auto &tc = registry.emplace<TransformComponent>(entity);   // at origin
+		auto &tc = registry.emplace<TransformComponent>(entity); // at origin
 		// generateFloor() already sizes the quad via scaleVec, so keep the transform at identity
 		// scale (the TransformComponent default is 0.1, which would shrink the visible quad to
 		// 1/10 of the collider — the same double-scale trap as the bricks above).
@@ -456,93 +488,6 @@ namespace bagel
 		BGLJolt::GetInstance()->AddBox(entity, {100.0f, 0, 100.0f}, info);
 
 		CONSOLE->Log("Lego", "Spawned ground plane");
-	}
-
-	// Spawn one LDraw part as a new entity at `pos`. settings.scale bakes the raw LDU geometry
-	// (1 LDU = 0.4 mm) down to engine size at load time. LDraw is -Y up, so a rigid 180° flip
-	// about X puts the studs up (a pure rotation keeps winding/normals correct). Attaches the
-	// baked connectors (gizmo markers) and the convex-hull collider. Does NOT clear the scene,
-	// so it can add bricks to whatever is already loaded (used by the part browser).
-	entt::entity MyApplication::spawnLegoPart(const std::string &partName, const glm::vec3 &pos)
-	{
-		ModelComponentBuilder builder(bglDevice, registry);
-		builder.setTextureLoader(&materialManager->getTextureLoader());
-		builder.setMaterialManager(materialManager.get());
-		builder.setSkinManager(skinManager.get());
-
-		ModelLoadSettings settings{};
-		settings.scale = 0.01f;
-
-		const std::string part = partName + ".dat";   // ".dat" ext routes to LDrawModelLoader
-		auto entity = registry.create();
-		auto &tc = registry.emplace<TransformComponent>(entity);
-		tc.setTranslation({0,5,0});
-		tc.setRotation({glm::pi<float>(), 0.0f, 0.0f});
-		// settings.scale already bakes the LDU geometry to engine size, so the transform must be
-		// identity scale. The TransformComponent default is 0.1 (see transform.hpp); leaving it
-		// would scale the RENDER mesh a second time (0.1*0.1) while the Jolt collider — which
-		// ignores transform scale — stays at the bake size, so the two would mismatch 10x.
-		tc.setScale({1.0f, 1.0f, 1.0f});
-		builder.buildComponent(entity, part.c_str(), settings);
-
-		// Connectors (offline lego/baked/connections/<part>.conn; live re-bake on cache miss)
-		// -> gizmo markers, stored in model-local space (raw LDU * loadScale).
-		static ldraw::BakedConnectors bakedCache = [] {
-			ldraw::BakedConnectors c;
-			c.setDir(util::enginePath("/lego/baked/connections"));
-			return c;
-		}();
-		std::vector<ldraw::ConnectionPoint> liveBake;                // holds fallback result, if used
-		const std::vector<ldraw::ConnectionPoint> *conns = bakedCache.find(part);
-		if (!conns) {
-			ldraw::Library lib(util::enginePath("/lego/ldraw"));
-			liveBake = std::move(lib.bake(part).connections);
-			conns = &liveBake;
-			CONSOLE->Log("Lego", std::string("Connector cache miss for ") + part + " - re-baked live");
-		}
-		auto &cc = registry.emplace<LegoConnectionComponent>(entity);
-		auto radiusFor = [](ldraw::ConnectorType t) {
-			switch (t) {
-			case ldraw::ConnectorType::AxleHole: return 5.0f; // cross hole, a touch tighter
-			default:                             return 6.0f; // stud / tube / pin ~ 6 LDU
-			}
-		};
-		for (const ldraw::ConnectionPoint &c : *conns) {
-			LegoConnectionPoint p;
-			p.pos    = c.pos * settings.scale;
-			p.orient = c.orient;
-			p.radius = radiusFor(c.type) * settings.scale;
-			p.type   = static_cast<int>(c.type);
-			cc.points.push_back(p);
-		}
-
-		// Convex-hull collider (offline lego/baked/collision/<part>.glb). Hull points are raw LDU
-		// (studs-down, like the render mesh pre-transform), so scale them the same; the studs-up
-		// flip lives in the entity's TransformComponent rotation handed to Jolt.
-		static ldraw::BakedCollision collisionCache = [] {
-			ldraw::BakedCollision c;
-			c.setDir(util::enginePath("/lego/baked/collision"));
-			return c;
-		}();
-		if (const auto *hulls = collisionCache.find(part)) {
-			std::vector<std::vector<glm::vec3>> scaled;
-			scaled.reserve(hulls->size());
-			for (const auto &h : *hulls) {
-				std::vector<glm::vec3> s;
-				s.reserve(h.size());
-				for (const glm::vec3 &v : h) s.push_back(v * settings.scale);
-				scaled.push_back(std::move(s));
-			}
-			BGLJolt::PhysicsBodyCreationInfo info{};
-			info.pos = tc.getWorldTranslation();
-			info.rot = tc.getWorldRotation();
-			info.physicsType = PhysicsType::DYNAMIC;     // bricks fall + collide (ground is STATIC)
-			info.activate = true;
-			info.layer = PhysicsLayers::LEGO;            // collide with ground only, not each other
-			BGLJolt::GetInstance()->AddConvexHull(entity, scaled, info);
-		}
-		CONSOLE->Log("Lego", "Spawned " + partName);
-		return entity;
 	}
 
 } // namespace bagel

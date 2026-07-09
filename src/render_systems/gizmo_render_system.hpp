@@ -28,11 +28,6 @@ namespace bagel {
 
 		void render(FrameInfo& frameInfo, const PoseGizmo& gizmo);
 
-		// Overlay every entity's LegoConnectionComponent: a ring at each detected
-		// stud/hole plus a short axis line, colored by connector type. Reuses the same
-		// LINE_LIST pipeline, so it draws on top of the scene like the bone gizmo.
-		void renderConnections(FrameInfo& frameInfo);
-
 	private:
 		BGLDevice& device;
 

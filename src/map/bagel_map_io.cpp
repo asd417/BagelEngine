@@ -93,10 +93,9 @@ namespace bagel {
 		}
 	}
 
-	void Map::rehydrate(entt::registry& registry, BGLDevice& bglDevice,
+	void Map::rehydrate(entt::registry& registry, ModelComponentBuilder& builder,
 	                    BGLMaterialManager& materialManager, BGLSkinManager& skinManager)
 	{
-		ModelComponentBuilder builder(bglDevice, registry);
 		builder.setTextureLoader(&materialManager.getTextureLoader());
 		builder.setMaterialManager(&materialManager);
 		builder.setSkinManager(&skinManager);

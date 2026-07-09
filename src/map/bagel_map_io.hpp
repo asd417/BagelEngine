@@ -35,8 +35,10 @@ namespace bagel {
 	// Forward-declared (used by rehydrate() below as references only). The full definitions
 	// pull in heavy model/material headers, so they live in bagel_map_io.cpp — this header is
 	// included widely (via components/tag.hpp) and must stay light to avoid a circular include.
-	class BGLMaterialManager; // bagel_material.hpp
-	class BGLSkinManager;     // animation/bagel_skin_manager.hpp
+	class BGLMaterialManager;    // bagel_material.hpp
+	class BGLSkinManager;        // animation/bagel_skin_manager.hpp
+	class ModelComponentBuilder; // bagel_model.hpp — passed in so the app can supply a format-aware
+	                             // subclass (e.g. LegoModelComponentBuilder) without map IO knowing it
 
 	struct Map {
 		static constexpr char     MAGIC[4] = { 'B', 'M', 'A', 'P' };
@@ -113,7 +115,9 @@ namespace bagel {
 		// component's GPU buffers + materials from its serialized recipe, and reissue Jolt
 		// bodies from their restored creation settings. Call once after a successful load().
 		// Defined in bagel_map_io.cpp (needs ModelComponentBuilder / the material+skin managers).
-		static void rehydrate(entt::registry& registry, BGLDevice& bglDevice,
+		// `builder` is supplied by the caller so a saved scene containing app-specific formats
+		// (e.g. LEGO ".dat" parts) rebuilds through a matching subclass — map IO stays format-agnostic.
+		static void rehydrate(entt::registry& registry, ModelComponentBuilder& builder,
 		                      BGLMaterialManager& materialManager, BGLSkinManager& skinManager);
 	};
 
