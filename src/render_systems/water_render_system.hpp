@@ -6,9 +6,9 @@
 #include <glm/gtc/constants.hpp>
 
 #include "bagel_render_system.hpp"
-#include "../bagel_pipeline.hpp"
-#include "../bagel_frame_info.hpp"
-#include "../bagel_model.hpp"
+#include "engine/bagel_pipeline.hpp"
+#include "bagel_frame_info.hpp"
+#include "model/bagel_model.hpp"
 
 namespace bagel {
 

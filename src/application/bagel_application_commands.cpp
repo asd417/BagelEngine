@@ -1,7 +1,7 @@
 #include "bagel_application.hpp"
 #include "bagel_console_commands.hpp"
-#include "bagel_imgui.hpp"
-
+#include "bagel_util.hpp"
+#include "imgui/bagel_imgui.hpp"
 
 namespace bagel {
     void Application::initCommand()

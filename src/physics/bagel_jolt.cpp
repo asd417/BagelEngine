@@ -1,7 +1,7 @@
 #include "physics/bagel_jolt.hpp"
 #include "bagel_ecs_components.hpp"
-#include "../bagel_model.hpp"
-#include "../bagel_util.hpp"
+#include "model/bagel_model.hpp"
+#include "bagel_util.hpp"
 
 #include <glm/gtc/quaternion.hpp>  // mat3_cast / quat_cast / mat4_cast
 
@@ -9,7 +9,7 @@
 #include <Jolt/Physics/Collision/CastResult.h>       // RayCastResult
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h> // physicsSystem.GetNarrowPhaseQuery().CastRay
 
-#include "bagel_imgui.hpp"
+#include "imgui/bagel_imgui.hpp"
 #define CONSOLE ConsoleApp::Instance()
 
 namespace bagel {
@@ -498,7 +498,7 @@ namespace bagel {
 		auto v = inManifold.GetWorldSpaceContactPointOn1(0);
 		std::string contactSTR = "Contact on ";
 		char storage[32];
-		sprintf(storage, " %.2f %.2f %.2f", v.GetX(), v.GetY(), v.GetZ());
+		sprintf_s(storage, " %.2f %.2f %.2f", v.GetX(), v.GetY(), v.GetZ());
 		contactSTR += std::string(storage);
 		CONSOLE->Log("BGLJolt", contactSTR);
 		CONSOLE->Log("BGLJolt", "A contact was added");

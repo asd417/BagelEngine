@@ -1,7 +1,7 @@
 #include "bagel_map_io.hpp"
 
-#include "../bagel_model.hpp"     // ModelComponentBuilder (+ components, MaterialSource, Pose)
-#include "../bagel_material.hpp"  // BGLMaterialManager
+#include "model/model_component_builder.hpp"     // ModelComponentBuilder (+ components, MaterialSource, Pose)
+#include "bagel_material.hpp"  // BGLMaterialManager
 // BGLSkinManager (animation/bagel_skin_manager.hpp) and BGLJolt (physics/bagel_jolt.hpp via
 // the header) come in transitively through the includes above / bagel_map_io.hpp.
 

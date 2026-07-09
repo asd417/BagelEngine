@@ -2,9 +2,9 @@
 // Generic, engine-level connectivity graph over ECS entities. It stores an undirected adjacency
 // of entities and computes connected components; it is deliberately domain-agnostic. What a
 // "connection" *means* (and which connections should group together) is supplied by the caller
-// via the edge payload and a grouping predicate. The LEGO connector layer (src/lego/connections.hpp)
-// is one client — it stores stud/tube/axle mate data in the edge and groups by rigid joints — but
-// nothing here knows about LEGO.
+// via the edge payload and a grouping predicate.
+
+// This is useful for simply creating relations between entities without creating hierarchy
 
 #include <entt.hpp>
 #include <algorithm>

@@ -6,11 +6,11 @@
 #include <glm/gtc/constants.hpp>
 
 #include "bagel_render_system.hpp"
-#include "../bagel_pipeline.hpp"
-#include "../bagel_frame_info.hpp"
-#include "../bagel_camera.hpp"
-#include "../bagel_gameobject.hpp"
-#include "../bagel_model.hpp"
+#include "engine/bagel_pipeline.hpp"
+#include "bagel_frame_info.hpp"
+#include "bagel_camera.hpp"
+#include "bagel_gameobject.hpp"
+#include "model/bagel_model.hpp"
 
 
 //#define MODELRENDER_ORIGINAL

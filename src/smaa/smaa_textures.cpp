@@ -1,5 +1,5 @@
 #include "smaa/smaa_textures.hpp"
-#include "bagel_textures.hpp"
+#include "texture/bagel_textures.hpp"
 
 #include <vulkan/vulkan.h>
 

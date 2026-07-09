@@ -1,8 +1,8 @@
 #pragma once
 
-#include "bagel_engine_device.hpp"
+#include "engine/bagel_engine_device.hpp"
 #include "bagel_buffer.hpp"
-#include "bagel_descriptors.hpp"
+#include "engine/bagel_descriptors.hpp"
 
 #include <glm/glm.hpp>
 #include <memory>

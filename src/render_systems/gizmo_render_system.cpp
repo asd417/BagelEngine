@@ -1,8 +1,8 @@
 #include "gizmo_render_system.hpp"
 #include "wireframe_render_system.hpp" // WireframePushConstantData (shared layout)
-#include "../bagel_engine_device.hpp"
-#include "../bagel_model.hpp"		   // BGLModel::Vertex
-#include "../components/transform.hpp" // TransformComponent
+#include "engine/bagel_engine_device.hpp"
+#include "model/bagel_model.hpp"		   // BGLModel::Vertex
+#include "ecs/components/transform.hpp" // TransformComponent
 
 #include <vulkan/vulkan.h>
 #include <glm/gtc/matrix_transform.hpp>

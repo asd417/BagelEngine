@@ -1,6 +1,6 @@
 #include "bloom_render_system.hpp"
-#include "../bagel_engine_device.hpp"
-#include "../bagel_util.hpp"
+#include "engine/bagel_engine_device.hpp"
+#include "bagel_util.hpp"
 
 #include <vulkan/vulkan.h>
 #include <iostream>

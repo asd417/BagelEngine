@@ -27,17 +27,17 @@
 #include "bagel_buffer.hpp"
 #include "bagel_camera.hpp"
 #include "bagel_ecs_components.hpp"
-#include "bagel_model_cache.hpp" // ModelCacheManager — free cached model buffers at shutdown
+#include "model/bagel_model_cache.hpp" // ModelCacheManager — free cached model buffers at shutdown
 #include "keyboard_movement_controller.hpp"
 #include "bagel_console_commands.hpp"
 #include "bagel_hierachy.hpp"
 #include "bagel_util.hpp"
-#include "bagel_imgui.hpp"
+#include "imgui/bagel_imgui.hpp"
 
 #include "physics/bagel_jolt.hpp"
 #include "math/bagel_math.hpp"
 #include "smaa/smaa_textures.hpp"
-#include "bagel_engine_config.hpp"
+#include "engine/bagel_engine_config.hpp"
 
 #include "Jolt/Jolt.h"
 
@@ -45,11 +45,21 @@ namespace bagel
 {
 	Application::Application()
 	{
+		// Sized exactly against the one layout allocated from this pool: a bindless set per frame in
+		// flight (see BGLBindlessDescriptorManager::createBindlessDescriptorSet). Each set consumes,
+		// on top of the GLOBAL_DESCRIPTOR_COUNT-sized bindless array of each type:
+		//   storage buffers -- MATERIAL + SKIN + PALETTE, one single (non-array) buffer each
+		//   image samplers  -- the 4 deferred G-buffer targets + one per shadow cascade
+		constexpr uint32_t kFrames = BGLSwapChain::MAX_FRAMES_IN_FLIGHT;
+		constexpr uint32_t kSingleStorageBuffers = 3;
+		constexpr uint32_t kDeferredTargets = 4;
+		constexpr uint32_t kShadowMaps = BGLBindlessDescriptorManager::SHADOW_MAP_CASCADE_COUNT;
+
 		globalPool = BGLDescriptorPool::Builder(bglDevice)
-						 .setMaxSets(BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
-						 .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT)
-						 .addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT + BGLSwapChain::MAX_FRAMES_IN_FLIGHT)
-						 .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BGLSwapChain::MAX_FRAMES_IN_FLIGHT * GLOBAL_DESCRIPTOR_COUNT + 10)
+						 .setMaxSets(kFrames)
+						 .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kFrames * GLOBAL_DESCRIPTOR_COUNT)
+						 .addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, kFrames * (GLOBAL_DESCRIPTOR_COUNT + kSingleStorageBuffers))
+						 .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kFrames * (GLOBAL_DESCRIPTOR_COUNT + kDeferredTargets + kShadowMaps))
 						 .build();
 
 		descriptorManager = std::make_unique<BGLBindlessDescriptorManager>(bglDevice, *globalPool);
@@ -105,7 +115,7 @@ namespace bagel
 			float k = tanX * tanX + tanY * tanY;
 
 			float sliceNear = 0.1f; // camera near plane
-			for (uint32_t ci = 0; ci < SHADOW_CASCADE_COUNT; ci++)
+			for (uint8_t ci = 0; ci < SHADOW_CASCADE_COUNT; ci++)
 			{
 				float n = sliceNear;
 				float f = dlc.cascadeEnds[ci];
@@ -537,7 +547,7 @@ namespace bagel
 				if (bloomEnabled)
 				{
 					bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "bloom_down");
-					for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++)
+					for (uint8_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++)
 					{
 						bglRenderer.beginBloomDownsamplePass(primaryCommandBuffer, i);
 						BloomDownPush dp{};
@@ -549,13 +559,17 @@ namespace bagel
 					}
 					bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
 					bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "bloom_up");
-					for (int i = (int)BGLRenderer::BLOOM_MIPS - 2; i >= 0; i--)
+					// Signed counter: a uint8_t `i >= 0` is always true, so the old loop wrapped
+					// to 255 after the final iteration and indexed bloomMips/bloomMipHandles
+					// out of range.
+					for (int i = BGLRenderer::BLOOM_MIPS - 2; i >= 0; i--)
 					{
-						bglRenderer.beginBloomUpsamplePass(primaryCommandBuffer, i);
+						const uint8_t mip = static_cast<uint8_t>(i);
+						bglRenderer.beginBloomUpsamplePass(primaryCommandBuffer, mip);
 						BloomUpPush up{};
-						up.inputHandle = bloomMipHandles[i + 1];
+						up.inputHandle = bloomMipHandles[mip + 1];
 						up.filterRadius = 1.0f;
-						up.weight = powf(bloomMipDecay, float(i));
+						up.weight = powf(bloomMipDecay, float(mip));
 						bloomRenderSystem.renderUpsample(frameInfo, up);
 						bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
 					}
@@ -702,7 +716,7 @@ namespace bagel
 		if (materialManager)
 			materialManager->getTextureLoader().setMipLodBias(bias);
 	}
-	void Application::updateAnimation(double frameTime)
+	void Application::updateAnimation(float frameTime)
 	{
 
 		// Advance skeletal animation once per frame, BEFORE the shadow and g-buffer
@@ -786,7 +800,7 @@ namespace bagel
 			bglRenderer.getCompositeMemory(),
 			bglRenderer.getCompositeImage(),
 			"CompositeLDR", reuse, compositeHandle, false);
-		for (uint32_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++)
+		for (uint8_t i = 0; i < BGLRenderer::BLOOM_MIPS; i++)
 		{
 			bloomMipHandles[i] = descriptorManager->storeTexture(
 				bglRenderer.getBloomMipImageInfo(i),

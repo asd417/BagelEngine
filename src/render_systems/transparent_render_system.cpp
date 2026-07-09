@@ -1,8 +1,8 @@
 #include "transparent_render_system.hpp"
-#include "../bagel_ecs_components.hpp"
-#include "../components/planet.hpp"   // PlanetComponent (ocean is drawn by WaterRenderSystem)
-#include "../bagel_engine_device.hpp"
-#include "../bagel_util.hpp"
+#include "bagel_ecs_components.hpp"
+#include "ecs/components/planet.hpp"   // PlanetComponent (ocean is drawn by WaterRenderSystem)
+#include "engine/bagel_engine_device.hpp"
+#include "bagel_util.hpp"
 
 #include <vulkan/vulkan.h>
 #include <stdexcept>

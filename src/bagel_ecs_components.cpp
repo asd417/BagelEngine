@@ -4,7 +4,7 @@
 #include <vulkan/vulkan.h>
 
 #include "bagel_buffer.hpp"
-#include "bagel_imgui.hpp"
+#include "imgui/bagel_imgui.hpp"
 #include <memory>
 
 // Rotation Order Definition. Jolt Quaternion returns XYZ rotation therefore we use Z1Y2X3 rotation matrix to match
@@ -127,13 +127,13 @@ namespace bagel {
         }
         else {
             char buff[64];
-            sprintf(buff, "Transform Array Full. MAX_TRANSFORM_PER_ENT %d \n", MAX_TRANSFORM_PER_ENT);
+            sprintf_s(buff, "Transform Array Full. MAX_TRANSFORM_PER_ENT %d \n", MAX_TRANSFORM_PER_ENT);
             CONSOLE->Log("TransformArrayComponent::addTransform", buff);
         }
     }
     void TransformArrayComponent::ToBufferComponent(DataBufferComponent& bufferComponent)
     {
-        for (int i = 0; i < maxIndex; i++) {
+        for (uint32_t i = 0; i < maxIndex; i++) {
             TransformBufferUnit objData{};
             objData.modelMatrix = mat4(i);   // mat4() bakes scale in, so no separate scale field
 

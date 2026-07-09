@@ -6,7 +6,7 @@
 #include <vulkan/vulkan.h>
 #include <cstddef>
 #include "entt.hpp"
-#include "bagel_engine_config.hpp"
+#include "engine/bagel_engine_config.hpp"
 #define MAX_MODELS
 
 namespace bagel {
@@ -20,7 +20,7 @@ namespace bagel {
 		glm::vec4 color{}; // w intensity
 	};
 
-	constexpr uint32_t SHADOW_CASCADE_COUNT = 4;
+	constexpr uint8_t SHADOW_CASCADE_COUNT = 4;
 
 	// std140-compatible directional light data block (offset 640 inside GlobalUBO)
 	struct DirectionalLightData {

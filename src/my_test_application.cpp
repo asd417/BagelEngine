@@ -1,10 +1,10 @@
 #include "my_test_application.hpp"
+#include "bagel_util.hpp"
 #include "bagel_hierachy.hpp"
 #include "physics/bagel_jolt.hpp"
 #include "map/bagel_map_io.hpp"
-#include "bagel_util.hpp"
-#include "bagel_imgui.hpp"						// ImGui + ConsoleApp (CONSOLE)
-#include "model_loaders/bagel_model_loader.hpp" // BGLModel::Vertex (planet wire upload)
+#include "imgui/bagel_imgui.hpp"						// ImGui + ConsoleApp (CONSOLE)
+#include "model/model_component_builder.hpp"
 
 #include <iostream>
 #include <cmath>

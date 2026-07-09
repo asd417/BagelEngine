@@ -18,9 +18,9 @@
 // (and its serialize overload). When the payload format changes incompatibly, bump
 // VERSION so old files are rejected.
 
-#include "../bagel_ecs_serialize.hpp"
-#include "../bagel_engine_device.hpp"
-#include "../physics/bagel_jolt.hpp"
+#include "bagel_ecs_serialize.hpp"
+#include "engine/bagel_engine_device.hpp"
+#include "physics/bagel_jolt.hpp"
 
 #include "entt.hpp"
 

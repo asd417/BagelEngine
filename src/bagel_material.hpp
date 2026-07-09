@@ -1,5 +1,5 @@
 #pragma once
-#include "bagel_textures.hpp"
+#include "texture/bagel_textures.hpp"
 #include "bagel_buffer.hpp"
 #include "bagel_ecs_components.hpp"
 
@@ -26,7 +26,7 @@ namespace bagel {
 		uint32_t loadTexture(const char* path, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
 
 		// Build a Material from paths. Any null path leaves that slot as 0 (no map).
-		Material loadMaterial(
+		BGLModel::Material loadMaterial(
 			const char* albedo,
 			const char* normal      = nullptr,
 			const char* metalRough  = nullptr,
@@ -34,7 +34,7 @@ namespace bagel {
 
 		// Build a Material from a serializable MaterialSource. Empty strings leave that
 		// slot unused.
-		Material loadMaterial(const MaterialSource& src);
+		BGLModel::Material loadMaterial(const MaterialSource& src);
 
 		// Reserve a contiguous run of `entryCount` skin-table entries; returns the base index.
 		// Entries are zero-initialized (the all-unused material). Caller fills them with

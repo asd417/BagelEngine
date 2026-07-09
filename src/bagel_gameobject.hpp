@@ -3,7 +3,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "bagel_ecs_components.hpp"
-#include "bagel_model.hpp"
+#include "model/bagel_model.hpp"
 #include <unordered_map>
 #include <memory>
 namespace bagel {

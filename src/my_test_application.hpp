@@ -1,7 +1,7 @@
 #pragma once
 #include "application/bagel_application.hpp"
 #include "bagel_material.hpp"
-#include "model_loaders/model_load_settings.hpp" // ModelLoadSettings (loadModel default arg)
+#include "model/model_loaders/model_load_settings.hpp" // ModelLoadSettings (loadModel default arg)
 #include <memory>
 
 namespace bagel {

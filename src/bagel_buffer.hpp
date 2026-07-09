@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bagel_engine_device.hpp"
+#include "engine/bagel_engine_device.hpp"
 
 namespace bagel {
 	struct BGLBufferCreateInfo {

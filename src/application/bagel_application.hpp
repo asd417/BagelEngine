@@ -2,10 +2,10 @@
 
 #include <glm/gtc/constants.hpp>
 
-#include "bagel_descriptors.hpp"
-#include "bagel_window.hpp"
-#include "bagel_engine_device.hpp"
-#include "bagel_renderer.hpp"
+#include "engine/bagel_descriptors.hpp"
+#include "engine/bagel_window.hpp"
+#include "engine/bagel_engine_device.hpp"
+#include "engine/renderer/bagel_renderer.hpp"
 #include "bagel_keybinds.hpp" // Source-style key -> console-command bindings
 
 #include "render_systems/point_light_render_system.hpp"
@@ -25,14 +25,12 @@
 #include "render_systems/smaa_neighborhood_render_system.hpp"
 #include "render_systems/gizmo_render_system.hpp"
 
-#include "bagel_model.hpp"
+#include "model/bagel_model.hpp"
 #include "bagel_camera.hpp"
-#include "bagel_textures.hpp"
+#include "texture/bagel_textures.hpp"
 #include "bagel_material.hpp"
 #include "bagel_gameobject.hpp"
 #include "animation/bagel_skin_manager.hpp"
-
-#include "physics/bagel_physics.hpp"
 
 #include <memory>
 #include <string>
@@ -181,7 +179,7 @@ namespace bagel
 		void initJolt();
 		void initImgui();
 
-		void updateAnimation(double frameTime);
+		void updateAnimation(float frameTime);
 		// Reused scratch for updateAnimation's manual-pose palette resolve; resized in place each
 		// frame so the per-frame path doesn't heap-allocate after the first grow.
 		std::vector<glm::mat4> paletteScratch;
@@ -223,14 +221,14 @@ namespace bagel
 		// Bindless handles for the engine's internal render targets. Assigned on the first
 		// registerDescriptorEntries() call (append) and reused in place on resize. Initialized
 		// so the first call never passes an indeterminate value as a designated handle.
-		uint32_t radiosityHandle = 0;
+		uint16_t radiosityHandle = 0;
 		// Opaque G-buffer depth, exposed to the water pass so it can read scene depth behind the ocean
 		// surface (thickness -> opacity; far plane behind the limb -> opaque, fixing water-over-space).
-		uint32_t gDepthHandle = 0;
-		uint32_t smaaEdgeHandle = 0;
-		uint32_t smaaWeightHandle = 0;
-		uint32_t compositeHandle = 0;
-		uint32_t bloomMipHandles[BGLRenderer::BLOOM_MIPS]{};
+		uint16_t gDepthHandle = 0;
+		uint16_t smaaEdgeHandle = 0;
+		uint16_t smaaWeightHandle = 0;
+		uint16_t compositeHandle = 0;
+		uint16_t bloomMipHandles[BGLRenderer::BLOOM_MIPS]{};
 		bool renderTargetsRegistered = false; // false until the handles above are appended once
 	};
 }
