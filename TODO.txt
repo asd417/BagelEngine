@@ -1,17 +1,3 @@
-during the upscale of bloom, there are nan values created at some pixels, which probably propagated from the lowest resolution first and upward
-
-global illumination radiance cascade (path of exile devs figured it out)
-
-seems like modern bloom requires proper HDR implementation which needs higher resolution than uint8(?)
-
-Unreal uses FFT bloom which transforms the image to frequency domain, multiply by a custom filter, and turn it back to image domain. this gives great control over bloom shape. VkFFT is an opensource, cross-platform version of cuFFT which could be useful for this.
-
-
-gpu skinning
-
 SSAO
-SSR
-parallexed cubemap
-lightmap
 
-
+BOX3d

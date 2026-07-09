@@ -107,8 +107,13 @@ namespace bagel
 			} else if (ext && strcmp(ext, ".obj") == 0) {
 				activeLoader = std::make_unique<OBJModelLoader>(pTextureLoader);
 			} else {
-				std::cerr << "[ModelComponentBuilder] Unknown file type: " << filename << "\n";
-				return;
+				// Any other extension is delegated to a derived builder's factory (e.g. LEGO's
+				// ".dat" -> LDrawModelLoader). Base returns nullptr => genuinely unknown.
+				activeLoader = createLoaderForExtension(ext ? ext : "");
+				if (!activeLoader) {
+					std::cerr << "[ModelComponentBuilder] Unknown file type: " << filename << "\n";
+					return;
+				}
 			}
 		}
 		activeLoader->setMaterialManager(pMaterialManager);

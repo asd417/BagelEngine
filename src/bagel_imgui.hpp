@@ -8,8 +8,7 @@
 #include <stdlib.h>         // NULL, malloc, free, atoi
 #include <stdint.h>         // intptr_t
 #include <map>
-#include <unordered_map>
-#include <functional>
+#include <vector>
 
 #include "entt.hpp"
 #include <glm/glm.hpp>
@@ -268,14 +267,19 @@ namespace bagel {
             Items.push_back(Strdup(buf));
         }
 
-        void AddCommand(const char* name, void* obj, std::function<char*(void*)> callback) {
+        // Every registered command is a free function taking the `obj` it was registered with
+        // (see bagel_console_commands.hpp), so these are plain function pointers — no type erasure.
+        using CommandFn    = char* (*)(void* obj);
+        using CommandArgFn = char* (*)(void* obj, const char* args);
+
+        void AddCommand(const char* name, void* obj, CommandFn callback) {
             Commands.push_back(name);
-            callbackMap.emplace(name, std::pair{ obj, callback});
+            callbacks.push_back({ name, obj, callback });
         }
 
-        void AddCommandWithArg(const char* name, void* obj, std::function<char*(void*, const char*)> callback) {
+        void AddCommandWithArg(const char* name, void* obj, CommandArgFn callback) {
             Commands.push_back(name);
-            callbackMapWithArgs.emplace(name, std::pair{ obj, callback });
+            callbacksWithArgs.push_back({ name, obj, callback });
         }
 
         // Execute a command line programmatically (e.g. from a keybind). Unlike typing into
@@ -416,8 +420,14 @@ namespace bagel {
         //Singleton
         static ConsoleApp* instance;
 
-        std::unordered_map<const char*, std::pair<void*, std::function<char*(void*)>>> callbackMap;
-        std::unordered_map<const char*, std::pair<void*, std::function<char*(void*, const char*)>>> callbackMapWithArgs;
+        // Dispatch() scans these linearly with a case-insensitive compare, so they were never
+        // hashed — an unordered_map keyed on `const char*` would have hashed the pointer, not the
+        // string. A vector keeps registration order and drops the dead hashing.
+        struct Command    { const char* name; void* obj; CommandFn    fn; };
+        struct CommandArg { const char* name; void* obj; CommandArgFn fn; };
+
+        std::vector<Command>    callbacks;
+        std::vector<CommandArg> callbacksWithArgs;
 
         ConsoleApp()
         {
@@ -485,17 +495,19 @@ namespace bagel {
             }
 
             bool ran = false;
-            for (auto it = callbackMapWithArgs.begin(); it != callbackMapWithArgs.end(); it++) {
-                if (stringCompare(cmdBuf, it->first) == 0) {
-                    AddLog((it->second.second)(it->second.first, args));
+            for (const CommandArg& c : callbacksWithArgs) {
+                if (stringCompare(cmdBuf, c.name) == 0) {
+                    AddLog(c.fn(c.obj, args));
                     ran = true;
                     break;
                 }
             }
             if (!ran) {
-                for (auto it = callbackMap.begin(); it != callbackMap.end(); it++) {
-                    if (stringCompare(command_line, it->first) == 0) {
-                        AddLog((it->second.second)(it->second.first));
+                // NB: matches against the full command_line, not the parsed cmdBuf — so a no-arg
+                // command only fires when typed with no trailing text. Pre-existing behavior.
+                for (const Command& c : callbacks) {
+                    if (stringCompare(command_line, c.name) == 0) {
+                        AddLog(c.fn(c.obj));
                         ran = true;
                         break;
                     }

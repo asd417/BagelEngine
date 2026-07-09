@@ -25,14 +25,11 @@
 #include "render_systems/smaa_neighborhood_render_system.hpp"
 #include "render_systems/gizmo_render_system.hpp"
 
-#ifdef PHYSTEST
-#include "physics/bagel_physics.h"
-#endif
-
-#include "bagel_gameobject.hpp"
 #include "bagel_model.hpp"
+#include "bagel_camera.hpp"
 #include "bagel_textures.hpp"
 #include "bagel_material.hpp"
+#include "bagel_gameobject.hpp"
 #include "animation/bagel_skin_manager.hpp"
 
 #include "physics/bagel_physics.hpp"
@@ -126,11 +123,23 @@ namespace bagel
 
 		// Override in derived classes
 		virtual void OnSceneLoad() {}
-		virtual void OnUpdate(float dt) {}
+		virtual void OnUpdate(BGLCamera& camera, float dt) {}
 		// Called once per frame inside the ImGui frame (after NewFrame, before any
 		// registry-reading UI), so a derived class may draw its own panels and safely
 		// mutate the scene/registry in response to widgets.
 		virtual void OnDrawGui() {}
+
+		// Called ONCE inside run() after the swapchain render pass + descriptor set layouts exist,
+		// but before the frame loop. Lets a derived app build its OWN render systems (which need the
+		// render pass at construction) without the engine knowing their types. Draw them from
+		// OnSwapchainOverlay(). `setLayouts` are the same layouts the engine render systems use.
+		virtual void OnRenderInit(VkRenderPass swapchainPass,
+		                          const std::vector<VkDescriptorSetLayout>& setLayouts) { (void)swapchainPass; (void)setLayouts; }
+
+		// Called every frame inside the swapchain render pass, at the overlay stage (after the scene
+		// and the engine gizmo, before ImGui). Lets a derived app draw app-specific overlays through
+		// FrameInfo — e.g. LEGO connection markers, via a render system created in OnRenderInit().
+		virtual void OnSwapchainOverlay(FrameInfo& frameInfo) { (void)frameInfo; }
 
 	protected:
 		uint32_t fallbackAlbedoMap = 0;

@@ -705,17 +705,6 @@ namespace bagel
             throw std::runtime_error("Failed to create UploadFence!");
         }
     }
-    // unused
-    void BGLDevice::immediateUpload(std::function<void(VkCommandBuffer cmd)> &&function)
-    {
-        VkCommandBuffer cmd = _uploadContext._commandBuffer;
-        beginSingleTimeCommands(&cmd);
-        function(cmd);
-        endSingleTimeCommands(cmd, &_uploadContext._uploadFence);
-        vkWaitForFences(_device, 1, &_uploadContext._uploadFence, true, 9999999999);
-        vkResetFences(_device, 1, &_uploadContext._uploadFence);
-    }
-
     VkBool32 BGLDevice::getSupportedDepthsFormat(VkFormat *depthFormat)
     {
         // https://github.com/SaschaWillems/Vulkan/blob/master/base/VulkanTools.cpp#L95

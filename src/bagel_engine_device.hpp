@@ -7,7 +7,6 @@
 // std lib headers
 #include <string>
 #include <vector>
-#include <functional>
 #include <iostream>
 #include <cstdlib>
 
@@ -105,7 +104,6 @@ namespace bagel {
         VkFenceCreateInfo fenceCreateInfo(VkFenceCreateFlags flags = 0);
         VkSemaphoreCreateInfo semaphoreCreateInfo(VkSemaphoreCreateFlags flags = 0);
         void createUploadFence();
-        void immediateUpload(std::function<void(VkCommandBuffer cmd)>&& function);
 
         VkPhysicalDeviceFeatures supportedFeatures;
         VkPhysicalDeviceProperties properties;

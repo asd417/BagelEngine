@@ -13,7 +13,6 @@
 
 #include <string>
 #include <unordered_map>
-#include <functional>
 #include <vector>
 #include <utility>
 #include <cctype>
@@ -23,6 +22,11 @@ namespace bagel {
 
 	class KeyBindManager {
 	public:
+		// How load()/poll() run a bound command line — in practice ConsoleApp::Instance()->Run.
+		// A plain function pointer: every call site passes a captureless lambda, which converts
+		// implicitly, so there is nothing to type-erase.
+		using ExecFn = void (*)(const char* commandLine);
+
 		// GLFW key code for a key name ("G", "5", "F1", "SPACE", "GRAVE", ...), or -1 if
 		// unknown. Single letters/digits map directly; named keys come from the table.
 		static int keyFromName(std::string name) {
@@ -85,7 +89,7 @@ namespace bagel {
 		// Replay the config file through `exec` (typically ConsoleApp::Run), so it behaves
 		// like a Source-style exec'd config — every `bind ...` line re-applies. Lines starting
 		// with `//` and blank lines are skipped. Auto-save is suppressed during replay.
-		void load(const std::function<void(const char*)>& exec) {
+		void load(ExecFn exec) {
 			if (configPath_.empty()) return;
 			std::ifstream is(configPath_);
 			if (!is) return;
@@ -106,7 +110,7 @@ namespace bagel {
 		// `blockInput` (e.g. ImGui::GetIO().WantTextInput) suppresses firing so typing in a
 		// text field doesn't trigger binds; edge state still tracks so a held key won't fire
 		// the instant focus is released.
-		void poll(GLFWwindow* window, bool blockInput, const std::function<void(const char*)>& exec) {
+		void poll(GLFWwindow* window, bool blockInput, ExecFn exec) {
 			for (const auto& kv : binds_) {
 				const bool down = glfwGetKey(window, kv.first) == GLFW_PRESS;
 				bool& prev = prevDown_[kv.first];

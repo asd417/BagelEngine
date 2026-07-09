@@ -43,7 +43,8 @@ namespace bagel {
 	class ModelComponentBuilder {
 	public:
 		ModelComponentBuilder(BGLDevice& bglDevice, entt::registry& registry);
-		void saveNormalData() { 
+		virtual ~ModelComponentBuilder() = default; // subclassed (e.g. LegoModelComponentBuilder)
+		void saveNormalData() {
 			assert(saveNextNormalData == false && "Already Set to save next normal data, retrieve existing data first");
 			saveNextNormalData = true; 
 		}
@@ -250,6 +251,13 @@ namespace bagel {
 		void setSkinManager(BGLSkinManager* sm) { pSkinManager = sm; }
 	protected:
 		void loadModel(const char* filename, ModelLoadSettings buildSettings);
+
+		// Loader factory for a file extension the base doesn't recognize. The base handles the
+		// engine formats inline in loadModel() (.gltf/.glb/.obj) and returns nullptr here for
+		// anything else (=> "unknown file type"). A derived builder overrides this to add formats
+		// WITHOUT the engine knowing them — e.g. LegoModelComponentBuilder maps ".dat" to
+		// LDrawModelLoader. `ext` includes the leading dot (".dat"), or is "" if the name has none.
+		virtual std::unique_ptr<ModelLoaderBase> createLoaderForExtension(const char* ext) { (void)ext; return nullptr; }
 
 		void* createVertexBuffer(size_t bufferSize, VkBuffer& bufferDst, VkDeviceMemory& memoryDst, bool useHostVisible = false);
 		void* createVertexBuffer(size_t bufferSize, void* bufferSrc, VkBuffer& bufferDst, VkDeviceMemory& memoryDst, bool useHostVisible = false);

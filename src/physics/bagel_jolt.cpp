@@ -311,6 +311,22 @@ namespace bagel {
 		return resolveRaycastToBlock(hit.mBodyID, hit.mSubShapeID2);
 	}
 
+	entt::entity BGLJolt::PickEntity(Ray ray, glm::vec3* outHit) const
+	{
+		JPH::RRayCast _ray{ JPH::RVec3(ray.origin.x, ray.origin.y, ray.origin.z),
+		                   JPH::Vec3(ray.direction.x, ray.direction.y, ray.direction.z) * ray.length};
+		JPH::RayCastResult hit;
+		if (!physicsSystem.GetNarrowPhaseQuery().CastRay(_ray, hit))
+			return entt::null;
+		if (outHit) {
+			JPH::RVec3 p = _ray.GetPointOnRay(hit.mFraction);
+			*outHit = { (float)p.GetX(), (float)p.GetY(), (float)p.GetZ() };
+		}
+		return resolveRaycastToBlock(hit.mBodyID, hit.mSubShapeID2);
+	}
+
+
+
 	void BGLJolt::ApplyGroupTransforms()
 	{
 		auto view = registry.view<TransformComponent, JoltGroupMemberComponent>();
