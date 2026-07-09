@@ -135,7 +135,7 @@ namespace bagel {
 		for (size_t c = 0; c < clips.size(); ++c)
 			for (uint32_t f = 0; f < out.clipFrameCount[c]; ++f)
 			{
-				const float t = f / out.fps;
+				const float t = static_cast<float>(f) / out.fps;
 				sampleClip(skel, clips[c], t, pose);
 				resolvePalette(skel, pose, &out.matrices[static_cast<size_t>(out.clipFrameBase[c] + f) * out.jointCount]);
 			}

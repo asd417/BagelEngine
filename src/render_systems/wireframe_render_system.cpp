@@ -1,8 +1,9 @@
 #include "wireframe_render_system.hpp"
-#include "../bagel_ecs_components.hpp"
-#include "../bagel_engine_device.hpp"
-#include "../bagel_util.hpp"
-#include "../bagel_frustum.hpp"
+#include "bagel_ecs_components.hpp"
+#include "engine/bagel_engine_device.hpp"
+#include "bagel_util.hpp"
+#include "model/bagel_model.hpp"
+#include "math/bagel_math.hpp"
 
 #include <vulkan/vulkan.h>
 

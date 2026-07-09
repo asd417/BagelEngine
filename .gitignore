@@ -364,6 +364,8 @@ FodyWeavers.xsd
 
 build/
 
+Dependencies/
+lego/*
 # Vendored dependency fetched by lib-setup.bat; not tracked in this repo
 Dependencies/xatlas/
 

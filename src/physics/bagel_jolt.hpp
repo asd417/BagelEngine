@@ -23,8 +23,8 @@
 #include "entt.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
-#include "../bagel_engine_device.hpp"
-#include "../bagel_model.hpp"
+#include "engine/bagel_engine_device.hpp"
+#include "model/bagel_model.hpp"
 #include "math/bagel_math.hpp"
 
 // All Jolt symbols are in the JPH namespace
@@ -323,7 +323,7 @@ namespace bagel {
 		// We need a job system that will execute physics jobs on multiple threads. Typically
 		// you would implement the JobSystem interface yourself and let Jolt Physics run on top
 		// of your own job scheduler. JobSystemThreadPool is an example implementation.
-		JPH::JobSystemThreadPool job_system = JPH::JobSystemThreadPool(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, std::thread::hardware_concurrency() - 1);
+		JPH::JobSystemThreadPool job_system = JPH::JobSystemThreadPool(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, static_cast<int>(std::thread::hardware_concurrency()) - 1);
 
 		// We need a temp allocator for temporary allocations during the physics update.We're
 		// pre-allocating 10 MB to avoid having to do allocations during the physics update.

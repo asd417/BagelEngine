@@ -49,21 +49,21 @@ namespace bagel {
 		return builder.loadTexture(path, format);
 	}
 
-	Material BGLMaterialManager::loadMaterial(
+	BGLModel::Material BGLMaterialManager::loadMaterial(
 		const char* albedo,
 		const char* normal,
 		const char* metalRough,
 		const char* emission)
 	{
-		Material mat{};
-		if (albedo)      mat.albedoMap     = builder.loadTexture(albedo,      VK_FORMAT_R8G8B8A8_SRGB);
-		if (normal)      mat.normalMap     = builder.loadTexture(normal,      VK_FORMAT_R8G8B8A8_UNORM);
-		if (metalRough)  mat.metalRoughMap = builder.loadTexture(metalRough,  VK_FORMAT_R8G8B8A8_UNORM);
-		if (emission)    mat.emissionMap   = builder.loadTexture(emission,    VK_FORMAT_R8G8B8A8_SRGB);
+		BGLModel::Material mat{};
+		if (albedo)      mat.albedoMap     = static_cast<uint16_t>(builder.loadTexture(albedo,      VK_FORMAT_R8G8B8A8_SRGB));
+		if (normal)      mat.normalMap     = static_cast<uint16_t>(builder.loadTexture(normal,      VK_FORMAT_R8G8B8A8_UNORM));
+		if (metalRough)  mat.metalRoughMap = static_cast<uint16_t>(builder.loadTexture(metalRough,  VK_FORMAT_R8G8B8A8_UNORM));
+		if (emission)    mat.emissionMap   = static_cast<uint16_t>(builder.loadTexture(emission,    VK_FORMAT_R8G8B8A8_SRGB));
 		return mat;
 	}
 
-	Material BGLMaterialManager::loadMaterial(const MaterialSource& src)
+	BGLModel::Material BGLMaterialManager::loadMaterial(const MaterialSource& src)
 	{
 		return loadMaterial(
 			src.albedo.empty()     ? nullptr : src.albedo.c_str(),

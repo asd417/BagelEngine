@@ -1,8 +1,8 @@
 #pragma once
 
 #include "bagel_gameobject.hpp"
-#include "bagel_window.hpp"
-#include "bagel_engine_config.hpp"
+#include "engine/bagel_window.hpp"
+#include "engine/bagel_engine_config.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE

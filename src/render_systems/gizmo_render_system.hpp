@@ -8,8 +8,8 @@
 #include <glm/glm.hpp>
 
 #include "bagel_render_system.hpp"
-#include "../bagel_frame_info.hpp"
-#include "../pose_gizmo.hpp"
+#include "bagel_frame_info.hpp"
+#include "pose_gizmo.hpp"
 
 namespace bagel {
 

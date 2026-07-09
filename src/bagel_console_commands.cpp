@@ -1,54 +1,54 @@
-#include "bagel_console_commands.hpp"
+﻿#include "bagel_console_commands.hpp"
 
 // Console command callbacks. Declared in bagel_console_commands.hpp; defined here (out of the
-// header) so they have a single definition — multiple .cpp files register/reference them, and
+// header) so they have a single definition ??multiple .cpp files register/reference them, and
 // header-defined non-inline functions would collide at link time (LNK2005).
 namespace bagel {
 namespace ConsoleCommand {
 
 	// FirstApp Controllers
-	char* ToggleFly(void* ptr) {
+	const char* ToggleFly(void* ptr) {
 		Application* app = static_cast<Application*>(ptr);
 		app->freeFly = !app->freeFly;
 		if (app->freeFly) return "Free fly acivated";
 		else return "Free fly deacivated";
 	}
-	char* TogglePhys(void* ptr) {
+	const char* TogglePhys(void* ptr) {
 		Application* app = static_cast<Application*>(ptr);
 		app->runPhys = !app->runPhys;
 		if (app->runPhys) return "Physics acivated";
 		else return "Physics deacivated";
 	}
 
-	char* ShowInfo(void* ptr)
+	const char* ShowInfo(void* ptr)
 	{
 		Application* app = static_cast<Application*>(ptr);
 		app->showInfo = !app->showInfo;
 		if (app->showInfo) return "Displaying debug info of all entities";
 		else return "Stopped displaying debug info";
 	}
-	char* ShowWireframe(void* ptr)
+	const char* ShowWireframe(void* ptr)
 	{
 		Application* app = static_cast<Application*>(ptr);
 		app->showWireframe = !app->showWireframe;
 		if (app->showWireframe) return "Enabled wireframe renderer";
 		else return "Disabled wireframe renderer";
 	}
-	char* DrawBBox(void* ptr)
+	const char* DrawBBox(void* ptr)
 	{
 		Application* app = static_cast<Application*>(ptr);
 		app->drawBBox = !app->drawBBox;
 		if (app->drawBBox) return "r_drawbbox: on";
 		else return "r_drawbbox: off";
 	}
-	char* ShowProfile(void* ptr)
+	const char* ShowProfile(void* ptr)
 	{
 		Application* app = static_cast<Application*>(ptr);
 		app->showProfile = !app->showProfile;
-		if (app->showProfile) return "Profiling enabled — printing section timings every second";
+		if (app->showProfile) return "Profiling enabled ??printing section timings every second";
 		else return "Profiling disabled";
 	}
-	char* SetBloom(void* ptr, const char* args)
+	const char* SetBloom(void* ptr, const char* args)
 	{
 		static char response[64];
 		Application* app = static_cast<Application*>(ptr);
@@ -60,7 +60,7 @@ namespace ConsoleCommand {
 		snprintf(response, sizeof(response), "Bloom %s", app->bloomEnabled ? "enabled" : "disabled");
 		return response;
 	}
-	char* SetVSync(void* ptr, const char* args)
+	const char* SetVSync(void* ptr, const char* args)
 	{
 		static char response[64];
 		Application* app = static_cast<Application*>(ptr);
@@ -74,7 +74,7 @@ namespace ConsoleCommand {
 		snprintf(response, sizeof(response), "VSync %s", enabled ? "enabled" : "disabled");
 		return response;
 	}
-	char* SetMaxFPS(void* ptr, const char* args)
+	const char* SetMaxFPS(void* ptr, const char* args)
 	{
 		static char response[64];
 		Application* app = static_cast<Application*>(ptr);
@@ -96,8 +96,8 @@ namespace ConsoleCommand {
 		snprintf(response, sizeof(response), "FPS limited to %d", v);
 		return response;
 	}
-	// skin <n>  — set the skin index on every ModelComponent (clamped per-model to numSkins)
-	char* SetSkin(void* ptr, const char* args)
+	// skin <n>  ??set the skin index on every ModelComponent (clamped per-model to numSkins)
+	const char* SetSkin(void* ptr, const char* args)
 	{
 		static char response[64];
 		Application* app = static_cast<Application*>(ptr);
@@ -112,9 +112,9 @@ namespace ConsoleCommand {
 		snprintf(response, sizeof(response), "Set skin %d on %d model(s)", idx, count);
 		return response;
 	}
-	// r_mipbias <f>  — shared texture sampler mip LOD bias. Negative = sharper (mips farther,
+	// r_mipbias <f>  ??shared texture sampler mip LOD bias. Negative = sharper (mips farther,
 	// more shimmer), positive = blurrier (mips closer). Retunes all loaded content textures live.
-	char* SetMipBias(void* ptr, const char* args)
+	const char* SetMipBias(void* ptr, const char* args)
 	{
 		static char response[64];
 		Application* app = static_cast<Application*>(ptr);
@@ -125,14 +125,14 @@ namespace ConsoleCommand {
 		snprintf(response, sizeof(response), "r_mipbias set to %.2f", bias);
 		return response;
 	}
-	char* ToggleSmaa(void* ptr)
+	const char* ToggleSmaa(void* ptr)
 	{
 		Application* app = static_cast<Application*>(ptr);
 		app->smaaEnabled = !app->smaaEnabled;
 		return app->smaaEnabled ? "SMAA enabled" : "SMAA disabled (passthrough)";
 	}
-	// map <name>  — load /maps/<name>.bmap by name (unloads current scene + rehydrates GPU state).
-	char* LoadMap(void* ptr, const char* args)
+	// map <name>  ??load /maps/<name>.bmap by name (unloads current scene + rehydrates GPU state).
+	const char* LoadMap(void* ptr, const char* args)
 	{
 		static char response[256];
 		Application* app = static_cast<Application*>(ptr);
@@ -140,8 +140,8 @@ namespace ConsoleCommand {
 		snprintf(response, sizeof(response), "%s", msg.c_str());
 		return response;
 	}
-	// editmode <0|1>  — toggle the bone-posing gizmo edit mode (same as the G hotkey).
-	char* SetEditMode(void* ptr, const char* args)
+	// editmode <0|1>  ??toggle the bone-posing gizmo edit mode (same as the G hotkey).
+	const char* SetEditMode(void* ptr, const char* args)
 	{
 		static char response[64];
 		Application* app = static_cast<Application*>(ptr);
@@ -154,9 +154,9 @@ namespace ConsoleCommand {
 		snprintf(response, sizeof(response), "Pose edit mode %s", on ? "ON" : "OFF");
 		return response;
 	}
-	// r_drawmode <n>  — 0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic
+	// r_drawmode <n>  ??0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic
 	//                   6=bloom 7=raw emission 8=raw radiosity 9=SMAA edges 10=SMAA weights
-	char* SetDrawMode(void* ptr, const char* args)
+	const char* SetDrawMode(void* ptr, const char* args)
 	{
 		static char response[64];
 		Application* app = static_cast<Application*>(ptr);
@@ -182,9 +182,9 @@ namespace ConsoleCommand {
 	}
 
 	// ---- Keybinds (Source-style) -------------------------------------------
-	// bind <key> <command...>  — run a console command on key press. With no args, lists binds.
+	// bind <key> <command...>  ??run a console command on key press. With no args, lists binds.
 	//   e.g.  bind G EDITMODE 1     bind F5 R_DRAWMODE 1     bind GRAVE TOGGLEUI
-	char* Bind(void* ptr, const char* args)
+	const char* Bind(void* ptr, const char* args)
 	{
 		static char response[256];
 		Application* app = static_cast<Application*>(ptr);
@@ -217,7 +217,7 @@ namespace ConsoleCommand {
 		return response;
 	}
 	// unbind <key>
-	char* Unbind(void* ptr, const char* args)
+	const char* Unbind(void* ptr, const char* args)
 	{
 		static char response[128];
 		Application* app = static_cast<Application*>(ptr);
@@ -232,14 +232,14 @@ namespace ConsoleCommand {
 		return response;
 	}
 	// unbindall
-	char* UnbindAll(void* ptr)
+	const char* UnbindAll(void* ptr)
 	{
 		Application* app = static_cast<Application*>(ptr);
 		app->getKeybinds().unbindAll();
 		return "All keybinds cleared";
 	}
-	// toggleui — show/hide all ImGui panels (default-bound to GRAVE). Bindable like any command.
-	char* ToggleUI(void* ptr)
+	// toggleui ??show/hide all ImGui panels (default-bound to GRAVE). Bindable like any command.
+	const char* ToggleUI(void* ptr)
 	{
 		Application* app = static_cast<Application*>(ptr);
 		app->showImgui = !app->showImgui;

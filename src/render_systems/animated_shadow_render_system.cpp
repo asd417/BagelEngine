@@ -1,6 +1,6 @@
 #include "animated_shadow_render_system.hpp"
-#include "../bagel_ecs_components.hpp"
-#include "../bagel_engine_device.hpp"
+#include "bagel_ecs_components.hpp"
+#include "engine/bagel_engine_device.hpp"
 
 #include <vulkan/vulkan.h>
 #include <iostream>

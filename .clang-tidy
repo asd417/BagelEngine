@@ -1,0 +1,22 @@
+# In-editor mirror of the /we flags in CMakeLists.txt. MSVC warning numbers mean
+# nothing to the C/C++ extension's parser, so the same defects are caught here under
+# their clang names and promoted to errors so they show as red, not yellow.
+#
+#   C4267 / C4244  ->  bugprone-narrowing-conversions
+#   C4838          ->  clang-diagnostic-c++11-narrowing
+#   C4996          ->  clang-diagnostic-deprecated-declarations
+#
+# Deliberately narrow: this is not a style pass. It exists so a silent size_t->int
+# truncation is impossible to commit without seeing it first.
+Checks: >
+  -*,
+  bugprone-narrowing-conversions,
+  clang-diagnostic-c++11-narrowing,
+  clang-diagnostic-deprecated-declarations
+
+# Everything above is an error, never a warning.
+WarningsAsErrors: '*'
+
+# Only our own sources. Dependency headers (Jolt, imgui, tinygltf, glm) keep their
+# own baselines, matching the PRIVATE scope of the /we flags.
+HeaderFilterRegex: '.*[/\\]src[/\\].*'

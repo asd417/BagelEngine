@@ -15,7 +15,7 @@
 // pass from the persisted "recipe" (e.g. ModelComponent::loadSettings).
 
 #include "bagel_ecs_components.hpp"
-#include "components/planet.hpp" // PlanetComponent (TerrainConfig recipe)
+#include "ecs/components/planet.hpp" // PlanetComponent (TerrainConfig recipe)
 
 #include "entt.hpp"
 #include <Jolt/Core/StreamWrapper.h>

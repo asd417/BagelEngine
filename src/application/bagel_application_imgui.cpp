@@ -1,8 +1,9 @@
 #include "bagel_application.hpp"
-#include "bagel_imgui.hpp"
+#include "imgui/bagel_imgui.hpp"
 #include "keyboard_movement_controller.hpp"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
+#include "imgui_internal.h" // DockBuilder* — the default dock layout below
 namespace bagel
 {
 	void Application::initImgui()
@@ -31,6 +32,7 @@ namespace bagel
 		VK_CHECK(vkCreateDescriptorPool(BGLDevice::device(), &pool_info, nullptr, &imguiPool));
 
 		ImGui::CreateContext();
+		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 		ImGui_ImplGlfw_InitForVulkan(bglWindow.getGLFWWindow(), true);
 
 		ImGui_ImplVulkan_InitInfo init_info = {};
@@ -58,10 +60,44 @@ namespace bagel
 		// backend stays balanced; when hidden this just produces an empty (no-op) ImGui frame.
 		if (showImgui)
 		{
+			// Host dockspace over the whole viewport so panels can be dragged to the edges. The central
+			// node stays transparent and input-transparent while empty, so the 3D scene renders and
+			// receives the mouse through it. Layout persists in imgui.ini next to the executable.
+			const ImGuiID dockspaceId = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
+
+			// Default layout, built once on the first frame that has no layout to restore -- a fresh
+			// checkout, or after deleting imgui.ini. When imgui.ini did supply one the root node comes
+			// back already split, so this is skipped and the user's own arrangement survives.
+			static bool dockLayoutChecked = false;
+			if (!dockLayoutChecked)
+			{
+				dockLayoutChecked = true;
+				const ImGuiDockNode *root = ImGui::DockBuilderGetNode(dockspaceId);
+				if (root == nullptr || root->IsEmpty())
+				{
+					ImGui::DockBuilderRemoveNode(dockspaceId);
+					ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
+					ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetMainViewport()->Size);
+
+					// Each split carves off `center`, so the ratios apply to what is left of it, and
+					// whatever remains at the end is the transparent central node the scene shows through.
+					ImGuiID center = dockspaceId;
+					const ImGuiID left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.20f, nullptr, &center);
+					const ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.25f, nullptr, &center);
+					const ImGuiID bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.25f, nullptr, &center);
+
+					ImGui::DockBuilderDockWindow("Registry", left);
+					ImGui::DockBuilderDockWindow("Maps", left); // tabbed with Registry
+					ImGui::DockBuilderDockWindow("Settings", right);
+					ImGui::DockBuilderDockWindow("Console", bottom);
+					ImGui::DockBuilderFinish(dockspaceId);
+				}
+			}
+
 			// Pose-gizmo edit-mode overlay, pinned to the top-left.
 			if (poseGizmo.editModeOn())
 			{
-				const ImGuiWindowFlags ovFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs;
+				const ImGuiWindowFlags ovFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoDocking;
 				ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
 				ImGui::SetNextWindowBgAlpha(0.35f);
 				ImGui::Begin("##editmode_overlay", nullptr, ovFlags);
@@ -85,7 +121,7 @@ namespace bagel
 			OnDrawGui();
 			VkExtent2D ext = bglRenderer.getExtent();
 			if (showInfo)
-				DrawInfoPanels(registry, ext.width, ext.height, camera.getProjection(), camera.getView());
+				DrawInfoPanels(registry, static_cast<uint16_t>(ext.width), static_cast<uint16_t>(ext.height), camera.getProjection(), camera.getView());
 			ConsoleApp::Instance()->Draw("Console", nullptr);
 			ImGui::Begin("Settings");
 			// Draws a compact "Reset" button to the right of the preceding widget that restores

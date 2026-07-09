@@ -1,5 +1,5 @@
 #include "radiosity_render_system.hpp"
-#include "../bagel_engine_device.hpp"
+#include "engine/bagel_engine_device.hpp"
 
 #include <vulkan/vulkan.h>
 #include <iostream>

@@ -8,7 +8,61 @@ namespace bagel
 	{
 		glm::vec3 origin;
 		glm::vec3 direction;
-		double length = 999999.0f; // max length by default
+		float length = 999999.0f; // max length by default
+	};
+
+	struct Frustum
+	{
+		glm::vec4 planes[6];
+
+		// Extract planes from a combined view-projection matrix.
+		// Uses Gribb-Hartmann method, column-major GLM, Vulkan depth range [0, 1].
+		void extractFromVP(const glm::mat4 &VP)
+		{
+			planes[0] = {VP[0][3] + VP[0][0], VP[1][3] + VP[1][0], VP[2][3] + VP[2][0], VP[3][3] + VP[3][0]}; // left
+			planes[1] = {VP[0][3] - VP[0][0], VP[1][3] - VP[1][0], VP[2][3] - VP[2][0], VP[3][3] - VP[3][0]}; // right
+			planes[2] = {VP[0][3] + VP[0][1], VP[1][3] + VP[1][1], VP[2][3] + VP[2][1], VP[3][3] + VP[3][1]}; // bottom
+			planes[3] = {VP[0][3] - VP[0][1], VP[1][3] - VP[1][1], VP[2][3] - VP[2][1], VP[3][3] - VP[3][1]}; // top
+			planes[4] = {VP[0][2], VP[1][2], VP[2][2], VP[3][2]};											  // near (z>=0 in Vulkan)
+			planes[5] = {VP[0][3] - VP[0][2], VP[1][3] - VP[1][2], VP[2][3] - VP[2][2], VP[3][3] - VP[3][2]}; // far
+		}
+
+		// Returns false if the model-space AABB is fully outside the frustum (safe to cull).
+		// Uses Arvo's method to transform the AABB to world space without computing all 8 corners.
+		bool testAABB(const glm::vec3 &bMin, const glm::vec3 &bMax, const glm::mat4 &M) const
+		{
+			glm::vec3 wMin = glm::vec3(M[3]);
+			glm::vec3 wMax = glm::vec3(M[3]);
+			for (int i = 0; i < 3; i++)
+			{
+				for (int j = 0; j < 3; j++)
+				{
+					float e = M[j][i] * bMin[j];
+					float f = M[j][i] * bMax[j];
+					if (e < f)
+					{
+						wMin[i] += e;
+						wMax[i] += f;
+					}
+					else
+					{
+						wMin[i] += f;
+						wMax[i] += e;
+					}
+				}
+			}
+			for (int p = 0; p < 6; p++)
+			{
+				const glm::vec3 n(planes[p]);
+				const glm::vec3 pv{
+					n.x >= 0.0f ? wMax.x : wMin.x,
+					n.y >= 0.0f ? wMax.y : wMin.y,
+					n.z >= 0.0f ? wMax.z : wMin.z};
+				if (glm::dot(n, pv) + planes[p].w < 0.0f)
+					return false;
+			}
+			return true;
+		}
 	};
 
 	// ---- basis / rotation extraction ---------------------------------------
@@ -16,7 +70,8 @@ namespace bagel
 	// World direction of axis i (0/1/2 = X/Y/Z).
 	inline glm::vec3 axisVec(int i)
 	{
-		return (i == 0) ? glm::vec3(1, 0, 0) : (i == 1) ? glm::vec3(0, 1, 0) : glm::vec3(0, 0, 1);
+		return (i == 0) ? glm::vec3(1, 0, 0) : (i == 1) ? glm::vec3(0, 1, 0)
+														: glm::vec3(0, 0, 1);
 	}
 
 	// Basis columns of `m` with their scale stripped. Identity if any column is degenerate.
@@ -25,7 +80,8 @@ namespace bagel
 	{
 		const glm::vec3 x = glm::vec3(m[0]), y = glm::vec3(m[1]), z = glm::vec3(m[2]);
 		const float lx = glm::length(x), ly = glm::length(y), lz = glm::length(z);
-		if (lx < 1e-6f || ly < 1e-6f || lz < 1e-6f) return glm::mat3{1.0f};
+		if (lx < 1e-6f || ly < 1e-6f || lz < 1e-6f)
+			return glm::mat3{1.0f};
 		return glm::mat3{x / lx, y / ly, z / lz};
 	}
 
@@ -57,7 +113,8 @@ namespace bagel
 		const float ae = glm::dot(a, e);
 		const float de = glm::dot(d, e);
 		const float denom = ad * ad - dd;
-		if (glm::abs(denom) < 1e-6f) return false;
+		if (glm::abs(denom) < 1e-6f)
+			return false;
 		const float t = (ae * ad - de) / denom;
 		s = t * ad - ae;
 		axisPoint = p + s * a;
@@ -70,9 +127,11 @@ namespace bagel
 						 const glm::vec3 &n, glm::vec3 &hit)
 	{
 		const float dn = glm::dot(d, n);
-		if (glm::abs(dn) < 1e-6f) return false;
+		if (glm::abs(dn) < 1e-6f)
+			return false;
 		const float t = glm::dot(c - o, n) / dn;
-		if (t <= 0.0f) return false;
+		if (t <= 0.0f)
+			return false;
 		hit = o + t * d;
 		return true;
 	}
@@ -85,11 +144,14 @@ namespace bagel
 		const float b = 2.0f * glm::dot(oc, d);
 		const float cc = glm::dot(oc, oc) - r * r;
 		const float disc = b * b - 4.0f * a * cc;
-		if (disc < 0.0f) return false;
+		if (disc < 0.0f)
+			return false;
 		const float sq = glm::sqrt(disc);
 		float t = (-b - sq) / (2.0f * a);
-		if (t < 0.0f) t = (-b + sq) / (2.0f * a);
-		if (t < 0.0f) return false;
+		if (t < 0.0f)
+			t = (-b + sq) / (2.0f * a);
+		if (t < 0.0f)
+			return false;
 		tHit = t;
 		return true;
 	}
@@ -177,14 +239,14 @@ namespace bagel
 		glm::vec3 u = {perlinNS::fade(f.x), perlinNS::fade(f.y), perlinNS::fade(f.z)};
 
 		// dot of gradient at each of 8 corners with the vector to p
-		float n000 = perlinNS::gradDot(seed,i.x, i.y, i.z, f.x, f.y, f.z);
-		float n100 = perlinNS::gradDot(seed,i.x + 1, i.y, i.z, f.x - 1.0f, f.y, f.z);
-		float n010 = perlinNS::gradDot(seed,i.x, i.y + 1, i.z, f.x, f.y - 1.0f, f.z);
-		float n110 = perlinNS::gradDot(seed,i.x + 1, i.y + 1, i.z, f.x - 1.0f, f.y - 1.0f, f.z);
-		float n001 = perlinNS::gradDot(seed,i.x, i.y, i.z + 1, f.x, f.y, f.z - 1.0f);
-		float n101 = perlinNS::gradDot(seed,i.x + 1, i.y, i.z + 1, f.x - 1.0f, f.y, f.z - 1.0f);
-		float n011 = perlinNS::gradDot(seed,i.x, i.y + 1, i.z + 1, f.x, f.y - 1.0f, f.z - 1.0f);
-		float n111 = perlinNS::gradDot(seed,i.x + 1, i.y + 1, i.z + 1, f.x - 1.0f, f.y - 1.0f, f.z - 1.0f);
+		float n000 = perlinNS::gradDot(seed, i.x, i.y, i.z, f.x, f.y, f.z);
+		float n100 = perlinNS::gradDot(seed, i.x + 1, i.y, i.z, f.x - 1.0f, f.y, f.z);
+		float n010 = perlinNS::gradDot(seed, i.x, i.y + 1, i.z, f.x, f.y - 1.0f, f.z);
+		float n110 = perlinNS::gradDot(seed, i.x + 1, i.y + 1, i.z, f.x - 1.0f, f.y - 1.0f, f.z);
+		float n001 = perlinNS::gradDot(seed, i.x, i.y, i.z + 1, f.x, f.y, f.z - 1.0f);
+		float n101 = perlinNS::gradDot(seed, i.x + 1, i.y, i.z + 1, f.x - 1.0f, f.y, f.z - 1.0f);
+		float n011 = perlinNS::gradDot(seed, i.x, i.y + 1, i.z + 1, f.x, f.y - 1.0f, f.z - 1.0f);
+		float n111 = perlinNS::gradDot(seed, i.x + 1, i.y + 1, i.z + 1, f.x - 1.0f, f.y - 1.0f, f.z - 1.0f);
 
 		// trilinear blend
 		float nx00 = glm::mix(n000, n100, u.x), nx10 = glm::mix(n010, n110, u.x);
