@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 
 #include <glm/glm.hpp>
@@ -99,7 +100,9 @@ namespace bagel {
 				scale[index] = _scale;
 				rotation[index] = _rotation;
 			}
-			else throw("index out of bounds: TransformComponent::translation   MAX_TRANSFORM_PER_ENT: " + MAX_TRANSFORM_PER_ENT);
+			else throw std::out_of_range(
+				"index out of bounds: TransformComponent::translation   MAX_TRANSFORM_PER_ENT: "
+				+ std::to_string(MAX_TRANSFORM_PER_ENT));
 		}
 		void resetTransform() {
 			translation.fill({ 0.f,0.f,0.f });
