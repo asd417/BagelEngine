@@ -1,14 +1,13 @@
 #include "shadow_render_system.hpp"
-#include "math/bagel_math.hpp"
-#include "bagel_ecs_components.hpp"
-#include "engine/bagel_engine_device.hpp"
-
-#include <vulkan/vulkan.h>
-#include <stdexcept>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
+
+#include "math/bagel_math.hpp"
+#include "ecs/components/model.hpp"
+#include "ecs/components/transform.hpp"
 
 namespace bagel {
 
@@ -18,8 +17,8 @@ namespace bagel {
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
 		entt::registry& _registry)
 		: BGLRenderSystem{ renderPass, setLayouts, sizeof(ShadowPushData) }
-		, descriptorManager{ _descriptorManager }
 		, registry{ _registry }
+		, descriptorManager{ _descriptorManager }
 	{
 		createPipeline(renderPass,
 			"/shaders/shadow.vert.spv",

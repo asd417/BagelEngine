@@ -1,18 +1,15 @@
 #include "gizmo_render_system.hpp"
-#include "wireframe_render_system.hpp" // WireframePushConstantData (shared layout)
-#include "engine/bagel_engine_device.hpp"
-#include "model/bagel_model.hpp"		   // BGLModel::Vertex
-#include "ecs/components/transform.hpp" // TransformComponent
 
+#include <cmath>
+#include <vector>
+#include <cstring>
+#include <algorithm>
 #include <vulkan/vulkan.h>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <algorithm>
-#include <array>
-#include <cstring>
-#include <cmath>
-#include <vector>
-
+#include "wireframe_render_system.hpp" // WireframePushConstantData (shared layout)
+#include "engine/bagel_engine_device.hpp"
+#include "model/bagel_model.hpp"		   // BGLModel::Vertex
 namespace bagel
 {
 
@@ -85,8 +82,8 @@ namespace bagel
 		std::vector<BGLModel::Vertex> ring;
 		for (int i = 0; i < SEG; ++i)
 		{
-			const float a0 = glm::two_pi<float>() * (i) / SEG;
-			const float a1 = glm::two_pi<float>() * (i + 1) / SEG;
+			const float a0 = glm::two_pi<float>() * static_cast<float>(i) / SEG;
+			const float a1 = glm::two_pi<float>() * static_cast<float>(i + 1) / SEG;
 			ring.push_back(P(cosf(a0), sinf(a0), 0));
 			ring.push_back(P(cosf(a1), sinf(a1), 0));
 		}

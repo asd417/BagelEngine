@@ -1,11 +1,10 @@
 #pragma once
 #include "texture/bagel_textures.hpp"
 #include "bagel_buffer.hpp"
-#include "bagel_ecs_components.hpp"
+#include "ecs/bagel_ecs_components.hpp"
 
 #include <memory>
-#include <vector>
-#include <unordered_map>
+
 
 namespace bagel {
 

@@ -7,12 +7,11 @@
 #include <stdio.h>          // vsnprintf, sscanf, printf
 #include <stdlib.h>         // NULL, malloc, free, atoi
 #include <stdint.h>         // intptr_t
-#include <map>
 #include <vector>
 
 #include "entt.hpp"
 #include <glm/glm.hpp>
-#include "bagel_ecs_components.hpp"
+#include "ecs/bagel_ecs_components.hpp"
 #include "physics/bagel_jolt.hpp"   // BGLJolt singleton for the inspector's sleep controls
 
 namespace bagel {
@@ -91,7 +90,7 @@ namespace bagel {
             // Show the recycled index (low bits) rather than the packed identifier, whose high
             // bits hold the version that climbs every time a slot is destroyed and reused.
             const uint32_t idx = static_cast<uint32_t>(entt::entt_traits<entt::entity>::to_entity(entity));
-            const uint32_t ver = static_cast<uint32_t>(entt::entt_traits<entt::entity>::to_version(entity));
+            //const uint32_t ver = static_cast<uint32_t>(entt::entt_traits<entt::entity>::to_version(entity));
             ImGui::PushID(static_cast<int>(entt::to_integral(entity))); // unique across versions
             if (ImGui::TreeNode("ent", "Entity %u", idx)) { 
                 if (registry.all_of<Transient>(entity))
@@ -127,44 +126,48 @@ namespace bagel {
                     ImGui::DragFloat("Sun lux", &dl->lux, 10.0f, 0.0f, 100000.0f);
                 }
                 if (auto* m = registry.try_get<ModelComponent>(entity))          drawModel("Model", *m);
+                // Cold rig (a) + hot playback (play) are emplaced as a pair by the builder; the UI
+                // reads scalars/playback from `play` and skeleton/pose/tables from `a`.
                 if (auto* a = registry.try_get<AnimationComponent>(entity))
+                if (auto* play = registry.try_get<AnimationPlaybackComponent>(entity))
                 {
                     ImGui::Text("Animation: joints=%u  clips=%u  fps=%.1f",
-                        a->jointCount, a->clipCount(), a->fps);
-                    ImGui::Text("paletteBase=%u  dynamicBase=%u", a->paletteBase, a->dynamicPaletteBase);
+                        play->jointCount, a->clipCount(), a->fps);
+                    ImGui::Text("paletteBase=%u  dynamicBase=%u", play->paletteBase, play->dynamicPaletteBase);
 
-                    if (ImGui::Checkbox("Manual pose", &a->manualPose)) a->poseDirty = true;
-                    if (a->manualPose) {
+                    if (ImGui::Checkbox("Manual pose", &play->manualPose)) play->poseDirty = true;
+                    if (play->manualPose) {
                         ImGui::SameLine();
                         if (ImGui::SmallButton("Reset to rest")) {
                             a->editPose = a->skeleton.restPose;
-                            a->poseDirty = true;
+                            play->poseDirty = true;
                         }
                         ImGui::Text("editPose joints=%u  dirty=%s",
-                            (unsigned)a->editPose.size(), a->poseDirty ? "yes" : "no");
+                            (unsigned)a->editPose.size(), play->poseDirty ? "yes" : "no");
                     } else if (a->clipCount() > 0) {
                         // Clip dropdown: pick any loaded glTF animation by name and switch live.
-                        if (ImGui::BeginCombo("Clip", a->clipName(a->clip))) {
+                        if (ImGui::BeginCombo("Clip", a->clipName(play->clip))) {
                             for (uint32_t i = 0; i < a->clipCount(); ++i) {
                                 ImGui::PushID((int)i); // distinct IDs for same-named/unnamed clips
-                                const bool selected = (i == a->clip);
+                                const bool selected = (i == play->clip);
                                 if (ImGui::Selectable(a->clipName(i), selected)) {
-                                    a->clip = i;
-                                    a->time = 0.0f;
+                                    // selectClip refreshes the hot cached frame window from the cold
+                                    // tables — setting play->clip alone would leave animBaseOffset() stale.
+                                    selectClip(*play, *a, i);
                                 }
                                 if (selected) ImGui::SetItemDefaultFocus();
                                 ImGui::PopID();
                             }
                             ImGui::EndCombo();
                         }
-                        if (ImGui::Button(a->playing ? "Pause" : "Play")) a->playing = !a->playing;
+                        if (ImGui::Button(play->playing ? "Pause" : "Play")) play->playing = !play->playing;
                         ImGui::SameLine();
-                        if (ImGui::Button("Restart")) { a->time = 0.0f; a->playing = true; }
+                        if (ImGui::Button("Restart")) { play->time = 0.0f; play->playing = true; }
                         ImGui::SameLine();
-                        ImGui::Checkbox("Loop", &a->loop);
-                        const float dur = a->clipDuration(a->clip);
-                        if (ImGui::SliderFloat("Time", &a->time, 0.0f, dur > 0.0f ? dur : 1.0f))
-                            a->playing = false; // scrubbing pauses playback
+                        ImGui::Checkbox("Loop", &play->loop);
+                        const float dur = a->clipDuration(play->clip);
+                        if (ImGui::SliderFloat("Time", &play->time, 0.0f, dur > 0.0f ? dur : 1.0f))
+                            play->playing = false; // scrubbing pauses playback
                     }
 
                     // ---- IK setups (applied on top of editPose while Manual pose is on) ----
@@ -176,7 +179,7 @@ namespace bagel {
                             cur = a->skeleton.names[ref].empty() ? "(unnamed)" : a->skeleton.names[ref].c_str();
                         if (ImGui::BeginCombo(label, cur)) {
                             if (ImGui::Selectable("(none)", ref < 0)) ref = -1;
-                            for (int j = 0; j < (int)a->jointCount; ++j) {
+                            for (int j = 0; j < (int)play->jointCount; ++j) {
                                 ImGui::PushID(j);
                                 const char* nm = (j < (int)a->skeleton.names.size() && !a->skeleton.names[j].empty())
                                     ? a->skeleton.names[j].c_str() : "(unnamed)";
@@ -252,7 +255,7 @@ namespace bagel {
         void Log(std::string callerName, std::string message) {
             std::cout << callerName << ": " << message << "\n";
             
-            AddLog((callerName + ": " + message).c_str());
+            AddLog("%s", (callerName + ": " + message).c_str());
         }
 
         void AddLog(const char* fmt, ...) IM_FMTARGS(2)
@@ -397,7 +400,7 @@ namespace bagel {
                 Strtrim(s);
                 if (s[0])
                     ExecCommand(s);
-                strcpy_s(s, sizeof(InputBuf), "");
+                s[0] = '\0';
                 reclaim_focus = true;
             }
 
@@ -497,7 +500,7 @@ namespace bagel {
             bool ran = false;
             for (const CommandArg& c : callbacksWithArgs) {
                 if (stringCompare(cmdBuf, c.name) == 0) {
-                    AddLog(c.fn(c.obj, args));
+                    AddLog("%s", c.fn(c.obj, args));
                     ran = true;
                     break;
                 }
@@ -507,7 +510,7 @@ namespace bagel {
                 // command only fires when typed with no trailing text. Pre-existing behavior.
                 for (const Command& c : callbacks) {
                     if (stringCompare(command_line, c.name) == 0) {
-                        AddLog(c.fn(c.obj));
+                        AddLog("%s", c.fn(c.obj));
                         ran = true;
                         break;
                     }

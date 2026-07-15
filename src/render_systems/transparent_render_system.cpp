@@ -1,19 +1,16 @@
 #include "transparent_render_system.hpp"
-#include "bagel_ecs_components.hpp"
-#include "ecs/components/planet.hpp"   // PlanetComponent (ocean is drawn by WaterRenderSystem)
-#include "engine/bagel_engine_device.hpp"
-#include "bagel_util.hpp"
 
-#include <vulkan/vulkan.h>
-#include <stdexcept>
+#include <vector>
+#include <utility>
 #include <iostream>
 #include <algorithm>
-#include <utility>
-#include <vector>
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
+
+#include "ecs/components/planet.hpp"   // PlanetComponent (ocean is drawn by WaterRenderSystem)
+#include "ecs/components/transform.hpp"
 
 namespace bagel {
 
@@ -23,8 +20,8 @@ namespace bagel {
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
 		entt::registry& _registry)
 		: BGLRenderSystem{ renderPass, setLayouts, sizeof(TransparentPushConstantData) }
-		, descriptorManager{ _descriptorManager }
 		, registry{ _registry }
+		, descriptorManager{ _descriptorManager }
 	{
 		std::cout << "Creating Transparent Render System\n";
 		createPipeline(renderPass,

@@ -3,24 +3,10 @@
 // vulkan headers
 #include <vulkan/vulkan.h>
 
-#include <algorithm>
 #include <stdexcept>
 #include <array>
 #include <iostream>
 
-///
-/// Implementing deferred rendering
-/// 1. Create descriptor bindings
-///     Create a completely new descriptor set just for the composition stage
-///     Binding 1 : Position texture target / Scene colormap
-///     Binding 2 : Normals texture target
-///     Binding 3 : Albedo texture target
-///     Binding 4 : Fragment shader uniform buffer
-///     VkDescriptorImageInfo for each bindings
-///     and write the descriptor
-/// 2. Render models to deferred command buffer
-/// 3. main command buffer only draws with offscreen attachments
-///
 namespace bagel
 {
 	BGLRenderer::BGLRenderer(BGLWindow &w, BGLDevice &d) : bglWindow{w}, bglDevice{d}
@@ -121,7 +107,7 @@ namespace bagel
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 
 		renderPassInfo.renderPass = bglSwapChain->getRenderPass();
-		renderPassInfo.framebuffer = bglSwapChain->getFrameBuffer(currentImageIndex);
+		renderPassInfo.framebuffer = bglSwapChain->getFrameBuffer(static_cast<uint8_t>(currentImageIndex));
 
 		renderPassInfo.renderArea.offset = {0, 0};
 		// Make sure to use the swapchain extent not the window extent
@@ -130,7 +116,7 @@ namespace bagel
 
 		// Set the color that the frame buffer 'attachments' will clear to
 		std::array<VkClearValue, 2> clearValues{};
-		clearValues[0].color = {0.01f, 0.01f, 0.01f, 1.0f}; // color attachment
+		clearValues[0].color = {{0.01f, 0.01f, 0.01f, 1.0f}}; // color attachment
 		clearValues[1].depthStencil = {1.0f, 0};			// Depths stencil clear value
 
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
@@ -230,9 +216,9 @@ namespace bagel
 
 		// 4 clear values: normal, albedo, emission, depth
 		std::array<VkClearValue, 4> clearValues{};
-		clearValues[0].color = {0.0f, 0.0f, 0.0f, 0.0f}; // normal + roughness
-		clearValues[1].color = {0.0f, 0.0f, 0.0f, 0.0f}; // albedo (w=0 = background)
-		clearValues[2].color = {0.0f, 0.0f, 0.0f, 0.0f}; // emission
+		clearValues[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}}; // normal + roughness
+		clearValues[1].color = {{0.0f, 0.0f, 0.0f, 0.0f}}; // albedo (w=0 = background)
+		clearValues[2].color = {{0.0f, 0.0f, 0.0f, 0.0f}}; // emission
 		clearValues[3].depthStencil = {1.0f, 0};		 // depth
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 		renderPassInfo.pClearValues = clearValues.data();
@@ -326,21 +312,21 @@ namespace bagel
 	void BGLRenderer::createAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment *attachment, uint32_t width, uint32_t height)
 	{
 		VkImageAspectFlags aspectMask = 0;
-		VkImageLayout imageLayout;
+		//VkImageLayout imageLayout;
 
 		attachment->format = format;
 
 		if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
 		{
 			aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			//imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		}
 		if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
 		{
 			aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 			if (format >= VK_FORMAT_D16_UNORM_S8_UINT)
 				aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-			imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			//imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		}
 
 		assert(aspectMask > 0);

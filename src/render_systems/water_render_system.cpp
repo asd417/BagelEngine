@@ -1,14 +1,13 @@
 #include "water_render_system.hpp"
-#include "bagel_ecs_components.hpp"
-#include "ecs/components/planet.hpp"   // PlanetComponent
-#include "engine/bagel_engine_device.hpp"
 
-#include <vulkan/vulkan.h>
 #include <iostream>
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
+
+#include "ecs/components/transform.hpp"
+#include "ecs/components/planet.hpp"
 
 namespace bagel {
 

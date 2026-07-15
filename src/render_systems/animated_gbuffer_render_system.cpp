@@ -1,16 +1,14 @@
 #include "animated_gbuffer_render_system.hpp"
-#include "bagel_ecs_components.hpp"
-#include "engine/bagel_engine_device.hpp"
-#include "bagel_util.hpp"
-#include "math/bagel_math.hpp"
 
-#include <vulkan/vulkan.h>
 #include <iostream>
-#include <cmath>
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
+
+#include "math/bagel_math.hpp"
+#include "ecs/components/model.hpp"
+#include "ecs/components/transform.hpp"
 
 namespace bagel {
 
@@ -20,8 +18,8 @@ namespace bagel {
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
 		entt::registry& _registry)
 		: BGLRenderSystem{ renderPass, setLayouts, sizeof(SkinnedGBufferPushConstantData) }
-		, descriptorManager{ _descriptorManager }
 		, registry{ _registry }
+		, descriptorManager{ _descriptorManager }
 	{
 		std::cout << "Creating Skinned GBuffer Render System\n";
 		// Reuses the static G-buffer fragment shader; only the vertex shader skins.
@@ -47,10 +45,11 @@ namespace bagel {
 
 		VkDeviceSize offsets[] = { 0 };
 
-		// Skinned entities only (must carry an AnimationComponent).
+		// Skinned entities only. Only the hot AnimationPlaybackComponent is needed here —
+		// animBaseOffset() reads its cached scalars, so the cold AnimationComponent is never loaded.
 		// Read-only over animation state: time is advanced once per frame in the engine loop
 		// (before shadow + g-buffer) so both passes sample the same pose.
-		auto view = registry.view<TransformComponent, ModelComponent, AnimationComponent>();
+		auto view = registry.view<TransformComponent, ModelComponent, AnimationPlaybackComponent>();
 		for (auto [entity, transform, model, anim] : view.each()) {
 			if (!model.mesh().isSkinned) continue;
 

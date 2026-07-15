@@ -25,11 +25,10 @@
 #include "render_systems/smaa_neighborhood_render_system.hpp"
 #include "render_systems/gizmo_render_system.hpp"
 
-#include "model/bagel_model.hpp"
+//#include "texture/bagel_textures.hpp"
+//#include "model/bagel_model.hpp"
 #include "bagel_camera.hpp"
-#include "texture/bagel_textures.hpp"
 #include "bagel_material.hpp"
-#include "bagel_gameobject.hpp"
 #include "animation/bagel_skin_manager.hpp"
 
 #include <memory>

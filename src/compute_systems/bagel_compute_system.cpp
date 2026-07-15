@@ -1,18 +1,16 @@
 #include "compute_systems/bagel_compute_system.hpp"
-#include "bagel_ecs_components.hpp"
-#include "engine/bagel_engine_device.hpp"
-#include "bagel_util.hpp"
 
-#include <vulkan/vulkan.h>
-
-#include <stdexcept>
-#include <array>
-#include <chrono>
 #include <iostream>
-
+#include <stdexcept>
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
+
+#include "bagel_util.hpp"
+#include "ecs/bagel_ecs_components.hpp"
+
+#include "engine/bagel_engine_device.hpp"
 
 namespace bagel {
 	BGLComputeSystem::BGLComputeSystem(

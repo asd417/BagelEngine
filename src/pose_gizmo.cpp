@@ -1,6 +1,6 @@
 #include "pose_gizmo.hpp"
 
-#include "bagel_ecs_components.hpp"          // TransformComponent, ModelComponent, AnimationComponent
+#include "ecs/bagel_ecs_components.hpp"          // TransformComponent, ModelComponent, AnimationComponent
 #include "animation/bagel_animation.hpp"     // resolveGlobals
 #include "math/bagel_math.hpp"               // Ray, orthoBasis/rotationOf, closestOnAxis/rayPlane/raySphere
 
@@ -89,7 +89,7 @@ namespace bagel {
 	void PoseGizmo::refreshTarget()
 	{
 		target = entt::null; selJoint = -1; selJoints.clear(); dragAxis = -1; hoverAxis = -1;
-		auto view = registry.view<TransformComponent, ModelComponent, AnimationComponent>();
+		auto view = registry.view<TransformComponent, ModelComponent, AnimationPlaybackComponent>();
 		for (auto [e, tc, mc, anim] : view.each()) {
 			if (!mc.mesh().isSkinned) continue;
 			target = e;
@@ -197,8 +197,9 @@ namespace bagel {
 				const glm::quat wr = Mrot * dj.startWorldRot;
 				anim.editPose[dj.joint].rotation = glm::normalize(glm::inverse(dj.parentRot) * wr);
 			}
-		}
-		anim.poseDirty = true;
+        }
+        auto& animP = registry.get<AnimationPlaybackComponent>(target);
+		animP.poseDirty = true;
 	}
 
 	void PoseGizmo::update(GLFWwindow* window, const BGLCamera& camera, float vpW, float vpH)
@@ -224,13 +225,14 @@ namespace bagel {
 		if (lDown && !keyLPrev) localSpace = !localSpace;
 		keyLPrev = lDown;
 
-		if (!registry.valid(target) || !registry.all_of<TransformComponent, AnimationComponent>(target)) {
+		if (!registry.valid(target) || !registry.all_of<TransformComponent, AnimationComponent, AnimationPlaybackComponent>(target)) {
 			refreshTarget();
 			if (target == entt::null) return;
 		}
 		auto& tc   = registry.get<TransformComponent>(target);
-		auto& anim = registry.get<AnimationComponent>(target);
-		if (anim.jointCount == 0 || anim.skeleton.empty()) return;
+        auto &anim = registry.get<AnimationComponent>(target);
+        auto& animP = registry.get<AnimationPlaybackComponent>(target);
+		if (animP.jointCount == 0 || anim.skeleton.empty()) return;
 
 		// Resolve joint world positions for this frame from the IK-corrected pose (editPose + IK),
 		// the same final pose the GPU palette bakes — so markers/handles sit on the bones' actual
@@ -239,7 +241,7 @@ namespace bagel {
 		Pose displayPose;
 		applyManualPose(anim.skeleton, anim.editPose, anim.ikSetups, displayPose);
 		resolveGlobals(anim.skeleton, displayPose, globals);
-		const int n = static_cast<int>(anim.jointCount);
+		const int n = static_cast<int>(animP.jointCount);
 		jointWorldPos.resize(n);
 		jointWorldMat.resize(n);
 		for (int j = 0; j < n; ++j) {

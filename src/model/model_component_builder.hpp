@@ -3,7 +3,7 @@
 #include "bagel_buffer.hpp"
 #include "texture/bagel_textures.hpp"
 #include "engine/bagel_descriptors.hpp"
-#include "bagel_ecs_components.hpp"
+#include "ecs/bagel_ecs_components.hpp"
 #include "model/bagel_model.hpp"
 #include "model/model_loaders/bagel_model_loader.hpp"
 #include "animation/bagel_skin_manager.hpp"
@@ -172,11 +172,24 @@ namespace bagel {
 		void attachSkinningState(entt::entity targetEnt)
 		{
 			BakedAnimation baked = bakeClips(activeLoader->getSkeleton(), activeLoader->getAnimations());
-			AnimationComponent& anim = registry.emplace<AnimationComponent>(targetEnt);
-			anim.jointCount     = baked.jointCount;
-			anim.fps            = baked.fps;
-			anim.clipFrameBase  = baked.clipFrameBase;
-			anim.clipFrameCount = baked.clipFrameCount;
+
+			// Hot per-frame playback state (iterated every frame by updateAnimation + the animated
+			// render passes) is split from the cold rig data (skeleton/pose/IK + per-clip tables).
+			// They're separate EnTT pools, so holding both references across the two emplaces is safe.
+			AnimationPlaybackComponent& play = registry.emplace<AnimationPlaybackComponent>(targetEnt);
+			AnimationComponent&         anim = registry.emplace<AnimationComponent>(targetEnt);
+
+			play.jointCount      = baked.jointCount;
+			play.fps             = baked.fps;
+			anim.fps             = baked.fps; // mirrored: clipDuration() (cold) needs it too
+			anim.clipFrameBases  = baked.clipFrameBase;
+			anim.clipFrameCounts = baked.clipFrameCount;
+			// Seed the hot component's cached current-clip window (clip 0). animBaseOffset() reads
+			// these scalars, not the tables — refresh them whenever `clip` changes (selectClip).
+			if (!baked.clipFrameCount.empty()) {
+				play.clipFrameBase  = baked.clipFrameBase[0];
+				play.clipFrameCount = baked.clipFrameCount[0];
+			}
 			// Carry the glTF animation names alongside the baked frame table (same clip order).
 			{
 				const auto& clips = activeLoader->getAnimations();
@@ -188,23 +201,23 @@ namespace bagel {
 			// returns paletteBase=0, an unwritten palette region, and every vertex collapses to the
 			// origin (the model renders invisible). A clip-less skinned model should show its rest pose.
 			if (!baked.matrices.empty()) {
-				anim.paletteBase = pSkinManager->uploadPalette(
+				play.paletteBase = pSkinManager->uploadPalette(
 					baked.matrices.data(), static_cast<uint32_t>(baked.matrices.size()));
-			} else if (anim.jointCount > 0) {
+			} else if (play.jointCount > 0) {
 				const SkeletonData& skel = activeLoader->getSkeleton();
-				std::vector<glm::mat4> restPalette(anim.jointCount);
+				std::vector<glm::mat4> restPalette(play.jointCount);
 				resolvePalette(skel, skel.restPose, restPalette.data());
-				anim.paletteBase = pSkinManager->uploadPalette(restPalette.data(), anim.jointCount);
+				play.paletteBase = pSkinManager->uploadPalette(restPalette.data(), play.jointCount);
 			} else {
-				anim.paletteBase = 0;
+				play.paletteBase = 0;
 			}
 
 			// Manual posing: keep the skeleton at runtime, seed an editable pose from rest,
 			// and reserve a dynamic palette region the engine overwrites when manualPose is on.
 			anim.skeleton = activeLoader->getSkeleton();
 			anim.editPose = anim.skeleton.restPose;
-			if (anim.jointCount > 0)
-				anim.dynamicPaletteBase = pSkinManager->reservePalette(anim.jointCount);
+			if (play.jointCount > 0)
+				play.dynamicPaletteBase = pSkinManager->reservePalette(play.jointCount);
 
 			// IK chains come from the "<model>.yaml" sidecar (bone names resolved to joint
 			// indices now that the skeleton is parsed). These are NOT serialized with the map —

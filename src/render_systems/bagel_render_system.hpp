@@ -5,14 +5,7 @@
 
 #include "entt.hpp"
 #include <glm/gtc/constants.hpp>
-
-
 #include "engine/bagel_pipeline.hpp"
-#include "bagel_frame_info.hpp"
-#include "bagel_camera.hpp"
-#include "bagel_gameobject.hpp"
-#include "model/bagel_model.hpp"
-
 
 namespace bagel {
 

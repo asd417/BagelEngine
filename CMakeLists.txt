@@ -257,29 +257,33 @@ if (WIN32)
   target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:/NODEFAULTLIB:MSVCRT>)
 
 elseif (UNIX)
-  message(STATUS "CREATING BUILD FOR LINUX")
+  message(STATUS "CREATING BUILD FOR LINUX/macOS")
 
+  # System GLFW (there is no precompiled binary drop off-Windows — see .env.cmake).
   find_package(glfw3 3.3 REQUIRED)
 
-  target_include_directories(${PROJECT_NAME} PUBLIC
-    ${PROJECT_SOURCE_DIR}/src
+  target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/src)
+
+  target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
     ${Vulkan_INCLUDE_DIRS}
     ${TINYGLTF_PATH}
     ${TINYOBJ_PATH}
     ${GLM_PATH}
-    ${DEPS}/KTX-Software/include
-    ${DEPS}/KTX-Software/external/dfdutils
+    ${KTX}
+    ${KTX_KHR}
     ${STB}
     ${ENTT}
     ${IMGUI}
     ${JOLT}
     ${XATLAS}
     )
+  target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${JoltPhysics_SOURCE_DIR}/..)
 
-  target_link_directories(${PROJECT_NAME} PUBLIC
-    ${Vulkan_LIBRARIES}
-    ${DEPS}/KTX-Software/build/Release
-    ${JOLT}/Build/Linux)
+  # ktx, Jolt and yaml-cpp are add_subdirectory targets now, not prebuilt libs: each
+  # carries its own output location and include dirs, so linking the target is enough
+  # (the old build/Release and Build/Linux link dirs no longer exist). Only Vulkan is
+  # still a bare-named lib needing a search path.
+  target_link_directories(${PROJECT_NAME} PUBLIC ${Vulkan_LIBRARIES})
 
   target_link_libraries(${PROJECT_NAME} glfw vulkan ktx Jolt yaml-cpp)
 

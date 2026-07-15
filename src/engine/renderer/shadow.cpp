@@ -1,4 +1,5 @@
 #include "engine/renderer/bagel_renderer.hpp"
+#include <iostream>
 namespace bagel
 {
 

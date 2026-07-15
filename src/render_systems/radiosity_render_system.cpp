@@ -1,8 +1,7 @@
 #include "radiosity_render_system.hpp"
-#include "engine/bagel_engine_device.hpp"
 
-#include <vulkan/vulkan.h>
 #include <iostream>
+#include <vulkan/vulkan.h>
 
 namespace bagel {
 

@@ -1,5 +1,5 @@
 #pragma once
-#include "bagel_ecs_components.hpp"
+#include "ecs/bagel_ecs_components.hpp"
 
 #include <glm/glm.hpp>
 #include <string>

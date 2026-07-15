@@ -1,13 +1,13 @@
 #include "animated_shadow_render_system.hpp"
-#include "bagel_ecs_components.hpp"
-#include "engine/bagel_engine_device.hpp"
 
-#include <vulkan/vulkan.h>
 #include <iostream>
+#include <vulkan/vulkan.h>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include "ecs/components/model.hpp"
+#include "ecs/components/transform.hpp"
 
 namespace bagel {
 
@@ -17,8 +17,8 @@ namespace bagel {
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
 		entt::registry& _registry)
 		: BGLRenderSystem{ renderPass, setLayouts, sizeof(SkinnedShadowPushData) }
-		, descriptorManager{ _descriptorManager }
 		, registry{ _registry }
+		, descriptorManager{ _descriptorManager }
 	{
 		std::cout << "Creating Skinned Shadow Render System\n";
 		// Reuses the depth-only shadow fragment shader + shadow-map pipeline config.
@@ -41,9 +41,10 @@ namespace bagel {
 
 		VkDeviceSize offsets[] = { 0 };
 
-		// Animation time is advanced once per frame in the engine loop; read-only here so the
-		// shadow pose matches the g-buffer pose exactly.
-		auto view = registry.view<TransformComponent, ModelComponent, AnimationComponent>();
+		// Only the hot AnimationPlaybackComponent is needed (animBaseOffset() reads its cached
+		// scalars). Animation time is advanced once per frame in the engine loop; read-only here so
+		// the shadow pose matches the g-buffer pose exactly.
+		auto view = registry.view<TransformComponent, ModelComponent, AnimationPlaybackComponent>();
 		for (auto [entity, transform, model, anim] : view.each()) {
 			if (!model.mesh().isSkinned) continue;
 

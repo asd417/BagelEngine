@@ -1,17 +1,15 @@
 #pragma once
 
-#include <glm/gtc/constants.hpp>
-
-#include "bagel_render_system.hpp"
-#include "engine/bagel_engine_device.hpp"
-#include "engine/bagel_pipeline.hpp"
-#include "bagel_frame_info.hpp"
-#include "bagel_camera.hpp"
-#include "bagel_gameobject.hpp"
-#include "model/bagel_model.hpp"
-
 #include <memory>
 #include <vector>
+#include <glm/gtc/constants.hpp>
+
+#include "bagel_buffer.hpp"
+#include "bagel_frame_info.hpp"
+#include "bagel_render_system.hpp"
+#include "engine/bagel_descriptors.hpp"
+#include "engine/bagel_engine_device.hpp"
+
 //#define POINTLIGHT_ORIGINAL
 namespace bagel {
 

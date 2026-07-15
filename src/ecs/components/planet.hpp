@@ -1,8 +1,7 @@
 #pragma once
-#include <entt.hpp>
-#include <vector>
-#include <array>
 #include <cstdint>
+#include <entt.hpp>
+
 #include "ecs/components/model.hpp"
 #include "engine/bagel_engine_device.hpp"
 

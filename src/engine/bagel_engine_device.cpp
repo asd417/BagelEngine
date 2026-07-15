@@ -4,11 +4,11 @@
 #include <vulkan/vulkan.h>
 
 // std headers
+#include <set>
+#include <cassert>
 #include <cstring>
 #include <iostream>
-#include <set>
 #include <unordered_set>
-#include <cassert>
 
 #define PRINT_AVAILABLE_DEVICE_EXTENTION
 #define PRINT_REQUIRED_DEVICE_EXTENSION
@@ -375,7 +375,7 @@ namespace bagel
         std::vector<VkExtensionProperties> extensions(extensionCount);
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
-#ifdef PRINT_AVAILABLE_DEVICE_EXTENTION:
+#ifdef PRINT_AVAILABLE_DEVICE_EXTENTION
         std::cout << "available extensions:" << std::endl;
         std::unordered_set<std::string> available;
         for (const auto &extension : extensions)
@@ -384,7 +384,7 @@ namespace bagel
             available.insert(extension.extensionName);
         }
 #endif
-#ifdef PRINT_REQUIRED_DEVICE_EXTENSION:
+#ifdef PRINT_REQUIRED_DEVICE_EXTENSION
         std::cout << "required extensions:" << std::endl;
         auto requiredExtensions = getRequiredExtensions();
         for (const auto &required : requiredExtensions)

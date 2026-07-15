@@ -1,13 +1,10 @@
 #pragma once
-#include <memory>
 #include <vector>
-
 #include "entt.hpp"
 #include <glm/glm.hpp>
 
-#include "bagel_render_system.hpp"
-#include "engine/bagel_pipeline.hpp"
 #include "bagel_frame_info.hpp"
+#include "bagel_render_system.hpp"
 
 namespace bagel {
 

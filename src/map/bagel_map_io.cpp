@@ -48,10 +48,13 @@ namespace bagel {
 			Recipe r{ e, m.loadSettings, m.frustumCull, m.skinIndex, m.materialCount,
 			          { m.materialSources, m.materialSources + m.materialCount } };
 			if constexpr (std::is_same_v<T, ModelComponent>) {
+				// Anim state is split: editPose lives on the cold AnimationComponent, manualPose on
+				// the hot AnimationPlaybackComponent. Both are (re)emplaced as a pair by buildComponent.
 				if (auto* a = registry.try_get<AnimationComponent>(e)) {
 					r.hasAnim = true;
-					r.animManual   = a->manualPose;
 					r.animEditPose = a->editPose;
+					if (auto* p = registry.try_get<AnimationPlaybackComponent>(e))
+						r.animManual = p->manualPose;
 				}
 			}
 			recipes.push_back(std::move(r));
@@ -63,7 +66,7 @@ namespace bagel {
 			// its authored fields are saved on the recipe and re-applied below. AttachmentComponent
 			// is transient (sidecar-rebuilt) — remove() is a no-op if absent, kept for safety.
 			if constexpr (std::is_same_v<T, ModelComponent>) {
-				if (r.hasAnim) registry.remove<AnimationComponent>(r.e);
+				if (r.hasAnim) registry.remove<AnimationComponent, AnimationPlaybackComponent>(r.e);
 				registry.remove<AttachmentComponent>(r.e);
 			}
 		}
@@ -83,10 +86,12 @@ namespace bagel {
 			if constexpr (std::is_same_v<T, ModelComponent>) {
 				if (r.hasAnim) {
 					if (auto* a = registry.try_get<AnimationComponent>(r.e)) {
-						a->manualPose = r.animManual;
 						if (r.animEditPose.size() == a->editPose.size())
 							a->editPose = std::move(r.animEditPose);
-						a->poseDirty = true; // force a palette re-resolve from the restored pose
+					}
+					if (auto* p = registry.try_get<AnimationPlaybackComponent>(r.e)) {
+						p->manualPose = r.animManual;
+						p->poseDirty = true; // force a palette re-resolve from the restored pose
 					}
 				}
 			}

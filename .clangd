@@ -1,0 +1,12 @@
+# clangd configuration. See https://clangd.llvm.org/config
+#
+# Third-party code under Dependencies/ is not ours to fix. This scoped block silences
+# every clangd diagnostic for those files (even when a dependency header is opened
+# directly as the main file) and skips background-indexing them, which keeps the index
+# smaller and CPU down. Our own src/ is unaffected and still gets full diagnostics.
+If:
+  PathMatch: .*/Dependencies/.*
+Diagnostics:
+  Suppress: "*"
+Index:
+  Background: Skip

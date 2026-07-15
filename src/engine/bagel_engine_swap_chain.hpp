@@ -3,13 +3,11 @@
 #include "engine/bagel_engine_device.hpp"
 
 // std lib headers
-#include <string>
 #include <vector>
 #include <memory>
 
 // 16 bits of depth is enough for such a small scene
 #define DEPTH_FORMAT VK_FORMAT_D16_UNORM
-//#define SYNC_DEVICEWAITIDLE
 
 namespace bagel {
 

@@ -1,23 +1,20 @@
 #include "wireframe_render_system.hpp"
-#include "bagel_ecs_components.hpp"
-#include "engine/bagel_engine_device.hpp"
-#include "bagel_util.hpp"
-#include "model/bagel_model.hpp"
-#include "math/bagel_math.hpp"
 
-#include <vulkan/vulkan.h>
-
-#include <stdexcept>
 #include <array>
-#include <chrono>
-#include <iostream>
 #include <cstring>
-
+#include <iostream>
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "bagel_util.hpp"
+#include "math/bagel_math.hpp"
+#include "model/bagel_model.hpp"
+#include "ecs/components/model.hpp"
+#include "ecs/components/transform.hpp"
+#include "engine/bagel_engine_device.hpp"
 namespace bagel {
 	// PushConstantData is a performant and simple way to send data to vertex and fragment shader
 	// It is typically faster than descriptor sets for frequently updated data
@@ -120,8 +117,8 @@ namespace bagel {
 		entt::registry& _registry,
 		BGLDevice &bglDevice) :
 		BGLRenderSystem{ renderPass, setLayouts, sizeof(WireframePushConstantData) },
-		descriptorManager{ _descriptorManager },
 		registry{ _registry },
+		descriptorManager{ _descriptorManager },
 		device{ bglDevice }
 	{
 		std::cout << "Creating Wireframe Render System\n";

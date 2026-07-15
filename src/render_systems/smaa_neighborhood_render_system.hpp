@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "bagel_render_system.hpp"
-#include "engine/bagel_pipeline.hpp"
+#include "engine/bagel_descriptors.hpp"
 #include "bagel_frame_info.hpp"
 
 namespace bagel {

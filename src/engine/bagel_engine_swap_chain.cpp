@@ -4,13 +4,12 @@
 #include <vulkan/vulkan.h>
 // std
 #include <array>
+#include <limits>
 #include <cstdlib>
+#include <cassert>
 #include <cstring>
 #include <iostream>
-#include <limits>
-#include <set>
 #include <stdexcept>
-#include <cassert>
 
 
 namespace bagel {

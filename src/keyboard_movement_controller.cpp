@@ -1,8 +1,10 @@
 #include "keyboard_movement_controller.hpp"
+#include <glm/gtc/constants.hpp>
 #include <limits>
+#include "ecs/components/transform.hpp"
 #include "imgui.h"
 
-bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float dt, BGLGameObject& gameObject, uint32_t transformIndex)
+bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float dt, TransformComponent& tc, uint32_t transformIndex)
 {
 	ImGuiIO& io = ImGui::GetIO();
 	bool updated = false;
@@ -33,12 +35,12 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 		lastMousePos = { static_cast<float>(mx), static_cast<float>(my) };
 
 		if (glm::dot(delta, delta) > std::numeric_limits<float>::epsilon()) {
-			glm::vec3 rot = gameObject.transform.getRotation();
+			glm::vec3 rot = tc.getRotation();
 			rot.y -= glm::radians(delta.x) * mouseSensitivity;
 			rot.x -= glm::radians(delta.y) * mouseSensitivity;
 			rot.x = glm::clamp(rot.x, -1.5f, 1.5f);
 			rot.y = glm::mod(rot.y, glm::two_pi<float>());
-			gameObject.transform.setRotation(rot);
+			tc.setRotation(rot);
 			updated = true;
 		}
 	}
@@ -52,16 +54,16 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 	if (glfwGetKey(window, keys.lookUp)    == GLFW_PRESS) rotate.x += 1.0f;
 	if (glfwGetKey(window, keys.lookDown)  == GLFW_PRESS) rotate.x -= 1.0f;
 	if (glm::dot(rotate, rotate) > std::numeric_limits<float>::epsilon()) {
-		glm::vec3 rot = gameObject.transform.getRotation() + lookSpeed * dt * glm::normalize(rotate);
+		glm::vec3 rot = tc.getRotation() + lookSpeed * dt * glm::normalize(rotate);
 		rot.x = glm::clamp(rot.x, -1.5f, 1.5f);
 		rot.y = glm::mod(rot.y, glm::two_pi<float>());
-		gameObject.transform.setRotation(rot);
+		tc.setRotation(rot);
 		updated = true;
 	}
 
 	// WASD movement
-	float yaw   = gameObject.transform.getRotation().y;
-	float pitch = gameObject.transform.getRotation().x;
+	float yaw   = tc.getRotation().y;
+	float pitch = tc.getRotation().x;
 	const glm::vec3 forwardDir{ cosf(pitch) * sinf(yaw), -sinf(pitch), cosf(pitch) * cosf(yaw) };
 	const glm::vec3 rightDir{ cosf(yaw), 0.0f, -sinf(yaw) };
 	const glm::vec3 upDir{ 0.0f, 1.0f, 0.0f };
@@ -74,7 +76,7 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 	if (glfwGetKey(window, keys.moveUp)      == GLFW_PRESS) moveDir += upDir;
 	if (glfwGetKey(window, keys.moveDown)    == GLFW_PRESS) moveDir -= upDir;
 	if (glm::dot(moveDir, moveDir) > std::numeric_limits<float>::epsilon()) {
-		gameObject.transform.setTranslation(gameObject.transform.getTranslation() + moveSpeed * dt * glm::normalize(moveDir));
+		tc.setTranslation(tc.getTranslation() + moveSpeed * dt * glm::normalize(moveDir));
 		updated = true;
 	}
 	return updated;

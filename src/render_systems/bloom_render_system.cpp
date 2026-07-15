@@ -1,10 +1,9 @@
 #include "bloom_render_system.hpp"
-#include "engine/bagel_engine_device.hpp"
-#include "bagel_util.hpp"
 
-#include <vulkan/vulkan.h>
 #include <iostream>
+#include <vulkan/vulkan.h>
 
+#include "bagel_util.hpp"
 namespace bagel {
 
 	BloomRenderSystem::BloomRenderSystem(

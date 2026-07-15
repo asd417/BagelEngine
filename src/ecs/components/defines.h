@@ -1,0 +1,1 @@
+#define MAX_ATTACHMENT_NAME 16

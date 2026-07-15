@@ -1,17 +1,14 @@
 #include "gbuffer_render_system.hpp"
-#include "bagel_ecs_components.hpp"
-#include "ecs/components/planet.hpp"
-#include "engine/bagel_engine_device.hpp"
-#include "bagel_util.hpp"
 #include "math/bagel_math.hpp"
 
-#include <vulkan/vulkan.h>
-#include <stdexcept>
 #include <iostream>
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
+
+#include "ecs/components/planet.hpp"
+#include "ecs/components/transform.hpp"
 
 namespace bagel {
 
@@ -21,8 +18,8 @@ namespace bagel {
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
 		entt::registry& _registry)
 		: BGLRenderSystem{ renderPass, setLayouts, sizeof(GBufferPushConstantData) }
-		, descriptorManager{ _descriptorManager }
 		, registry{ _registry }
+		, descriptorManager{ _descriptorManager }
 	{
 		std::cout << "Creating GBuffer Render System\n";
 		createPipeline(renderPass,

@@ -1,8 +1,7 @@
 #include "composit_render_system.hpp"
-#include "engine/bagel_engine_device.hpp"
 
-#include <vulkan/vulkan.h>
 #include <iostream>
+#include <vulkan/vulkan.h>
 
 namespace bagel {
 
@@ -12,8 +11,8 @@ namespace bagel {
 		std::unique_ptr<BGLBindlessDescriptorManager> const& _descriptorManager,
 		entt::registry& _registry)
 		: BGLRenderSystem{ renderPass, setLayouts, sizeof(CompositionPush) }
-		, descriptorManager{ _descriptorManager }
 		, registry{ _registry }
+		, descriptorManager{ _descriptorManager }
 	{
 		std::cout << "Creating Composition Render System\n";
 		createPipeline(renderPass,

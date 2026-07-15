@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstddef>
 
+#include "bagel_buffer.hpp"
 #include "engine/bagel_engine_device.hpp"
 #include "engine/bagel_descriptors.hpp"
 

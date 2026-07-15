@@ -1,5 +1,5 @@
 #include "physics/bagel_jolt.hpp"
-#include "bagel_ecs_components.hpp"
+#include "ecs/bagel_ecs_components.hpp"
 #include "model/bagel_model.hpp"
 #include "bagel_util.hpp"
 
@@ -90,11 +90,15 @@ namespace bagel {
 	//Assumes that an entity either has JoltPhysicsComponent or JoltKinematicComponent
 	void BGLJolt::SetComponentActivity(entt::entity ent, bool activity)
 	{
-		auto comp = registry.try_get<JoltPhysicsComponent>(ent);
-		if (comp == nullptr) auto comp = registry.try_get<JoltKinematicComponent>(ent);
-		if (comp == nullptr) return;
-		if(activity) bodyInterface->ActivateBody(comp->bodyID);
-		else bodyInterface->DeactivateBody(comp->bodyID);
+		JPH::BodyID bodyID;
+		if (auto* phys = registry.try_get<JoltPhysicsComponent>(ent))
+			bodyID = phys->bodyID;
+		else if (auto* kin = registry.try_get<JoltKinematicComponent>(ent))
+			bodyID = kin->bodyID;
+		else
+			return;
+		if(activity) bodyInterface->ActivateBody(bodyID);
+		else bodyInterface->DeactivateBody(bodyID);
 	}
 
 	bool BGLJolt::IsBodyActive(entt::entity ent)
@@ -498,7 +502,7 @@ namespace bagel {
 		auto v = inManifold.GetWorldSpaceContactPointOn1(0);
 		std::string contactSTR = "Contact on ";
 		char storage[32];
-		sprintf_s(storage, " %.2f %.2f %.2f", v.GetX(), v.GetY(), v.GetZ());
+		snprintf(storage, sizeof(storage), " %.2f %.2f %.2f", v.GetX(), v.GetY(), v.GetZ());
 		contactSTR += std::string(storage);
 		CONSOLE->Log("BGLJolt", contactSTR);
 		CONSOLE->Log("BGLJolt", "A contact was added");

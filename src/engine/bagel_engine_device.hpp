@@ -7,8 +7,6 @@
 // std lib headers
 #include <string>
 #include <vector>
-#include <iostream>
-#include <cstdlib>
 
 // Single engine-wide definition. Every Vulkan TU already includes this header (VK_CHECK
 // wraps calls that use BGLDevice::device()), so the macro lives here instead of being
@@ -20,7 +18,7 @@
 		VkResult err = x;                                               \
 		if (err)                                                        \
 		{                                                               \
-			std::cout <<"Detected Vulkan error: " << err << std::endl;  \
+			std::cout <<"Detected Vulkan error: " << err << "\n";  \
 			abort();                                                    \
 		}                                                               \
 	} while (0)

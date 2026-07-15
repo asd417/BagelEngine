@@ -1,18 +1,13 @@
 #include "point_light_render_system.hpp"
-#include "bagel_ecs_components.hpp"
 
-// vulkan headers
-#include <vulkan/vulkan.h>
-
-#include <stdexcept>
-#include <array>
-#include <chrono>
 #include <iostream>
-#include <map>
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
+
+#include "ecs/components/light.hpp"
+#include "ecs/components/transform.hpp"
 
 namespace bagel {
 	PointLightSystem::PointLightSystem(
@@ -22,8 +17,8 @@ namespace bagel {
 		entt::registry& _registry,
 		BGLDevice& bglDevice) :
 		BGLRenderSystem{ renderPass, setLayouts, sizeof(PointLightPushConstant) },
-		descriptorManager{ _descriptorManager },
-		registry{ _registry }
+		registry{ _registry },
+		descriptorManager{ _descriptorManager }
 	{
 		std::cout << "Creating PointLight Render System (lighting-data only; no draw pass)\n";
 	}

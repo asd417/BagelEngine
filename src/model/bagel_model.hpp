@@ -274,11 +274,17 @@ namespace bagel
 	//       rotate: [0, 0, 0]      # optional Euler XYZ in DEGREES (default 0)
 	struct ModelSidecar
 	{
+		#define BONE_NAME_LENGTH 20
 		// One IK chain as authored in the sidecar: bone NAMES (resolved to joint indices later,
 		// once the skeleton's names are known — see ModelLoaderBase::resolveIkSetups).
 		struct IkChain
 		{
-			std::string thigh, shin, foot, goal, pole;
+			//std::string thigh, shin, foot, goal, pole;
+			char thigh[BONE_NAME_LENGTH];
+			char shin[BONE_NAME_LENGTH];
+			char foot[BONE_NAME_LENGTH];
+			char goal[BONE_NAME_LENGTH];
+			char pole[BONE_NAME_LENGTH];
 			float weight = 1.0f;
 			bool enabled = true;
 		};

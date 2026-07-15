@@ -1,8 +1,4 @@
 #include "planet.hpp"
-#include "model/model_component_builder.hpp"
-#include "texture/bagel_textures.hpp"
-#include "bagel_material.hpp"
-#include "transform.hpp"
 
 #include <string>
 #include <cassert>
@@ -11,6 +7,12 @@
 #include <vector>
 #include <unordered_map>
 #include <iostream>
+
+#include "transform.hpp"
+#include "bagel_material.hpp"
+#include "texture/bagel_textures.hpp"
+#include "engine/bagel_descriptors.hpp"
+#include "model/model_component_builder.hpp"
 
 namespace bagel
 {

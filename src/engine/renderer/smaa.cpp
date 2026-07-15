@@ -1,4 +1,6 @@
 #include "engine/renderer/bagel_renderer.hpp"
+#include <iostream>
+
 namespace bagel
 {
 
@@ -103,7 +105,7 @@ namespace bagel
         rpInfo.framebuffer = smaaEdgeBuffer.frameBuffer;
         rpInfo.renderArea = {{0, 0}, {smaaEdgeBuffer.width, smaaEdgeBuffer.height}};
         VkClearValue cv{};
-        cv.color = {0, 0, 0, 0};
+        cv.color = {{0, 0, 0, 0}};
         rpInfo.clearValueCount = 1;
         rpInfo.pClearValues = &cv;
         vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -213,7 +215,7 @@ namespace bagel
         rpInfo.framebuffer = smaaWeightBuffer.frameBuffer;
         rpInfo.renderArea = {{0, 0}, {smaaWeightBuffer.width, smaaWeightBuffer.height}};
         VkClearValue cv{};
-        cv.color = {0, 0, 0, 0};
+        cv.color = {{0, 0, 0, 0}};
         rpInfo.clearValueCount = 1;
         rpInfo.pClearValues = &cv;
         vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);

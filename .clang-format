@@ -1,0 +1,29 @@
+---
+# Start with the LLVM base as it forms the foundational structure
+BasedOnStyle: LLVM
+
+# MSVC places opening braces on a new line for everything (Allman Style)
+BreakBeforeBraces: Allman
+
+# Default MSVC indentation widths
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# MSVC doesn't merge short statements or functions into a single line
+AllowShortIfStatementsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortLoopsOnASingleLine: false
+
+# MSVC does not indent "case" statements inside a switch block by default
+IndentCaseLabels: false
+
+# MSVC aligns trailing comments automatically
+AlignTrailingComments: true
+
+# MSVC does not set a hard column limit for line wrapping by default
+ColumnLimit: 0
+
+# Prevent namespaces from auto-indenting your code blocks
+NamespaceIndentation: None
+...

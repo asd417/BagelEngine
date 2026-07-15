@@ -206,7 +206,7 @@ namespace bagel {
 
 		// move to the start of the file
 		file.seekg(0);
-		file.read(buffer.data(), fileSize);
+		file.read(buffer.data(), static_cast<std::streamsize>(fileSize));
 		file.close();
 
 		return buffer;
@@ -337,7 +337,7 @@ namespace bagel {
 		size_t fileSize = static_cast<size_t>(file.tellg());
 		std::vector<char> buffer(fileSize);
 		file.seekg(0);
-		file.read(buffer.data(), fileSize);
+		file.read(buffer.data(), static_cast<std::streamsize>(fileSize));
 		file.close();
 
 		return buffer;

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "bagel_camera.hpp"
-#include "bagel_gameobject.hpp"
 
 #include <vulkan/vulkan.h>
 #include <cstddef>

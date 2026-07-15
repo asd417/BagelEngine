@@ -1,7 +1,6 @@
 #pragma once
 
-#include "bagel_gameobject.hpp"
-#include "engine/bagel_window.hpp"
+#include "ecs/components/transform.hpp"
 #include "engine/bagel_engine_config.hpp"
 
 #define GLM_FORCE_RADIANS
@@ -24,7 +23,7 @@ namespace bagel {
 			int lookDown = GLFW_KEY_DOWN;
 		};
 
-		bool moveInPlaneXZ(GLFWwindow* window, float dt, BGLGameObject& gameObject, uint32_t transformIndex);
+		bool moveInPlaneXZ(GLFWwindow* window, float dt, TransformComponent& tc, uint32_t transformIndex);
 
 		KeyMappings keys{};
 		float moveSpeed{ cfg::kMoveSpeed };

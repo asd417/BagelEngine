@@ -14,12 +14,12 @@
 // buffers) are never serialized — they are rebuilt afterwards in the rehydrate
 // pass from the persisted "recipe" (e.g. ModelComponent::loadSettings).
 
-#include "bagel_ecs_components.hpp"
-#include "ecs/components/planet.hpp" // PlanetComponent (TerrainConfig recipe)
+#include "ecs/bagel_ecs_components.hpp"
 
 #include "entt.hpp"
 #include <Jolt/Core/StreamWrapper.h>
-
+#include <Jolt/Core/UnorderedMap.h>
+#include <Jolt/Jolt.h>
 #include <cstdint>
 #include <istream>
 #include <ostream>
@@ -27,6 +27,7 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+
 
 namespace bagel {
 
@@ -207,18 +208,26 @@ namespace bagel {
 		ar(c.color); // + wireframe tint
 	}
 
-	// AnimationComponent: only the AUTHORED POSE is persisted —
-	//   manualPose : whether draws read the hand-posed palette
-	//   editPose   : per-joint local TRS the gizmo authors (Pose = vector<JointTransform>)
-	// IK setups are NOT serialized: the "<model>.yaml" sidecar is their single source of truth and
-	// the model builder re-attaches them on every load/rehydrate (see ModelLoaderBase::resolveIkSetups
-	// / bagel_model.hpp). Everything else (skeleton, baked clip tables, paletteBase/dynamicPaletteBase,
-	// jointCount, playback time) is TRANSIENT and rebuilt by the builder, which then re-applies these
-	// fields onto the freshly built component (see rehydrateModelType). JointTransform is trivially
-	// copyable, so editPose archives element-wise.
+	// The animation state is split across two components; only the AUTHORED fields of each persist.
+	// AnimationComponent (cold rig): editPose — the per-joint local TRS the gizmo authors
+	//   (Pose = vector<JointTransform>). IK setups are NOT serialized: the "<model>.yaml" sidecar is
+	//   their single source of truth and the model builder re-attaches them on every load/rehydrate
+	//   (see ModelLoaderBase::resolveIkSetups / bagel_model.hpp). skeleton + baked clip tables are
+	//   TRANSIENT and rebuilt by the builder. JointTransform is trivially copyable, so editPose
+	//   archives element-wise.
 	template<class Archive>
 	void serialize(Archive& ar, AnimationComponent& c) {
-		ar(c.manualPose, c.editPose);
+		ar(c.editPose);
+	}
+
+	// AnimationPlaybackComponent (hot playback): only manualPose persists — whether draws read the
+	// hand-posed palette. Everything else (paletteBase/dynamicPaletteBase, jointCount, cached clip
+	// window, clip/time/playing/loop, poseDirty) is TRANSIENT and rebuilt by the builder, which then
+	// re-applies manualPose (and forces poseDirty) onto the freshly built component — see
+	// rehydrateModelType in bagel_map_io.cpp.
+	template<class Archive>
+	void serialize(Archive& ar, AnimationPlaybackComponent& c) {
+		ar(c.manualPose);
 	}
 
 	// JPH::BodyCreationSettings is the persisted "recipe" for a physics body (shape,
@@ -310,6 +319,7 @@ namespace bagel {
 		saveComponent<ModelComponent>(snap, ar, registry);
 		saveComponent<WireframeComponent>(snap, ar, registry);
 		saveComponent<AnimationComponent>(snap, ar, registry);
+		saveComponent<AnimationPlaybackComponent>(snap, ar, registry);
 		saveComponent<JoltPhysicsComponent>(snap, ar, registry);
 		saveComponent<JoltKinematicComponent>(snap, ar, registry);
 		saveComponent<InfoComponent>(snap, ar, registry);
@@ -328,6 +338,7 @@ namespace bagel {
 			.get<ModelComponent>(ar)
 			.get<WireframeComponent>(ar)
 			.get<AnimationComponent>(ar)
+			.get<AnimationPlaybackComponent>(ar)
 			.get<JoltPhysicsComponent>(ar)
 			.get<JoltKinematicComponent>(ar)
 			.get<InfoComponent>(ar)

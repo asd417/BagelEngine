@@ -1,4 +1,6 @@
 #include "engine/renderer/bagel_renderer.hpp"
+#include <iostream>
+
 namespace bagel
 {
 
@@ -100,7 +102,7 @@ namespace bagel
         rpInfo.framebuffer = radiosityBuffer.frameBuffer;
         rpInfo.renderArea = {{0, 0}, {radiosityBuffer.width, radiosityBuffer.height}};
         VkClearValue cv{};
-        cv.color = {0, 0, 0, 0};
+        cv.color = {{0, 0, 0, 0}};
         rpInfo.clearValueCount = 1;
         rpInfo.pClearValues = &cv;
         vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
