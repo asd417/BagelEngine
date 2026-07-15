@@ -407,7 +407,7 @@ namespace bagel
 		{
 			auto rot = glm::rotate(
 				glm::mat4(1.0f),
-				(i * glm::two_pi<float>() / lightColors.size()),
+				(i * glm::two_pi<float>() / static_cast<float>(lightColors.size())),
 				{0.f, -1.f, 0.f});
 			const auto entity = registry.create();
 			registry.emplace<TransformComponent>(entity, (rot * glm::vec4(glm::vec3{3.f, 1.0f, 0.0f}, 1.0f)));
