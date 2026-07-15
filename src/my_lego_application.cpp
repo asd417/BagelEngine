@@ -19,7 +19,17 @@ namespace bagel
 
 	// rehydrateModelType<T> + the scene rehydrate pass moved to map/bagel_map_io.{hpp,cpp}
 	// (Map::rehydrate). Called from loadMapFromPath after Map::load.
-	MyApplication::MyApplication() : Application() {}
+	MyApplication::MyApplication() : Application()
+	{
+		// Scanning only stats files and reads each .dat's title line; geometry is parsed
+		// lazily when a part is actually placed. Safe to do up front.
+		const size_t parts = legoCatalog.scan(util::enginePath(""));
+		CONSOLE->Log("Lego", "Catalog: " + std::to_string(parts) + " placeable parts, "
+			+ std::to_string(legoCatalog.skipped()) + " skipped");
+
+		legoThumbs = std::make_unique<BGLTextureStreamer>(bglDevice);
+		legoBrowser_ = std::make_unique<LegoBrowserPanel>(legoCatalog, *legoThumbs);
+	}
 	void MyApplication::OnSceneLoad()
 	{
 		buildScene(6); // TEMP: verify connection gizmo
@@ -27,6 +37,10 @@ namespace bagel
 
 	void MyApplication::OnUpdate(BGLCamera &camera, float dt)
 	{
+		// Publish thumbnails the worker finished uploading and retire evicted ones. Must run
+		// every frame, not only while the browser is open, or completed uploads never land.
+		legoThumbs->beginFrame();
+
 		// Left-click picking: cast a ray from the cursor into the physics scene and select
 		// the entity under it (BGLJolt::PickEntity resolves group compounds down to the member).
 		{
@@ -74,15 +88,47 @@ namespace bagel
 		}
 	}
 
+	
+	// Flat ground for the lego scene: a procedural floor quad (y=0, sized by scaleVec) for the
+	// visual, plus a thin STATIC box collider whose TOP face sits at y=0 so it lines up with the
+	// quad and gives dropped bricks something to land on.
+	void MyApplication::loadLegoGround()
+	{
+		ModelComponentBuilder builder(bglDevice, registry);
+		builder.setTextureLoader(&materialManager->getTextureLoader());
+		builder.setMaterialManager(materialManager.get());
+		builder.setSkinManager(skinManager.get());
+
+		// generateFloor() lays out the quad using scaleVec.x/.z (see model_loaders/generated.cpp),
+		// so the mesh is already full-size; leave the entity transform at identity.
+		ModelLoadSettings settings{};
+		settings.scaleVec = {100.0f, 1.0f, 100.0f};
+
+		auto entity = registry.create();
+		auto &tc = registry.emplace<TransformComponent>(entity); // at origin
+		// generateFloor() already sizes the quad via scaleVec, so keep the transform at identity
+		// scale (the TransformComponent default is 0.1, which would shrink the visible quad to
+		// 1/10 of the collider — the same double-scale trap as the bricks above).
+		tc.setScale({1.0f, 1.0f, 1.0f});
+		builder.buildComponent(entity, "/models/floor.obj", settings);
+
+		BGLJolt::PhysicsBodyCreationInfo info{};
+		info.pos = {0.0f, 0, 0.0f};
+		info.rot = {0.0f, 0.0f, 0.0f};
+		info.physicsType = PhysicsType::STATIC;
+		info.activate = false;
+		info.layer = PhysicsLayers::NON_MOVING;
+		BGLJolt::GetInstance()->AddBox(entity, {100.0f, 0, 100.0f}, info);
+
+		CONSOLE->Log("Lego", "Spawned ground plane");
+	}
+
+
 	std::string MyApplication::mapPath(int index) const
 	{
 		return util::enginePath((std::string("/maps/") + mapName(index) + ".bmap").c_str());
 	}
 
-	std::string MyApplication::mapPath(const std::string &name) const
-	{
-		return util::enginePath((std::string("/maps/") + name + ".bmap").c_str());
-	}
 
 	void MyApplication::buildScene(int index)
 	{
@@ -229,7 +275,8 @@ namespace bagel
 		if (ImGui::Button("Lego"))
 			buildScene(6);
 
-		ImGui::SameLine();
+		// Own line: the button row above already overflows the docked panel's width, and a
+		// SameLine here put this checkbox outside the clip rect where it couldn't be clicked.
 		ImGui::Checkbox("Part Browser", &showLegoBrowser_);
 
 		ImGui::Separator();

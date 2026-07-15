@@ -146,6 +146,7 @@ add_executable(${PROJECT_NAME}
 	${SMAA}
 	${ECS}
 	${GAME}
+	${LEGO}
 	${MAP}
 	${APPLICATION}
   ${IMGUI_ENGINE}

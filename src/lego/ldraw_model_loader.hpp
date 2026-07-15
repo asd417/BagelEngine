@@ -7,7 +7,7 @@
 // and exposed via getConnections() for the later snapping / Jolt-constraint work
 // — the base pipeline itself only consumes the mesh.
 
-#include "../model_loaders/bagel_model_loader.hpp"
+#include "model/model_loaders/bagel_model_loader.hpp"
 #include "ldraw_library.hpp"
 
 namespace bagel {

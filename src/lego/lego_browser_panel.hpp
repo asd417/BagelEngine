@@ -7,7 +7,7 @@
 // evict hook. Placement is left to the caller via setOnPick.
 
 #include "part_catalog.hpp"
-#include "../bagel_texture_streamer.hpp"
+#include "texture/bagel_texture_streamer.hpp"
 
 #include <functional>
 #include <string>

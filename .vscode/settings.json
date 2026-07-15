@@ -7,7 +7,13 @@
         "-DCMAKE_CXX_COMPILER=clang-cl",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
     ],
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    // Deliberately NOT "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools".
+    // CMake marks the third-party dirs as SYSTEM includes, so clang-cl receives them as
+    // -imsvc<dir>. The C/C++ extension's flag parser understands -I / /I / -isystem but not
+    // -imsvc, so it drops every vendored dep (GLFW, imgui, glm, entt, Jolt, ...) and reports
+    // them as missing headers. With no provider set, IntelliSense falls back to the
+    // includePath in c_cpp_properties.json, which lists those dirs explicitly.
+    // Keep that list in sync with the SYSTEM includes in CMakeLists.txt.
 
     // clang-tidy reads build/compile_commands.json (emitted by the Ninja generator), so
     // it sees the exact flags clang-cl compiles with. Config lives in .clang-tidy.

@@ -1,9 +1,9 @@
 #include "lego_connection_render_system.hpp"
 
 #include "../render_systems/wireframe_render_system.hpp" // WireframePushConstantData (shared layout)
-#include "../bagel_engine_device.hpp"
-#include "../bagel_model.hpp"                              // BGLModel::Vertex
-#include "../components/transform.hpp"                     // TransformComponent
+#include "engine/bagel_engine_device.hpp"
+#include "model/bagel_model.hpp"                           // BGLModel::Vertex
+#include "ecs/components/transform.hpp"                    // TransformComponent
 #include "components/lego_connection_component.hpp"        // LegoConnectionComponent / LegoConnectionPoint
 
 #include <vulkan/vulkan.h>

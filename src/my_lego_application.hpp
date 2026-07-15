@@ -1,7 +1,10 @@
 #pragma once
 #include "application/bagel_application.hpp"
 #include "bagel_material.hpp"
+#include "lego/lego_browser_panel.hpp"                  // LegoBrowserPanel (Part Browser window)
+#include "lego/part_catalog.hpp"                        // ldraw::PartCatalog
 #include "model/model_loaders/model_load_settings.hpp" // ModelLoadSettings (loadModel default arg)
+#include "texture/bagel_texture_streamer.hpp"           // BGLTextureStreamer (async thumbnails)
 #include <memory>
 
 namespace bagel {
@@ -39,6 +42,7 @@ namespace bagel {
 		void loadMap(int index);        // load from disk (if it exists) + rehydrate
 		bool loadMapFromPath(const std::string& path, const std::string& name); // shared load+rehydrate
 		void logDescriptorUsage();      // print bindless slot usage after a scene loads
+		void loadLegoGround();
 		static const char* mapName(int index);
 		std::string        mapPath(int index) const;
 		std::string        mapPath(const std::string& name) const;
@@ -46,6 +50,14 @@ namespace bagel {
 		std::string currentMapName = "sponza"; // active map name (set by build / successful load)
 		entt::entity hierarchyRoot = entt::null;
 		float stackAngle = 0.0f;
+
+		// LEGO part browser. legoBrowser_ holds references to the two members above it, so it
+		// must be declared last: members die in reverse declaration order, and the panel's
+		// destructor touches the streamer (setOnEvict(nullptr)).
+		ldraw::PartCatalog legoCatalog;
+		std::unique_ptr<BGLTextureStreamer> legoThumbs;
+		std::unique_ptr<LegoBrowserPanel>   legoBrowser_;
+		bool showLegoBrowser_ = false;
 	};
 
 } // namespace bagel

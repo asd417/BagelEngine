@@ -7,7 +7,7 @@
 // Use this instead of ModelComponentBuilder anywhere a ".dat" part may be built: PartSystem
 // spawning, and map rehydrate when a saved scene contains LEGO parts.
 
-#include "../bagel_model.hpp"        // ModelComponentBuilder
+#include "model/model_component_builder.hpp" // ModelComponentBuilder
 #include "ldraw_model_loader.hpp"    // LDrawModelLoader
 
 #include <cstring>

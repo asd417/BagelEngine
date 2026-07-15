@@ -1,14 +1,14 @@
 #include "part_system.hpp"
 
-#include "../bagel_imgui.hpp"    // ConsoleApp (the CONSOLE macro lives in application/, not reachable here)
-#include "../bagel_material.hpp" // BGLMaterialManager
-#include "../bagel_model.hpp"    // ModelComponentBuilder
+#include "imgui/bagel_imgui.hpp" // ConsoleApp (the CONSOLE macro lives in application/, not reachable here)
+#include "bagel_material.hpp"    // BGLMaterialManager
+#include "model/model_component_builder.hpp" // ModelComponentBuilder
 #include "lego_model_builder.hpp" // LegoModelComponentBuilder (.dat -> LDrawModelLoader)
-#include "../bagel_util.hpp"     // util::enginePath
-#include "../animation/bagel_skin_manager.hpp"
-#include "../components/transform.hpp"
-#include "../model_loaders/model_load_settings.hpp"
-#include "../physics/bagel_jolt.hpp"
+#include "bagel_util.hpp"        // util::enginePath
+#include "animation/bagel_skin_manager.hpp"
+#include "ecs/components/transform.hpp"
+#include "model/model_loaders/model_load_settings.hpp"
+#include "physics/bagel_jolt.hpp"
 
 #include "components/lego_connection_component.hpp"
 #include "ldraw_library.hpp" // ldraw::Library (live connector re-bake on cache miss)

@@ -2,36 +2,58 @@
     "configurations": [
         {
             "name": "Win32",
+            // The first five mirror the plain -I flags in CMakeLists.txt. The rest are SYSTEM
+            // includes there, which reach clang-cl as -imsvc<dir> -- a flag the C/C++ extension
+            // cannot parse, which is why we list them by hand rather than let the cmake-tools
+            // configurationProvider supply them (see .vscode/settings.json).
+            // Note there is no src/lego, src/physics, ... entry: the compiler only has src on the
+            // include path, so headers are included src-rooted ("lego/part_catalog.hpp"). Adding
+            // the subdirectories back would let stale includes resolve in the editor while still
+            // failing the build -- exactly the drift that left src/lego uncompilable.
             "includePath": [
                 "${workspaceFolder}/src",
-                "${workspaceFolder}/src/lego",
-                "${workspaceFolder}/src/render_systems",
-                "${workspaceFolder}/src/physics",
-                "${workspaceFolder}/src/math",
                 "${workspaceFolder}/Dependencies",
+                "${workspaceFolder}/Dependencies/KTX-Software/external/dfdutils",
+                "${workspaceFolder}/Dependencies/yaml-cpp/include",
+                "${env:VULKAN_SDK}/Include",
                 "${workspaceFolder}/Dependencies/tinygltf",
                 "${workspaceFolder}/Dependencies/tinyobjloader",
-                "${workspaceFolder}/Dependencies/glfw-3.3.8.bin.WIN64/include",
+                "${workspaceFolder}/Dependencies/glfw-3.4.bin.WIN64/include",
                 "${workspaceFolder}/Dependencies/glm",
                 "${workspaceFolder}/Dependencies/KTX-Software/lib/include",
-                "${workspaceFolder}/Dependencies/KTX-Software/external/dfdutils",
                 "${workspaceFolder}/Dependencies/stb",
                 "${workspaceFolder}/Dependencies/entt/single_include/entt",
                 "${workspaceFolder}/Dependencies/imgui",
                 "${workspaceFolder}/Dependencies/imgui/backends",
                 "${workspaceFolder}/Dependencies/JoltPhysics",
-                "${workspaceFolder}/Dependencies/xatlas/source/xatlas",
-                "${env:VULKAN_SDK}/Include"
+                "${workspaceFolder}/Dependencies/xatlas/source/xatlas"
             ],
+            // Mirrors the -D flags the build passes. The JPH_* set in particular changes Jolt's
+            // struct layouts and asserts, so without them IntelliSense parses different code than
+            // the compiler does.
             "defines": [
                 "_DEBUG",
+                "DEBUG",
                 "UNICODE",
                 "_UNICODE",
-                "JPH_PROFILE_ENABLED",
+                "ENGINE_BASE_PATH=\"\"",
                 "JPH_DEBUG_RENDERER",
-                "JPH_FLOATING_POINT_EXCEPTIONS_ENABLED",
                 "JPH_OBJECT_STREAM",
-                "ENGINE_BASE_PATH=\"\""
+                "JPH_PROFILE_ENABLED",
+                "JPH_USE_AVX",
+                "JPH_USE_AVX2",
+                "JPH_USE_F16C",
+                "JPH_USE_FMADD",
+                "JPH_USE_LZCNT",
+                "JPH_USE_SSE4_1",
+                "JPH_USE_SSE4_2",
+                "JPH_USE_TZCNT",
+                "KHRONOS_STATIC",
+                "KTX_FEATURE_KTX1",
+                "KTX_FEATURE_KTX2",
+                "KTX_FEATURE_WRITE",
+                "YAML_CPP_STATIC_DEFINE",
+                "BASISU_NO_ITERATOR_DEBUG_LEVEL"
             ],
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-msvc-x64",
