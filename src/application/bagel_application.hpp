@@ -197,15 +197,19 @@ namespace bagel
 		// run() locals) so profile() — a separate method — can reach them. sectName is C++17
 		// inline-constexpr, so no out-of-line definition is needed.
 		struct PerfSection { double total = 0.0; int n = 0; };
+		// Sections between S_BEGINCMD and S_ENDCMD must cover every recorded pass, in frame
+		// order, each bracketed by its own t0 reset — an unrecorded pass silently folds its
+		// cost into whichever section spans it.
 		enum Sect {
 			S_POLL, S_CAMERA, S_GIZMO, S_UPDATE, S_HIERARCHY, S_PHYSICS,
-			S_UBO, S_IMGUI, S_BEGINCMD, S_GBUFFER, S_BLOOM, S_COMPOSITE, S_ENDCMD,
+			S_UBO, S_IMGUI, S_BEGINCMD, S_SHADOW, S_GBUFFER, S_RADIOSITY, S_TRANSPARENT,
+			S_BLOOM, S_COMPOSITE, S_SMAA, S_SWAPCHAIN, S_ENDCMD,
 			S_COUNT
 		};
 		static constexpr const char *sectName[S_COUNT] = {
 			"poll_events", "camera     ", "gizmo      ", "on_update  ", "hierarchy  ", "physics    ",
-			"ubo+lights ", "imgui      ", "begin_cmd  ", "gbuffer    ", "bloom      ",
-			"composite  ", "end_cmd    "};
+			"ubo+lights ", "imgui      ", "begin_cmd  ", "shadow     ", "gbuffer    ", "radiosity  ",
+			"transparent", "bloom      ", "composite  ", "smaa       ", "swapchain  ", "end_cmd    "};
 		PerfSection perf[S_COUNT]{};
 		double sectMs[S_COUNT]{};
 		double profAccum = 0.0;

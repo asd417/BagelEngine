@@ -209,7 +209,9 @@ private:
 };
 
 struct TransformHierachyComponent {
-  entt::entity parent;
+  // entt::null, not garbage: hasParent guards reads in practice, but an uninitialized
+  // handle can resolve to a live entity, and it serializes non-deterministic bytes.
+  entt::entity parent = entt::null;
   bool hasParent = false;
   uint32_t depth = 0;
   glm::vec3 localTranslation = {0.0f, 0.0f, 0.0f};

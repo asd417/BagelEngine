@@ -305,10 +305,11 @@ void Application::run()
 
     // auto viewerObject = BGLGameObject::createGameObject();
     //        viewerObject.transform.setTranslation({0.0f, -3.0f, 0.0f});
+    // Store the handle, never a reference: entt removes components by swap-and-pop, so a
+    // long-lived TransformComponent& silently starts aliasing whichever component gets
+    // moved into its slot. Re-resolve with registry.get() each frame instead.
     entt::entity viewerEntity = registry.create();
-    TransformComponent &viewerComp =
-        registry.emplace<TransformComponent>(viewerEntity);
-    viewerComp.setTranslation({0.0f, -3.0f, 0.0f});
+    registry.emplace<TransformComponent>(viewerEntity).setTranslation({0.0f, -3.0f, 0.0f});
     KeyboardMovementController cameraController{};
 
     auto frameCurrentTime = Clock::now(); // same clock as frameLastTime (they're
@@ -395,6 +396,9 @@ void Application::run()
         totalTime += frameTime;
 
         auto t0 = Clock::now();
+        // Resolved fresh each frame — see the note at viewerEntity's creation.
+        TransformComponent &viewerComp =
+            registry.get<TransformComponent>(viewerEntity);
         // A scene can request a one-shot camera teleport (e.g. to frame the
         // planet).
         if (spawnCameraPosDirty)
@@ -521,6 +525,7 @@ void Application::run()
             compositRenderSystem.pushParams.smaaEdgeHandle = smaaEdgeHandle;
             compositRenderSystem.pushParams.smaaWeightHandle = smaaWeightHandle;
 
+            t0 = Clock::now();
             if (ubo.hasDirLight)
             {
                 bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "Shadow");
@@ -534,7 +539,10 @@ void Application::run()
                 }
                 bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
             }
+            recordSection(S_SHADOW, tMs(t0, Clock::now()));
+
             // gbuffer_fill
+            t0 = Clock::now();
             bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "gbuffer_fill");
             bglRenderer.beginDeferredRenderPass(primaryCommandBuffer);
             gBufferRenderSystem.renderEntities(frameInfo);
@@ -542,16 +550,21 @@ void Application::run()
             planetGBufferRenderSystem.renderEntities(frameInfo);
             bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
             bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
+            recordSection(S_GBUFFER, tMs(t0, Clock::now()));
+
             // radiosity
+            t0 = Clock::now();
             bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "radiosity");
             bglRenderer.beginRadiosityPass(primaryCommandBuffer);
             radiosityRenderSystem.render(frameInfo);
             bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
             bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
+            recordSection(S_RADIOSITY, tMs(t0, Clock::now()));
             // Forward transparent: blend HDR transparent lighting into the radiosity
             // buffer (no tonemap — composite does that), depth-tested read-only
             // against the opaque G-buffer depth. Bloom and composite then consume the
             // combined radiosity buffer.
+            t0 = Clock::now();
             bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "transparent");
             bglRenderer.beginTransparentPass(primaryCommandBuffer);
             transparentRenderSystem.renderEntities(frameInfo);
@@ -565,8 +578,10 @@ void Application::run()
                                              waterOpaqueDepth, waterCamRefDist);
             bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
             bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
+            recordSection(S_TRANSPARENT, tMs(t0, Clock::now()));
 
             // bloom (downsamples the radiosity buffer, now including transparent)
+            t0 = Clock::now();
             if (bloomEnabled)
             {
                 bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "bloom_down");
@@ -599,16 +614,21 @@ void Application::run()
                 bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
             }
 
+            recordSection(S_BLOOM, tMs(t0, Clock::now()));
+
             // composite (radiosity + bloom -> tonemap+gamma) into the offscreen LDR
             // buffer
+            t0 = Clock::now();
             bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "composite");
             bglRenderer.beginCompositePass(primaryCommandBuffer);
             compositRenderSystem.render(frameInfo);
             bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
             bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
+            recordSection(S_COMPOSITE, tMs(t0, Clock::now()));
 
             // SMAA 1x on the composite (LDR, perceptual) — edge detect, blend
             // weights.
+            t0 = Clock::now();
             bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer, "smaa_edge");
             bglRenderer.beginSmaaEdgePass(primaryCommandBuffer);
             smaaEdgeRenderSystem.render(frameInfo, compositeHandle);
@@ -619,11 +639,14 @@ void Application::run()
                                           smaaLuts.searchTex);
             bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
             bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
+            recordSection(S_SMAA, tMs(t0, Clock::now()));
 
             // SMAA pass 3 / present: neighborhood-blend composite + weights ->
             // swapchain, then overlays + ImGui. Blend is disabled (passthrough) when
             // SMAA is off or a debug view is active, so those show the raw composite.
-
+            // Also covers the ImGui *Vulkan* recording — distinct from the S_IMGUI
+            // section above, which is ImGui building its draw data on the CPU.
+            t0 = Clock::now();
             bglRenderer.blitGBufferDepthToSwapchain(primaryCommandBuffer);
             bglDevice.BeginDebugUtilsLabel(primaryCommandBuffer,
                                            "smaa_neighborhood/present");
@@ -650,7 +673,7 @@ void Application::run()
                                             primaryCommandBuffer);
             bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
             bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
-            recordSection(S_COMPOSITE, tMs(t0, Clock::now()));
+            recordSection(S_SWAPCHAIN, tMs(t0, Clock::now()));
 
             t0 = Clock::now();
             bglRenderer.endPrimaryCMD();
