@@ -37,8 +37,7 @@ namespace bagel {
 
 	void GBufferRenderSystem::renderEntities(FrameInfo& frameInfo)
 	{
-		Frustum frustum;
-		frustum.extractFromVP(frameInfo.camera.getProjection() * frameInfo.camera.getView());
+		const Frustum& frustum = frameInfo.cameraFrustum;
 
 		bglPipeline->bind(frameInfo.commandBuffer);
 		vkCmdBindDescriptorSets(

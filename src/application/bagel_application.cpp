@@ -513,6 +513,10 @@ void Application::run()
                 registry,
                 fallbackAlbedoMap};
 
+            // Once per frame, ahead of every render system. The camera is final by here:
+            // input, hierarchy, physics and the UBO update are all behind us.
+            frameInfo.cameraFrustum.extractFromVP(camera.getProjection() * camera.getView());
+
             int frameIdx = bglRenderer.getFrameIndex();
             uboBuffers->writeToIndex(&ubo, frameIdx);
             uboBuffers->flushIndex(frameIdx);

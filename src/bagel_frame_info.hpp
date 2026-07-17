@@ -6,6 +6,7 @@
 #include <cstddef>
 #include "entt.hpp"
 #include "engine/bagel_engine_config.hpp"
+#include "math/bagel_math.hpp"
 #define MAX_MODELS
 
 namespace bagel {
@@ -37,6 +38,10 @@ namespace bagel {
 		VkDescriptorSet globalDescriptorSets;
 		entt::registry& registry;
 		uint32_t fallbackAlbedoMap = 0;
+		// Camera view-frustum planes. Extracted once by the application right after this
+		// struct is built, before any render system runs — do not re-extract per system.
+		// Shadow systems are the exception: they cull against the light's VP, not this.
+		Frustum cameraFrustum{};
 	};
 	// UBO struct for pre-composition stage of deferred rendering. Feed in color, position, etc
 	struct GlobalUBO {

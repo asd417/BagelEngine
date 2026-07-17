@@ -27,7 +27,6 @@ GBufferRenderSystem::GBufferRenderSystem(
     depthsFormat = swapchain.findDepthFormat();
     std::cout << "Creating GBuffer Render System\n";
     createSampler();
-    createRenderPass();
 }
 GBufferRenderSystem::~GBufferRenderSystem()
 {
@@ -202,12 +201,20 @@ void GBufferRenderSystem::beginRenderPass()
 
 // Runs on the worker thread. worker() has begun the command buffer and entered the render
 // pass, but binds no pipeline and no descriptor set — both are this function's job.
-// TODO: bglPipelines[i]->bind(commandBuffer) + vkCmdBindDescriptorSets(set 0) are still
-// missing here, so the draws below currently record against no bound pipeline.
 void GBufferRenderSystem::render(const FrameInfo *frameInfo)
 {
-    Frustum frustum;
-    frustum.extractFromVP(frameInfo->camera.getProjection() * frameInfo->camera.getView());
+    const Frustum &frustum = frameInfo->cameraFrustum;
+
+    // Set 0 is the single bindless set for the whole frame; the app already resolved it to
+    // this frame's copy. Per-draw variation rides in the push constants below, not here.
+    bglPipelines[0]->bind(commandBuffer);
+    vkCmdBindDescriptorSets(
+        commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        pipelineLayout,
+        0, 1,
+        &frameInfo->globalDescriptorSets,
+        0, nullptr);
 
     VkDeviceSize offsets[] = {0};
 

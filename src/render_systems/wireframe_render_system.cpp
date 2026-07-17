@@ -220,8 +220,7 @@ namespace bagel {
 
 	void WireframeRenderSystem::renderModelsWireframe(FrameInfo& frameInfo)
 	{
-		Frustum frustum;
-		frustum.extractFromVP(frameInfo.camera.getProjection() * frameInfo.camera.getView());
+		const Frustum& frustum = frameInfo.cameraFrustum;
 
 		modelWirePipeline->bind(frameInfo.commandBuffer);
 		vkCmdBindDescriptorSets(

@@ -108,6 +108,7 @@ file(GLOB ENGINE_RENDERER "${PROJECT_SOURCE_DIR}/src/engine/renderer/*.cpp" "${P
 file(GLOB COMPUTE_SYSTEMS "${PROJECT_SOURCE_DIR}/src/compute_systems/*.cpp" "${PROJECT_SOURCE_DIR}/src/compute_systems/*.hpp")
 file(GLOB RENDERSYSTEM 	"${PROJECT_SOURCE_DIR}/src/render_systems/*.cpp" "${PROJECT_SOURCE_DIR}/src/render_systems/*.hpp")
 file(GLOB RENDERSYSTEM_THREADED "${PROJECT_SOURCE_DIR}/src/render_systems/threaded/*.cpp" "${PROJECT_SOURCE_DIR}/src/render_systems/threaded/*.hpp")
+file(GLOB RENDERSYSTEM_NEW "${PROJECT_SOURCE_DIR}/src/render_systems/new/*.cpp" "${PROJECT_SOURCE_DIR}/src/render_systems/new/*.hpp")
 file(GLOB PHYSICS 	"${PROJECT_SOURCE_DIR}/src/physics/*.cpp" "${PROJECT_SOURCE_DIR}/src/physics/*.hpp")
 file(GLOB MATH		"${PROJECT_SOURCE_DIR}/src/math/*.cpp" "${PROJECT_SOURCE_DIR}/src/math/*.hpp")
 file(GLOB MODEL		"${PROJECT_SOURCE_DIR}/src/model/*.cpp" "${PROJECT_SOURCE_DIR}/src/model/*.hpp")
@@ -136,6 +137,7 @@ add_executable(${PROJECT_NAME}
   ${COMPUTE_SYSTEMS}
 	${RENDERSYSTEM}
 	${RENDERSYSTEM_THREADED}
+	${RENDERSYSTEM_NEW}
 	${PHYSICS}
 	${MATH}
 	${MODEL}

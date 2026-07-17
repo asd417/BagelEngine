@@ -1,31 +1,23 @@
-#include "render_systems/threaded/bagel_threaded_render_system.hpp"
+#include "render_systems/new/bagel_render_system.hpp"
 #include <cassert>
-#include <iostream>
+#include <iostream> // VK_CHECK expands to std::cout
 #include <stdexcept>
 #include <vulkan/vulkan_core.h>
 
 #include "bagel_util.hpp"
 #include "engine/bagel_engine_device.hpp"
 #include "engine/bagel_pipeline.hpp"
-#include <exception>
 
-namespace bagel::threaded
+namespace bagel::newdesign
 {
-BGLThreadedRenderSystem::BGLThreadedRenderSystem(BGLDevice &device) : bglDevice(device), stopRequested(false)
-{
-    thread = std::thread(&BGLThreadedRenderSystem::worker, this);
-};
-BGLThreadedRenderSystem::~BGLThreadedRenderSystem()
+BGLRenderSystem::BGLRenderSystem(BGLDevice &device) : bglDevice(device) {};
+BGLRenderSystem::~BGLRenderSystem()
 {
     assert(shutdownComplete && "shutdown() must be called in the inherited class destructor");
-    // Release-build safety net: without this, a subclass that forgets shutdown() reaches
-    // ~std::thread while still joinable, which is an unconditional std::terminate().
-    // Cannot save the derived attachments — they are already gone by now — but a leak beats a crash.
+    // Release-build safety net for a subclass that forgets shutdown(). It cannot save the
+    // derived attachments — those were freed without a wait when the derived destructor ran —
+    // but it still gets the GPU idle before the base tears down its own objects below.
     shutdown();
-    if (commandPool != VK_NULL_HANDLE)
-    {
-        vkDestroyCommandPool(BGLDevice::device(), commandPool, nullptr);
-    }
     if (pipelineLayout != VK_NULL_HANDLE)
     {
         vkDestroyPipelineLayout(BGLDevice::device(), pipelineLayout, nullptr);
@@ -37,30 +29,27 @@ BGLThreadedRenderSystem::~BGLThreadedRenderSystem()
         renderPass = VK_NULL_HANDLE;
     }
 };
-void BGLThreadedRenderSystem::init(BGLDevice &device, VkDescriptorSetLayout setLayout, const std::vector<PipelineDef> &pipelines, VkExtent2D extent)
+void BGLRenderSystem::init(VkDescriptorSetLayout setLayout, const std::vector<PipelineDef> &pipelines, VkExtent2D extent)
 {
     createRenderPass();
     createFrameBuffer(extent);
-    createCommandPool(device);
-    createCommandBuffer(device);
     createPipelines(setLayout, pipelines);
     initialized = true;
 }
-void BGLThreadedRenderSystem::shutdown()
+void BGLRenderSystem::shutdown()
 {
     if (shutdownComplete)
         return;                            // idempotent — the base dtor calls this again as a safety net
-    stopThread();                          // join
     vkDeviceWaitIdle(BGLDevice::device()); // nothing may be freed while the GPU still reads it
     shutdownComplete = true;
 }
-void BGLThreadedRenderSystem::recreateFrameBuffer(VkExtent2D extent)
+void BGLRenderSystem::recreateFrameBuffer(VkExtent2D extent)
 {
     destroyFrameBuffer();
     destroyFrameBufferAttachments();
     createFrameBuffer(extent);
 }
-void BGLThreadedRenderSystem::destroyFrameBuffer()
+void BGLRenderSystem::destroyFrameBuffer()
 {
     if (frameBuffer != VK_NULL_HANDLE)
     {
@@ -68,34 +57,7 @@ void BGLThreadedRenderSystem::destroyFrameBuffer()
         frameBuffer = VK_NULL_HANDLE;
     }
 }
-void BGLThreadedRenderSystem::createCommandPool(BGLDevice &device)
-{
-    QueueFamilyIndices queueFamilyIndices = device.findPhysicalQueueFamilies();
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
-    if (vkCreateCommandPool(device.device(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-    {
-        // Runs on the main thread via init(); throwing here propagates normally.
-        throw std::runtime_error("failed to create command pool!");
-    }
-}
-void BGLThreadedRenderSystem::createCommandBuffer(BGLDevice &device)
-{
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = commandPool;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = 1;
-
-    if (vkAllocateCommandBuffers(device.device(), &allocInfo, &commandBuffer) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate command buffers!");
-    }
-}
-// Default argument for PipelineConfigInfoModifier lives on the declaration in the header.
-void BGLThreadedRenderSystem::createPipelines(VkDescriptorSetLayout setLayout, const std::vector<PipelineDef> &pipelines)
+void BGLRenderSystem::createPipelines(VkDescriptorSetLayout setLayout, const std::vector<PipelineDef> &pipelines)
 {
     bglPipelines.resize(pipelines.size());
     size_t maxPushSize = 0;
@@ -144,7 +106,7 @@ void BGLThreadedRenderSystem::createPipelines(VkDescriptorSetLayout setLayout, c
     pipelineCount = static_cast<uint32_t>(pipelines.size());
 }
 
-void BGLThreadedRenderSystem::createAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment *attachment, uint32_t width, uint32_t height)
+void BGLRenderSystem::createAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment *attachment, uint32_t width, uint32_t height)
 {
     VkImageAspectFlags aspectMask = 0;
     // VkImageLayout imageLayout;
@@ -207,84 +169,12 @@ void BGLThreadedRenderSystem::createAttachment(VkFormat format, VkImageUsageFlag
     imageView.image = attachment->image;
     VK_CHECK(vkCreateImageView(BGLDevice::device(), &imageView, nullptr, &attachment->view));
 }
-void BGLThreadedRenderSystem::stopThread()
+void BGLRenderSystem::run(const FrameInfo &frameInfo)
 {
-    if (threadStopped)
-        return; // idempotent — safe to call more than once
-    // Signal the thread to stop
-    stopRequested = true;
-
-    // Wake up the thread if it's sleeping/waiting on a condition variable
-    cv.notify_all();
-    // BLOCK the main thread until the worker thread has completely finished executing.
-    // If we don't do this, the class memory gets destroyed while the thread is still running!
-    if (thread.joinable())
-    {
-        thread.join();
-    }
-    threadStopped = true;
-}
-void BGLThreadedRenderSystem::worker()
-{
-    while (true)
-    {
-        std::unique_lock lk(mutex);
-        cv.wait(lk, [this]
-                { return threadReady || stopRequested; });
-        if (stopRequested)
-            return; // kill thread for good
-        threadReady = false;
-        try
-        {
-            VkCommandBufferBeginInfo cbinfo = {};
-            cbinfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            cbinfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-            vkBeginCommandBuffer(commandBuffer, &cbinfo);
-            beginRenderPass();
-            this->render(frameInfo);
-            vkCmdEndRenderPass(commandBuffer);
-            if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-            {
-                throw std::runtime_error("failed to record command buffer!");
-            }
-        }
-        catch (...)
-        {
-            // Never let an exception escape the worker thread — that calls std::terminate().
-            // Stash it; wait() rethrows it on the main thread.
-            workerError = std::current_exception();
-        }
-        threadProcessed = true;
-        lk.unlock();
-        cv.notify_one();
-    }
-}
-void BGLThreadedRenderSystem::run(FrameInfo &_frameInfo)
-{
-    assert(initialized && "ThreadedRenderSystem must be intialized with init() before run()");
+    assert(initialized && "BGLRenderSystem must be initialized with init() before run()");
     assert(pipelineCount != 0 && "createPipelines() must be called before run()");
-    {
-        std::lock_guard lk(mutex);
-        threadReady = true;
-        frameInfo = &_frameInfo;
-    } // unlock called automatically here whatever happens
-    cv.notify_one();
+    beginRenderPass(frameInfo.commandBuffer);
+    this->render(frameInfo);
+    vkCmdEndRenderPass(frameInfo.commandBuffer);
 }
-void BGLThreadedRenderSystem::wait()
-{
-    // wait for the worker
-    {
-        std::unique_lock lk(mutex);
-        cv.wait(lk, [this]
-                { return threadProcessed; });
-        threadProcessed = false;
-    }
-    // Surface any exception the worker captured, on the main thread.
-    if (workerError)
-    {
-        std::exception_ptr e = workerError;
-        workerError = nullptr;
-        std::rethrow_exception(e);
-    }
-}
-} // namespace bagel::threaded
+} // namespace bagel::newdesign
