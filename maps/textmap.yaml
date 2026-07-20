@@ -1,0 +1,70 @@
+# Human-readable static map (Source-style entities). Loaded by TextMap::load.
+#
+#   prefabs  = entity CLASSES (like an FGD): each lists the components it stamps,
+#              with $placeholders filled per instance.
+#   entities = INSTANCES (like a VMF): each picks a class and supplies the values.
+#
+# Coordinates are engine world space (Y is down). Rotations are in DEGREES.
+
+prefabs:
+  # A static prop: a model with a transform. The bread-and-butter map entity.
+  prop_static:
+    - {
+        type: TransformComponent,
+        position: $position,
+        rotation: $rotation,
+        scale: $scale,
+      }
+    - { type: ModelComponent, source: $model, mergesolidsubmeshes: $merge }
+
+  # An omni point light. Needs a TransformComponent for its world position.
+  light_point:
+    - { type: TransformComponent, position: $position }
+    - { type: PointLightComponent, color: $color, lux: $lux }
+
+  # The sun / sky light. Directional: no position, just an orientation (degrees).
+  light_directional:
+    - {
+        type: DirectionalLightComponent,
+        rotation: $rotation,
+        color: $color,
+        lux: $lux,
+      }
+
+  # Where the free-fly camera starts. No components — reported back to the app.
+  info_player_start:
+    - { type: PlayerStart, position: $position, rotation: $rotation }
+
+entities:
+  - class: info_player_start
+    position: [0, -3, -8]
+    rotation: [0, 0, 0]
+
+  - class: light_directional
+    rotation: [-152, 30, 0]
+    color: [0.6, 0.6, 0.2]
+    lux: 2000
+
+  - class: prop_static
+    model: /models/sponza/Sponza.gltf
+    position: [0, 0, 0]
+    rotation: [0, 0, 0]
+    scale: [0.01, 0.01, 0.01]
+    merge: false
+
+  - class: prop_static
+    model: /models/chinesedragon.gltf
+    position: [0, -2, 4]
+    rotation: [90, 0, 0]
+    scale: [0.3, 0.3, 0.3]
+    merge: true
+
+  - class: light_point
+    position: [0, -4, 0]
+    color: [1.0, 0.9, 0.8]
+    lux: 800
+
+  - class: light_point
+    position: [4, -4, 4]
+    color: [0.3, 0.5, 1.0]
+    lux: 600

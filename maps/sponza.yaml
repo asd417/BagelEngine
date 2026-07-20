@@ -1,0 +1,32 @@
+# Sponza scene (buildScene case 1) as a text map: the Sponza atrium + the shared
+# 6-point-light ring and directional "sun". Load with:  textmap sponza
+# Coordinates are engine world space (Y is down). Rotations are in DEGREES.
+
+prefabs:
+  prop_static:
+    - { type: TransformComponent, position: $position, rotation: $rotation, scale: $scale }
+    - { type: ModelComponent, source: $model, mergesolidsubmeshes: $merge }
+  light_point:
+    - { type: TransformComponent, position: $position }
+    - { type: PointLightComponent, color: $color, lux: $lux }
+  light_directional:
+    - { type: DirectionalLightComponent, rotation: $rotation, color: $color, lux: $lux }
+  info_player_start:
+    - { type: PlayerStart, position: $position, rotation: $rotation }
+
+entities:
+  - { class: info_player_start, position: [0, -3, -8], rotation: [0, 0, 0] }
+
+  # createDirectionalLight()
+  - { class: light_directional, rotation: [-152, 30, 0], color: [0.6, 0.6, 0.2], lux: 2000 }
+
+  # createLights(): 6 point lights on a radius-3 ring, y=1, one per color.
+  - { class: light_point, position: [ 3.0, 1,  0.0  ], color: [1.0, 0.1, 0.1], lux: 800 }
+  - { class: light_point, position: [ 1.5, 1,  2.598], color: [0.1, 0.1, 1.0], lux: 800 }
+  - { class: light_point, position: [-1.5, 1,  2.598], color: [0.1, 1.0, 0.1], lux: 800 }
+  - { class: light_point, position: [-3.0, 1,  0.0  ], color: [1.0, 1.0, 0.1], lux: 800 }
+  - { class: light_point, position: [-1.5, 1, -2.598], color: [0.1, 1.0, 1.0], lux: 800 }
+  - { class: light_point, position: [ 1.5, 1, -2.598], color: [1.0, 1.0, 1.0], lux: 800 }
+
+  # loadSponza(): kept as per-submesh (merge=false) for frustum culling, scale 0.01.
+  - { class: prop_static, model: /models/sponza/Sponza.gltf, position: [0, 0, 0], rotation: [0, 0, 0], scale: [0.01, 0.01, 0.01], merge: false }

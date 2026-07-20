@@ -75,6 +75,12 @@ namespace bagel {
 			// Only opaque submeshes cast shadows; transparent ones (e.g. the planet's ocean) must not.
 			for (uint32_t i = 0; i < model.mesh().solidSubmeshCount; i++) {
 				const Model::Submesh& sm = model.mesh().submeshes[i];
+				// Per-submesh cull against THIS cascade (mirrors the gbuffer pass). The whole-model
+				// test above only rejects casters fully outside the cascade; a large model like Sponza
+				// straddles it, so without this every submesh gets a drawcall that vertex-clips to
+				// nothing — the empty shadow-pass draws visible in RenderDoc.
+				if (model.frustumCull && !cascadeFrustum.testAABB(sm.aabbMin, sm.aabbMax, modelMatrix))
+					continue;
 				if (model.mesh().indexCount > 0)
 					vkCmdDrawIndexed(frameInfo.commandBuffer, sm.indexCount, 1, sm.firstIndex, 0, 0);
 				else

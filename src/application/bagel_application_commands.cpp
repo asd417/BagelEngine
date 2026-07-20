@@ -21,6 +21,7 @@ namespace bagel {
 		CONSOLE->AddCommand("R_SMAA", this, ConsoleCommand::ToggleSmaa);
 		CONSOLE->AddCommandWithArg("EDITMODE", this, ConsoleCommand::SetEditMode);
 		CONSOLE->AddCommandWithArg("MAP", this, ConsoleCommand::LoadMap);
+		CONSOLE->AddCommandWithArg("TEXTMAP", this, ConsoleCommand::LoadTextMap);
 		// Keybinds (Source-style): bind/unbind any console command to a key. No default binds —
 		// the grave/UI-toggle stays hard-coded in run() so it's always available. (TOGGLEUI is
 		// still registered so it can be bound to a *different* key if desired.)

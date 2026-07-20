@@ -6,9 +6,14 @@
 // back through ConsoleApp::Run, so anything you can type in the console can be a
 // hotkey — replacing scattered hard-coded glfwGetKey checks.
 //
-// GLFW is already included (with Vulkan) by bagel_window.hpp before this header is
-// pulled in via bagel_application.hpp, so a plain include here is a no-op re-include.
+// Define GLFW_INCLUDE_VULKAN here too, not just in bagel_window.hpp. glfw3.h has an include
+// guard, so whichever header pulls it in FIRST decides whether Vulkan comes with it — and the
+// order is not guaranteed: clang-format / format-on-save alphabetically sorts the include block in
+// bagel_application.hpp, which can place this header before bagel_window.hpp. Without the define
+// here, a keybinds-first order includes glfw3.h without Vulkan, and bagel_window.hpp's later
+// GLFW_INCLUDE_VULKAN re-include is a no-op -> VkInstance/VkSurfaceKHR undefined.
 // -----------------------------------------------------------------------------
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #include <string>

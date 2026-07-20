@@ -26,6 +26,8 @@ namespace ConsoleCommand {
 	const char* ToggleSmaa(void* ptr);
 	// map <name>  ??load /maps/<name>.bmap by name (unloads current scene + rehydrates GPU state).
 	const char* LoadMap(void* ptr, const char* args);
+		// textmap <name>  -- build /maps/<name>.yaml, a human-readable static map (unloads current scene).
+		const char* LoadTextMap(void* ptr, const char* args);
 	// editmode <0|1>  ??toggle the bone-posing gizmo edit mode (same as the G hotkey).
 	const char* SetEditMode(void* ptr, const char* args);
 	// r_drawmode <n>  ??0=composite 1=albedo 2=normals 3=position 4=roughness 5=metallic

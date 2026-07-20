@@ -208,6 +208,13 @@ namespace bagel {
 				std::vector<glm::mat4> restPalette(play.jointCount);
 				resolvePalette(skel, skel.restPose, restPalette.data());
 				play.paletteBase = pSkinManager->uploadPalette(restPalette.data(), play.jointCount);
+				// Clip-less rig (e.g. the IK leg): present the single uploaded rest-pose palette as a
+				// 1-frame clip and stop playback. Otherwise clipFrameCount stays 0, animBaseOffset()'s
+				// frame clamp is skipped, and advancing `time` runs the palette index off the end of
+				// the one uploaded frame — reading garbage matrices and collapsing the mesh to origin.
+				play.clipFrameBase  = 0;
+				play.clipFrameCount = 1;
+				play.playing        = false;
 			} else {
 				play.paletteBase = 0;
 			}

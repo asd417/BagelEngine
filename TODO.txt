@@ -1,3 +1,16 @@
 SSAO
 
-BOX3d
+lighting looks bad
+    ssao would fix that
+
+textmap loading is not complete
+    probably should not call it textmap either
+    it's an fgd-like system where I define preset components to build source-engine-equivalent entities with components.
+
+separating the render thread?
+    entt registry reading on a separate thread?
+    each property being an array so that the render thread is double, triple buffered.
+
+TerrainDiffusion
+    based on the paper, implement the thing
+

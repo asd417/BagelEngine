@@ -13,6 +13,7 @@ namespace bagel {
 		void OnUpdate(BGLCamera& camera, float dt) override;
 		void OnDrawGui() override;   // draws the Maps panel (build / save / load)
 		std::string consoleLoadMap(const std::string& name) override; // "map <name>" console command
+		std::string consoleLoadTextMap(const std::string& name) override; // "textmap <name>" console command
 
 	private:
 		// Scene content (each builds its own lights so it stands alone after a clear)
@@ -24,6 +25,8 @@ namespace bagel {
 		// single-model scene below; settings carries per-model tweaks (e.g. submesh merge).
 		void loadModel(const char* path, float scale, ModelLoadSettings settings = {});
 		void loadSponza();
+		void loadSponzaStress(); // 1000 Sponzas on a grid — draw-call / culling stress test
+		void loadSponzaInstanced(); // same grid, but ONE entity via TransformArrayComponent (instanced)
 		void loadDragon();
 		void loadMonkeyBone();   // skinned/bone-animated test model
 		void loadIKLeg();
@@ -38,6 +41,7 @@ namespace bagel {
 		void saveCurrentMap();          // serialize current registry to maps/<name>.bmap
 		void loadMap(int index);        // load from disk (if it exists) + rehydrate
 		bool loadMapFromPath(const std::string& path, const std::string& name); // shared load+rehydrate
+		bool loadTextMap(const std::string& name); // build /maps/<name>.yaml (human-readable static map) live
 		void logDescriptorUsage();      // print bindless slot usage after a scene loads
 		static const char* mapName(int index);
 		std::string        mapPath(int index) const;

@@ -13,6 +13,7 @@
 #include <glm/glm.hpp>
 #include "ecs/bagel_ecs_components.hpp"
 #include "physics/bagel_jolt.hpp"   // BGLJolt singleton for the inspector's sleep controls
+#include "pose_gizmo.hpp"           // PoseGizmo: the registry panel toggles pose-edit mode
 
 namespace bagel {
     
@@ -62,12 +63,52 @@ namespace bagel {
 
     // Live registry inspector: lists every entity and the components it carries, with
     // a few editable fields. Read-mostly debug view of the ECS world.
-    inline void DrawRegistryPanel(entt::registry& registry) {
+    inline void DrawRegistryPanel(entt::registry& registry, PoseGizmo& gizmo) {
         ImGui::Begin("Registry");
 
+        // .each() bounds to LIVE entities. Plain range-for over the entity storage also walks
+        // released/recycled slots (swap-only deletion keeps them in the packed array, and
+        // registry.clear() on scene switch never shrinks it), which would over-count — e.g. still
+        // reporting ~1000 after loading Sponza x1000 once and switching to a small scene.
         int total = 0;
-        for (auto e : registry.storage<entt::entity>()) { (void)e; ++total; }
+        for (auto [e] : registry.storage<entt::entity>().each()) { (void)e; ++total; }
         ImGui::Text("Entities: %d", total);
+        ImGui::Separator();
+
+        // ---- Pose edit mode -------------------------------------------------------------
+        // Toggles the PoseGizmo (same as the G hotkey / `editmode` console command). Enabling it
+        // latches onto the first skinned entity and flips its manualPose on so draws read the
+        // hand-edited pose. The keyboard reference below mirrors PoseGizmo::update().
+        {
+            const bool editing = gizmo.editModeOn();
+            if (editing) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.60f, 0.30f, 0.10f, 1.0f));
+            if (ImGui::Button(editing ? "Exit Pose Edit Mode (G)" : "Enter Pose Edit Mode (G)"))
+                gizmo.setEditMode(!editing);
+            if (editing) ImGui::PopStyleColor();
+
+            if (editing) {
+                if (gizmo.targetEntity() == entt::null)
+                    ImGui::TextColored(ImVec4(1.f, 0.7f, 0.2f, 1.f), "No skinned model in scene to pose");
+                else {
+                    const char* jn = gizmo.selectedJointName();
+                    ImGui::Text("Mode: %s | Space: %s | Joint: %s",
+                        gizmo.mode() == GizmoMode::Translate ? "Translate" : "Rotate",
+                        gizmo.localSpaceOn() ? "Local" : "World",
+                        (jn && jn[0]) ? jn : "(none)");
+                }
+            }
+
+            if (ImGui::CollapsingHeader("Edit mode shortcuts")) {
+                ImGui::BulletText("G                    Toggle pose edit mode");
+                ImGui::BulletText("T                    Translate handles");
+                ImGui::BulletText("R                    Rotate handles");
+                ImGui::BulletText("L                    Toggle local / world axes");
+                ImGui::BulletText("Left-click           Select joint / grab a handle");
+                ImGui::BulletText("Shift + Left-click   Add/remove joint (multi-select)");
+                ImGui::BulletText("Left-drag arrow/ring Move / rotate the selection");
+                ImGui::BulletText("Left-click empty     Clear selection");
+            }
+        }
         ImGui::Separator();
 
         auto drawModel = [](const char* label, ModelComponent& m) {
@@ -86,7 +127,7 @@ namespace bagel {
         // storage view), so remember the target and destroy it after the loop.
         entt::entity toDelete = entt::null;
 
-        for (auto entity : registry.storage<entt::entity>()) {
+        for (auto [entity] : registry.storage<entt::entity>().each()) { // live entities only (see count above)
             // Show the recycled index (low bits) rather than the packed identifier, whose high
             // bits hold the version that climbs every time a slot is destroyed and reused.
             const uint32_t idx = static_cast<uint32_t>(entt::entt_traits<entt::entity>::to_entity(entity));

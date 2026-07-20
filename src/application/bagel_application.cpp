@@ -191,6 +191,18 @@ void Application::updateDirectionalUBO(entt::registry &registry, GlobalUBO &ubo,
     }
 }
 
+void Application::ensureViewerEntity()
+{
+    if (registry.valid(viewerEntity))
+        return;
+    // Registry was cleared (boot's OnSceneLoad, or a scene switch). Rebuild the viewer and
+    // restore its last pose so the camera doesn't snap back to the default spawn.
+    viewerEntity = registry.create();
+    TransformComponent &tc = registry.emplace<TransformComponent>(viewerEntity);
+    tc.setTranslation(viewerPosCache);
+    tc.setRotation(viewerRotCache);
+}
+
 void Application::run()
 {
     VkDeviceSize uboAlignment =
@@ -308,8 +320,9 @@ void Application::run()
     // Store the handle, never a reference: entt removes components by swap-and-pop, so a
     // long-lived TransformComponent& silently starts aliasing whichever component gets
     // moved into its slot. Re-resolve with registry.get() each frame instead.
-    entt::entity viewerEntity = registry.create();
-    registry.emplace<TransformComponent>(viewerEntity).setTranslation({0.0f, -3.0f, 0.0f});
+    // The viewer is (re)created by ensureViewerEntity() — OnSceneLoad() below, and every
+    // later scene switch, calls Map::unload()->registry.clear(), which would destroy a
+    // viewer created here. So we create it lazily at the top of the loop instead.
     KeyboardMovementController cameraController{};
 
     auto frameCurrentTime = Clock::now(); // same clock as frameLastTime (they're
@@ -396,7 +409,10 @@ void Application::run()
         totalTime += frameTime;
 
         auto t0 = Clock::now();
-        // Resolved fresh each frame — see the note at viewerEntity's creation.
+        // Resolved fresh each frame — see the note at viewerEntity's creation. A scene switch
+        // (Maps panel / map load) clears the registry mid-frame and destroys the viewer, so
+        // rebuild it here before the get() rather than holding a stale handle.
+        ensureViewerEntity();
         TransformComponent &viewerComp =
             registry.get<TransformComponent>(viewerEntity);
         // A scene can request a one-shot camera teleport (e.g. to frame the
@@ -406,12 +422,24 @@ void Application::run()
             viewerComp.setTranslation(spawnCameraPos);
             spawnCameraPosDirty = false;
         }
+        // Parallel one-shot for the camera's orientation (radians, YXZ euler). A scene sets it via
+        // setSpawnCameraRot() to aim the spawn view (e.g. a text map's info_player_start); left
+        // untouched, the viewer keeps its carried-over rotation.
+        if (spawnCameraRotDirty)
+        {
+            viewerComp.setRotation(spawnCameraRot);
+            spawnCameraRotDirty = false;
+        }
         if (freeFly)
             cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime,
                                            viewerComp, 0);
         camera.setViewYXZ(viewerComp.getTranslation(), viewerComp.getRotation());
         cameraWorldPos =
             viewerComp.getTranslation(); // expose to OnUpdate (planet LOD, etc.)
+        // Snapshot the pose so ensureViewerEntity() can restore it after a scene switch
+        // (which clears the registry and destroys this entity later in the frame).
+        viewerPosCache = viewerComp.getTranslation();
+        viewerRotCache = viewerComp.getRotation();
         glm::vec3 camFwd = -glm::vec3(
             camera.getInverseView()[2]);             // camera images along -w of its basis
         float aspect = bglRenderer.getAspectRatio(); // aspect ratio might change
@@ -463,9 +491,12 @@ void Application::run()
 
         t0 = Clock::now();
         GlobalUBO ubo{};
+        // The camera is final by this point, so this VP serves both the UBO below and the
+        // frustum extraction once the frame's FrameInfo exists.
+        const glm::mat4 cameraVP = camera.getProjection() * camera.getView();
         ubo.updateCameraInfo(
             camera.getProjection(), camera.getView(), camera.getInverseView(),
-            glm::inverse(camera.getProjection() * camera.getView()), exposure);
+            glm::inverse(cameraVP), exposure);
         pointLightSystem.update(ubo, 0);
         updateDirectionalUBO(registry, ubo, cameraWorldPos, camFwd, aspect);
         recordSection(S_UBO, tMs(t0, Clock::now()));
@@ -513,9 +544,8 @@ void Application::run()
                 registry,
                 fallbackAlbedoMap};
 
-            // Once per frame, ahead of every render system. The camera is final by here:
-            // input, hierarchy, physics and the UBO update are all behind us.
-            frameInfo.cameraFrustum.extractFromVP(camera.getProjection() * camera.getView());
+            // Once per frame, ahead of every render system.
+            frameInfo.cameraFrustum.extractFromVP(cameraVP);
 
             int frameIdx = bglRenderer.getFrameIndex();
             uboBuffers->writeToIndex(&ubo, frameIdx);

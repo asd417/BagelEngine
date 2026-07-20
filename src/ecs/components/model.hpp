@@ -230,7 +230,12 @@ struct AnimationPlaybackComponent
             return dynamicPaletteBase; // hand-posed: read the dynamic region
         const uint32_t frames = clipFrameCount;
         uint32_t frame = (fps > 0.0f) ? static_cast<uint32_t>(time * fps) : 0;
-        if (frames > 0 && frame >= frames)
+        // Clamp into the clip's frame window. With no baked frames (frames==0) there is nothing to
+        // index past frame 0 — without this guard the frame index runs away and reads unwritten
+        // palette memory (collapsing clip-less skinned meshes to the origin).
+        if (frames == 0)
+            frame = 0;
+        else if (frame >= frames)
             frame = frames - 1;
         return paletteBase + (clipFrameBase + frame) * jointCount;
     }

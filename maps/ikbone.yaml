@@ -1,0 +1,34 @@
+# IK leg scene (buildScene case 5) as a text map: the clip-less skinned IK test rig.
+# pose: manual brings it up hand/IK-poseable (edit mode / gizmo to move it). textmap ikbone
+# Coordinates are engine world space (Y is down). Rotations are in DEGREES.
+
+prefabs:
+  # Animated/skinned prop (Source-style prop_dynamic). ModelComponent's builder auto-attaches
+  # the skin + animation; DefaultAnimation (after ModelComponent) selects clip / pose mode.
+  #   clip: numeric index or clip name; pose: auto (play the clip) | manual (hand/IK-posed).
+  prop_dynamic:
+    - { type: TransformComponent, position: $position, rotation: $rotation, scale: $scale }
+    - { type: ModelComponent, source: $model, mergesolidsubmeshes: $merge }
+    - { type: DefaultAnimation, clip: $clip, pose: $pose }
+  light_point:
+    - { type: TransformComponent, position: $position }
+    - { type: PointLightComponent, color: $color, lux: $lux }
+  light_directional:
+    - { type: DirectionalLightComponent, rotation: $rotation, color: $color, lux: $lux }
+  info_player_start:
+    - { type: PlayerStart, position: $position, rotation: $rotation }
+
+entities:
+  - { class: info_player_start, position: [0, -3, -8], rotation: [0, 0, 0] }
+
+  - { class: light_directional, rotation: [-152, 30, 0], color: [0.6, 0.6, 0.2], lux: 2000 }
+
+  - { class: light_point, position: [ 3.0, 1,  0.0  ], color: [1.0, 0.1, 0.1], lux: 800 }
+  - { class: light_point, position: [ 1.5, 1,  2.598], color: [0.1, 0.1, 1.0], lux: 800 }
+  - { class: light_point, position: [-1.5, 1,  2.598], color: [0.1, 1.0, 0.1], lux: 800 }
+  - { class: light_point, position: [-3.0, 1,  0.0  ], color: [1.0, 1.0, 0.1], lux: 800 }
+  - { class: light_point, position: [-1.5, 1, -2.598], color: [0.1, 1.0, 1.0], lux: 800 }
+  - { class: light_point, position: [ 1.5, 1, -2.598], color: [1.0, 1.0, 1.0], lux: 800 }
+
+  # loadIKLeg(): loadModel(ikbone.glb, 1.0). Clip-less IK rig — bring it up hand-poseable.
+  - { class: prop_dynamic, model: /models/ikleg/ikbone.glb, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], merge: true, pose: manual }

@@ -140,6 +140,15 @@ namespace ConsoleCommand {
 		snprintf(response, sizeof(response), "%s", msg.c_str());
 		return response;
 	}
+	// textmap <name>  -- build /maps/<name>.yaml (human-readable static map) into the live scene.
+	const char* LoadTextMap(void* ptr, const char* args)
+	{
+		static char response[256];
+		Application* app = static_cast<Application*>(ptr);
+		const std::string msg = app->consoleLoadTextMap(args ? args : "");
+		snprintf(response, sizeof(response), "%s", msg.c_str());
+		return response;
+	}
 	// editmode <0|1>  ??toggle the bone-posing gizmo edit mode (same as the G hotkey).
 	const char* SetEditMode(void* ptr, const char* args)
 	{
