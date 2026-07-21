@@ -219,8 +219,8 @@ namespace bagel
 		VkBuffer indexBuffer = VK_NULL_HANDLE;
 		VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
 		VkDeviceMemory indexMemory = VK_NULL_HANDLE;
-		void *mappedVB = nullptr; // host-visible vertex buffer mapped here (dynamic/deformable)
-		void *mappedIB = nullptr; // host-visible index buffer mapped here
+		void *mappedVB = nullptr; // persistent map of a CPU-writable vertex buffer (dynamic/deformable); null if staged
+		void *mappedIB = nullptr; // persistent map of a CPU-writable index buffer; null if staged
 
 		uint32_t indexCount = 0;
 		uint32_t vertexCount = 0;

@@ -14,7 +14,7 @@
 #include "render_systems/composit_render_system.hpp"
 #include "render_systems/gbuffer_render_system.hpp"
 #include "render_systems/gizmo_render_system.hpp"
-#include "render_systems/planet_gbuffer_render_system.hpp"
+#include "render_systems/planet_render_system.hpp"
 #include "render_systems/point_light_render_system.hpp"
 #include "render_systems/radiosity_render_system.hpp"
 #include "render_systems/shadow_render_system.hpp"

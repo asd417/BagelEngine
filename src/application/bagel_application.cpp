@@ -240,9 +240,11 @@ void Application::run()
         bglRenderer.getDeferredRenderPass(), pipelineDescriptorSetLayouts,
         descriptorManager, registry};
 
-    PlanetGBufferRenderSystem planetGBufferRenderSystem{
-        bglRenderer.getDeferredRenderPass(), pipelineDescriptorSetLayouts,
-        registry};
+    // Planets are drawn into the same deferred gbuffer as models, but by their own system so they
+    // can later diverge to a dedicated terrain pipeline. It reuses the gbuffer_fill shaders, and
+    // gBufferRenderSystem skips PlanetComponent entities so they are not drawn twice.
+    PlanetRenderSystem planetRenderSystem{bglRenderer.getDeferredRenderPass(),
+                                          pipelineDescriptorSetLayouts, registry};
 
     // Composite renders to the offscreen LDR buffer (so SMAA can sample it), not
     // the swapchain.
@@ -581,7 +583,7 @@ void Application::run()
             bglRenderer.beginDeferredRenderPass(primaryCommandBuffer);
             gBufferRenderSystem.renderEntities(frameInfo);
             animatedGBufferRenderSystem.renderEntities(frameInfo);
-            planetGBufferRenderSystem.renderEntities(frameInfo);
+            planetRenderSystem.renderEntities(frameInfo);
             bglRenderer.endCurrentRenderPass(primaryCommandBuffer);
             bglDevice.EndDebugUtilsLabel(primaryCommandBuffer);
             recordSection(S_GBUFFER, tMs(t0, Clock::now()));

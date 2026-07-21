@@ -7,7 +7,7 @@
 #include <vulkan/vulkan.h>
 
 #include "ecs/components/transform.hpp"
-#include "ecs/components/planet.hpp"
+#include "planet/components/planet.hpp"
 
 namespace bagel {
 

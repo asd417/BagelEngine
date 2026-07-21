@@ -9,7 +9,7 @@
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 
-#include "ecs/components/planet.hpp"   // PlanetComponent (ocean is drawn by WaterRenderSystem)
+#include "planet/components/planet.hpp"   // PlanetComponent (ocean is drawn by WaterRenderSystem)
 #include "ecs/components/transform.hpp"
 
 namespace bagel {

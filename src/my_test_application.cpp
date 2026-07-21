@@ -1,11 +1,13 @@
 #include "my_test_application.hpp"
 #include "bagel_hierachy.hpp"
 #include "bagel_util.hpp"
+#include "planet/components/planet.hpp"
 #include "imgui/bagel_imgui.hpp" // ImGui + ConsoleApp (CONSOLE)
 #include "map/bagel_map_io.hpp"
 #include "map/bagel_text_map.hpp"
 #include "model/model_component_builder.hpp"
 #include "physics/bagel_jolt.hpp"
+
 
 #include <cmath>
 #include <iostream>
@@ -25,7 +27,7 @@ MyApplication::MyApplication() : Application()
 }
 void MyApplication::OnSceneLoad()
 {
-    buildScene(2); // start on the hierarchy scene
+    buildScene(8); // start on the planet scene
 }
 
 void MyApplication::OnUpdate(BGLCamera &camera, float dt)
@@ -50,6 +52,20 @@ void MyApplication::OnUpdate(BGLCamera &camera, float dt)
         }
         mouseLeftPrev = mouseLeftDown;
     }
+
+    // Live planet update: regenerate any planet the registry panel edited this frame. constructMesh
+    // reuses the entity (in-place editComponent since meshBuilt is set), so this only touches the
+    // GPU when something actually changed.
+    {
+        PlanetComponentSystem planetSystem(bglDevice, registry);
+        for (auto [e, pc] : registry.view<PlanetComponent>().each())
+        {
+            if (!pc.dirty)
+                continue;
+            planetSystem.constructMesh(e);
+            pc.dirty = false;
+        }
+    }
 }
 
 // ---- Map panel + pipeline ----------------------------------------------
@@ -72,6 +88,8 @@ const char *MyApplication::mapName(int index)
         return "sponza_stress";
     case 7:
         return "sponza_instanced";
+    case 8:
+        return "planet";
     default:
         return "map";
     }
@@ -148,6 +166,11 @@ void MyApplication::buildScene(int index)
         createLights();
         createDirectionalLight();
         loadSponzaInstanced();
+        break;
+    case 8:
+        createLights();
+        createDirectionalLight();
+        loadPlanet();
         break;
     default:
         break;
@@ -283,27 +306,30 @@ void MyApplication::OnDrawGui()
     ImGui::TextUnformatted("Build (live):");
     if (ImGui::Button("Cube Field"))
         buildScene(0);
-    ImGui::SameLine();
+
     if (ImGui::Button("Sponza"))
         buildScene(1);
-    ImGui::SameLine();
+
     if (ImGui::Button("Hierarchy"))
         buildScene(2);
-    ImGui::SameLine();
+
     if (ImGui::Button("Dragon"))
         buildScene(3);
-    ImGui::SameLine();
+
     if (ImGui::Button("Monkey"))
         buildScene(4);
-    ImGui::SameLine();
+
     if (ImGui::Button("IKBone"))
         buildScene(5);
-    ImGui::SameLine();
+
     if (ImGui::Button("Sponza x1000"))
         buildScene(6);
-    ImGui::SameLine();
+
     if (ImGui::Button("Sponza x1000 (instanced)"))
         buildScene(7);
+
+    if (ImGui::Button("Planet"))
+        buildScene(8);
 
     ImGui::Separator();
     if (ImGui::Button("Save as map"))
@@ -577,6 +603,20 @@ void MyApplication::loadMonkeyBone()
 void MyApplication::loadIKLeg()
 {
     loadModel("/models/ikleg/ikbone.glb", 1.0f);
+}
+// Smoke test for the generated-mesh path: build one spherified-cube planet at the origin.
+// constructMesh() fills a BGLModel::Vertex mesh (position/normal/uv) + a 6-face submesh table
+// and hands it to ModelComponentBuilder::buildComponent, which creates the VB/IB. The default
+// PlanetComponent resolution is small, so this is a low-poly sphere sitting at the origin.
+void MyApplication::loadPlanet()
+{
+    PlanetComponentSystem planetSystem(bglDevice, registry);
+    planetSystem.constructMesh(); // default noise layers; tweak them live in the registry panel
+
+    // Frame the camera off to the side of the planet (spawn pose is authored in degrees; the
+    // viewer stores radians — see loadTextMap).
+    setSpawnCameraPos({9.0f, 2.0f, -12.0f});
+    setSpawnCameraRot(glm::radians(glm::vec3{-10.0f, 149.0f, 0.0f}));
 }
 
 } // namespace bagel

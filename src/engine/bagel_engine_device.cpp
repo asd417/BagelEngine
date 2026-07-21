@@ -171,6 +171,63 @@ namespace bagel
         vkGetPhysicalDeviceProperties(physicalDevice, &properties);
         std::cout << "Using Physical Device: " << properties.deviceName << "\n";
         std::cout << "Maximum Allowed UBO: " << properties.limits.maxDescriptorSetUniformBuffersDynamic << "\n";
+
+        // maxMemoryAllocationSize lives in Maintenance3 (core since Vulkan 1.1). Guaranteed >= 1 GiB.
+        VkPhysicalDeviceMaintenance3Properties maint3{};
+        maint3.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES;
+        VkPhysicalDeviceProperties2 props2{};
+        props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+        props2.pNext = &maint3;
+        vkGetPhysicalDeviceProperties2(physicalDevice, &props2);
+        maxMemoryAllocationSize = maint3.maxMemoryAllocationSize;
+
+        logMemoryInfo();
+    }
+
+    // Dump host-visible memory heap sizes and the buffer-size limits that bound how big a
+    // (host-visible) vertex/index/storage buffer can be. See the notes on Vulkan guarantees:
+    // HOST_VISIBLE always exists; DEVICE_LOCAL|HOST_VISIBLE (the "BAR" window) is a vendor
+    // convention often capped at 256 MiB without Resizable BAR — query it, don't assume.
+    void BGLDevice::logMemoryInfo()
+    {
+        auto mib = [](VkDeviceSize bytes) { return static_cast<double>(bytes) / (1024.0 * 1024.0); };
+
+        VkPhysicalDeviceMemoryProperties memProps{};
+        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
+
+        std::cout << "Memory heaps:\n";
+        for (uint32_t h = 0; h < memProps.memoryHeapCount; h++)
+        {
+            const bool deviceLocal = (memProps.memoryHeaps[h].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0;
+            std::cout << "  heap " << h << ": " << mib(memProps.memoryHeaps[h].size) << " MiB"
+                      << (deviceLocal ? " [DEVICE_LOCAL]" : "") << "\n";
+        }
+
+        std::cout << "Host-visible memory types:\n";
+        for (uint32_t t = 0; t < memProps.memoryTypeCount; t++)
+        {
+            const VkMemoryPropertyFlags f = memProps.memoryTypes[t].propertyFlags;
+            if ((f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == 0)
+                continue;
+            const uint32_t heap = memProps.memoryTypes[t].heapIndex;
+            std::cout << "  type " << t << " -> heap " << heap
+                      << " (" << mib(memProps.memoryHeaps[heap].size) << " MiB): HOST_VISIBLE"
+                      << ((f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ? "|DEVICE_LOCAL(BAR)" : "")
+                      << ((f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) ? "|COHERENT" : "")
+                      << ((f & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) ? "|CACHED" : "") << "\n";
+        }
+
+        // maxMemoryAllocationSize (queried in pickPhysicalDevice) is the per-allocation cap.
+        // NVIDIA reports maxMemoryAllocationSize as UINT64_MAX ("no limit beyond the heap"),
+        // which prints as a nonsensical ~1.8e13 MiB — show it as unbounded instead.
+        std::cout << "Buffer-size limits:\n  maxMemoryAllocationSize: ";
+        if (maxMemoryAllocationSize == UINT64_MAX)
+            std::cout << "unbounded (driver-reported)";
+        else
+            std::cout << mib(maxMemoryAllocationSize) << " MiB";
+        std::cout << " (spec min 1024)\n"
+                  << "  maxStorageBufferRange:   " << mib(properties.limits.maxStorageBufferRange) << " MiB (spec min 128)\n"
+                  << "  maxUniformBufferRange:   " << (properties.limits.maxUniformBufferRange / 1024.0) << " KiB (spec min 16)\n";
     }
 
     void BGLDevice::createLogicalDevice()

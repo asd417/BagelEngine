@@ -30,9 +30,10 @@ namespace bagel {
 		void loadDragon();
 		void loadMonkeyBone();   // skinned/bone-animated test model
 		void loadIKLeg();
-		// NOTE: the geodesic-CDLOD planet (PlanetComponent / PlanetComponentSystem) is
-		// mid-refactor and not wired into the scene list yet. The render system stays
-		// registered in Application, but no planet is built or exposed in the GUI.
+		// Build a single spherified-cube planet mesh at the origin via PlanetComponentSystem
+		// ::constructMesh() — a smoke test for the generated-mesh buildComponent path while the
+		// geodesic-CDLOD terrain (LOD tree / live noise controls) stays mid-refactor.
+		void loadPlanet();
 
 		bool mouseLeftPrev = false; // edge-detect left-click for entity picking
 

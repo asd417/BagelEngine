@@ -9,7 +9,7 @@
 #include <vulkan/vulkan.h>
 
 #include "ecs/components/model.hpp"
-#include "ecs/components/planet.hpp"
+#include "planet/components/planet.hpp"
 #include "ecs/components/transform.hpp"
 
 namespace bagel::threaded
@@ -223,8 +223,8 @@ void GBufferRenderSystem::render(const FrameInfo *frameInfo)
     {
         if (model.mesh().isSkinned)
             continue; // skinned models are drawn by AnimatedGBufferRenderSystem
-        if (registry.all_of<PlanetComponent>(entity))
-            continue; // drawn by PlanetGBufferRenderSystem
+        // Planets render as regular models for now (the dedicated PlanetGBufferRenderSystem is
+        // disabled mid-refactor), so they fall through this standard indexed path.
         glm::mat4 modelMatrix = transform.getMat4();
         if (model.frustumCull && !frustum.testAABB(model.mesh().aabbMin, model.mesh().aabbMax, modelMatrix))
             continue;

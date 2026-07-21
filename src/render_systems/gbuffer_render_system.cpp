@@ -7,7 +7,7 @@
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 
-#include "ecs/components/planet.hpp"
+#include "planet/components/planet.hpp"
 #include "ecs/components/transform.hpp"
 
 namespace bagel {
@@ -53,7 +53,7 @@ namespace bagel {
 		auto singleGroup = registry.view<TransformComponent, ModelComponent>();
 		for (auto [entity, transform, model] : singleGroup.each()) {
 			if (model.mesh().isSkinned) continue; // skinned models are drawn by AnimatedGBufferRenderSystem
-			if (registry.all_of<PlanetComponent>(entity)) continue; // drawn by PlanetGBufferRenderSystem
+			if (registry.all_of<PlanetComponent>(entity)) continue; // planets are drawn by PlanetRenderSystem
 			glm::mat4 modelMatrix = transform.getMat4();
 			if (model.frustumCull && !frustum.testAABB(model.mesh().aabbMin, model.mesh().aabbMax, modelMatrix))
 				continue;

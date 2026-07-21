@@ -117,10 +117,11 @@ file(GLOB TEXTURE "${PROJECT_SOURCE_DIR}/src/texture/*.cpp" "${PROJECT_SOURCE_DI
 file(GLOB ANIMATION 	"${PROJECT_SOURCE_DIR}/src/animation/*.cpp" "${PROJECT_SOURCE_DIR}/src/animation/*.hpp")
 file(GLOB SMAA		"${PROJECT_SOURCE_DIR}/src/smaa/*.cpp" "${PROJECT_SOURCE_DIR}/src/smaa/*.hpp")
 file(GLOB ECS	"${PROJECT_SOURCE_DIR}/src/ecs/*.cpp" "${PROJECT_SOURCE_DIR}/src/ecs/*.hpp" "${PROJECT_SOURCE_DIR}/src/ecs/components/*.cpp" "${PROJECT_SOURCE_DIR}/src/ecs/components/*.hpp")
+file(GLOB PLANET	"${PROJECT_SOURCE_DIR}/src/planet/*.cpp" "${PROJECT_SOURCE_DIR}/src/planet/*.hpp" "${PROJECT_SOURCE_DIR}/src/planet/components/*.cpp" "${PROJECT_SOURCE_DIR}/src/planet/components/*.hpp" "${PROJECT_SOURCE_DIR}/src/planet/noise_filters/*.cpp" "${PROJECT_SOURCE_DIR}/src/planet/noise_filters/*.hpp")
 file(GLOB GAME		"${PROJECT_SOURCE_DIR}/src/game/*.cpp" "${PROJECT_SOURCE_DIR}/src/game/*.hpp")
 file(GLOB MAP		"${PROJECT_SOURCE_DIR}/src/map/*.cpp" "${PROJECT_SOURCE_DIR}/src/map/*.hpp")
 file(GLOB APPLICATION	"${PROJECT_SOURCE_DIR}/src/application/*.cpp" "${PROJECT_SOURCE_DIR}/src/application/*.hpp")
-file(GLOB IMGUI_ENGINE		"${PROJECT_SOURCE_DIR}/src/imgui/*.cpp" "${PROJECT_SOURCE_DIR}/src/imgui/*.hpp")
+file(GLOB IMGUI_ENGINE		"${PROJECT_SOURCE_DIR}/src/imgui/*.cpp" "${PROJECT_SOURCE_DIR}/src/imgui/*.hpp" "${PROJECT_SOURCE_DIR}/src/imgui/components/*.cpp" "${PROJECT_SOURCE_DIR}/src/imgui/components/*.hpp")
 
 file(GLOB IMGUI_SRC "${IMGUI}/*.cpp" "${IMGUI}/*.h")
 file(GLOB IMGUI_BCKEND_vk ${IMGUI}/backends/imgui_impl_vulkan.*)
@@ -146,6 +147,7 @@ add_executable(${PROJECT_NAME}
 	${ANIMATION}
 	${SMAA}
 	${ECS}
+	${PLANET}
 	${GAME}
 	${MAP}
 	${APPLICATION}
@@ -176,6 +178,7 @@ source_group("Model Loaders"	FILES ${MODEL_LOADERS})
 source_group("Texture"	FILES ${TEXTURE})
 source_group("Animation"	FILES ${ANIMATION})
 source_group("ECS"	FILES ${ECS})
+source_group("Planet"	FILES ${PLANET})
 source_group("Game"		FILES ${GAME})
 source_group("Map"		FILES ${MAP})
 source_group("Application"	FILES ${APPLICATION})

@@ -146,6 +146,9 @@ class BGLDevice
 
     VkPhysicalDeviceFeatures supportedFeatures;
     VkPhysicalDeviceProperties properties;
+    // Max size of a single memory allocation (Maintenance3, core since 1.1). Guaranteed >= 1 GiB;
+    // NVIDIA reports UINT64_MAX ("no limit beyond the heap"). Populated in pickPhysicalDevice().
+    VkDeviceSize maxMemoryAllocationSize = 0;
 
     VkBool32 getSupportedDepthsFormat(VkFormat *depthFormat);
 
@@ -162,6 +165,7 @@ class BGLDevice
     void setupDebugMessenger();
     void createSurface();
     void pickPhysicalDevice();
+    void logMemoryInfo(); // dump host-visible heap sizes + buffer-size limits at startup
     void createLogicalDevice();
     void createCommandPool();
 

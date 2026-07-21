@@ -5,8 +5,7 @@ set SHADERS=C:\Users\locti\OneDrive\Documents\BagelEngine\shaders
 %GLSLC% %SHADERS%\wireframe_shader.frag     -o %SHADERS%\wireframe_shader.frag.spv
 %GLSLC% %SHADERS%\gbuffer_fill.vert         -o %SHADERS%\gbuffer_fill.vert.spv
 %GLSLC% %SHADERS%\gbuffer_fill.frag         -o %SHADERS%\gbuffer_fill.frag.spv
-%GLSLC% %SHADERS%\planet_gbuffer.vert       -o %SHADERS%\planet_gbuffer.vert.spv
-%GLSLC% %SHADERS%\planet_gbuffer.frag       -o %SHADERS%\planet_gbuffer.frag.spv
+rem planet_gbuffer.* removed: dedicated planet pipeline disabled mid-refactor (planets render as regular models)
 %GLSLC% %SHADERS%\deferred_lighting.vert    -o %SHADERS%\deferred_lighting.vert.spv
 %GLSLC% %SHADERS%\deferred_lighting.frag    -o %SHADERS%\deferred_lighting.frag.spv
 %GLSLC% %SHADERS%\radiosity.frag            -o %SHADERS%\radiosity.frag.spv

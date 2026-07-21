@@ -275,13 +275,13 @@ namespace bagel {
 	void serialize(Archive& ar, InfoComponent& c) {
 	}
 
-	// PlanetComponent: persistent recipe only. cfg (planet::TerrainConfig) is trivially
-	// copyable so it archives as a raw leaf — this carries the noise settings. The
-	// PlanetTerrain object and ModelComponent GPU buffers are TRANSIENT — rebuilt after
-	// load (see MyApplication::loadMapFromPath).
+	// PlanetComponent: persistent recipe only. Post-refactor that's just `resolution`; the
+	// cube faces[] are rebuilt from constant defaults on construction, and planetLastRebuildCam
+	// is transient runtime state. The mesh + ModelComponent GPU buffers are TRANSIENT — rebuilt
+	// after load (planet rehydration is currently disabled; see MyApplication::loadMapFromPath).
 	template<class Archive>
 	void serialize(Archive& ar, PlanetComponent& c) {
-		ar(c.cfg);
+		ar(c.resolution);
 	}
 
 	// ---- whole-registry save / load -----------------------------------------
