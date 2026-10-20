@@ -232,6 +232,17 @@ class ConsoleApp
         return Dispatch(command_line);
     }
 
+    // Run(), and also return what the command logged (the remote console sends it back).
+    std::string RunCaptured(const char *command_line)
+    {
+        const int first = Items.Size;
+        Run(command_line);
+        std::string out;
+        for (int i = first; i < Items.Size; i++)
+            (out += Items[i]) += '\n';
+        return out;
+    }
+
     void ClearLog()
     {
         for (int i = 0; i < Items.Size; i++)
@@ -502,7 +513,9 @@ class ConsoleApp
         {
             if (stringCompare(cmdBuf, c.name) == 0)
             {
-                AddLog("%s", c.fn(c.obj, args));
+                // Pushed directly, not via AddLog: its 1 KB format buffer would cut off
+                // long responses such as ent_list.
+                Items.push_back(Strdup(c.fn(c.obj, args)));
                 ran = true;
                 break;
             }
@@ -515,7 +528,7 @@ class ConsoleApp
             {
                 if (stringCompare(command_line, c.name) == 0)
                 {
-                    AddLog("%s", c.fn(c.obj));
+                    Items.push_back(Strdup(c.fn(c.obj)));
                     ran = true;
                     break;
                 }

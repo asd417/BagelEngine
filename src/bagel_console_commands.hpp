@@ -15,6 +15,15 @@ namespace ConsoleCommand {
 	const char* SetOrbitCamera(void* ptr, const char* args);
 	// camfocus  -- frame the selected entity, or the whole scene when nothing is selected (F key).
 	const char* CamFocus(void* ptr);
+	// setpos <x> <y> <z>  /  setang <pitch> <yaw> <roll> (degrees)  -- teleport/aim the camera
+	const char* SetPos(void* ptr, const char* args);
+	const char* SetAng(void* ptr, const char* args);
+	// getpos  -- print the camera pose as the setpos/setang lines that restore it
+	const char* GetPos(void* ptr);
+	// ent_list  -- named entities (NameComponent) with their positions
+	const char* EntList(void* ptr);
+	// screenshot [path]  -- save the next presented frame, UI included, as PNG (default screenshot.png)
+	const char* Screenshot(void* ptr, const char* args);
 	// anim <name>   -- play the scripted sequence /anims/<name>.yaml (re-read from disk each time)
 	// anim stop [<name>] / anim list / anim props
 	const char* Anim(void* ptr, const char* args);

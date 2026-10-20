@@ -14,6 +14,8 @@
 // per-slider "Reset" buttons restore, so the two can never drift apart.
 namespace bagel::cfg
 {
+// Localhost port of the remote console (bagel_remote_console.hpp; tools/bagel_mcp.py connects here)
+inline constexpr unsigned short kRemoteConsolePort = 27015;
 // Camera controller
 inline constexpr float kMouseSensitivity = 0.1f;
 inline constexpr float kMoveSpeed = 10.0f;

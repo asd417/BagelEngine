@@ -155,6 +155,29 @@ class Application
     // it also works as a teleport while in free-fly mode. Returns false if there was nothing
     // to frame (invalid entity / no bounds / empty scene).
     bool frameCamera(entt::entity e = entt::null);
+    // setpos / setang / getpos console commands. Teleports go through the same one-shot path a
+    // scene's spawn point uses, so they also resync the orbit camera. Rotation is radians, YXZ.
+    void teleportCamera(const glm::vec3 &pos)
+    {
+        setSpawnCameraPos(pos);
+    }
+    void aimCamera(const glm::vec3 &rot)
+    {
+        setSpawnCameraRot(rot);
+    }
+    glm::vec3 getCameraPos() const
+    {
+        return viewerPosCache;
+    }
+    glm::vec3 getCameraRot() const
+    {
+        return viewerRotCache;
+    }
+    // screenshot console command: save the next presented frame as a PNG.
+    void requestScreenshot(const std::string &path)
+    {
+        bglRenderer.requestScreenshot(path);
+    }
 
     // ---- scripted animation sequences (/anims/*.yaml) -----------------------
     AnimSequencePlayer &getAnimPlayer()

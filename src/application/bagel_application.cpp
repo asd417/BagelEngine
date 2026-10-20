@@ -29,6 +29,7 @@
 #include "bagel_camera.hpp"
 #include "bagel_frame_info.hpp"
 #include "bagel_hierachy.hpp"
+#include "bagel_remote_console.hpp"
 #include "ecs/components/model.hpp" // ModelComponent bounds — frameCamera()
 #include "engine/bagel_engine_config.hpp"
 #include "imgui/bagel_imgui.hpp"
@@ -412,6 +413,8 @@ void Application::run()
                                           // subtracted each frame)
 
     initCommand();
+    // Lets tools/bagel_mcp.py (Claude) run console commands; polled with the keybinds below.
+    RemoteConsole remoteConsole{cfg::kRemoteConsolePort};
 
     BGLJolt::GetInstance()->SetGravity({0, -0.0f, 0});
     BGLJolt::GetInstance()->SetSimulationTimescale(0.5f);
@@ -481,6 +484,11 @@ void Application::run()
             keybinds.poll(bglWindow.getGLFWWindow(), ImGui::GetIO().WantTextInput,
                           [](const char *cmd)
                           { ConsoleApp::Instance()->Run(cmd); });
+            // Remote commands are echoed so you can see in the console what was run.
+            remoteConsole.poll([](const char *cmd)
+                               {
+                                   CONSOLE->AddLog("# [remote] %s", cmd);
+                                   return CONSOLE->RunCaptured(cmd); });
             recordSection(S_POLL, tMs(t0, Clock::now()));
         }
 

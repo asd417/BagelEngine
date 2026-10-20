@@ -68,6 +68,11 @@ namespace bagel {
 		CONSOLE->AddCommand("FREEFLY", this, ConsoleCommand::ToggleFly);
 		CONSOLE->AddCommandWithArg("ORBIT", this, ConsoleCommand::SetOrbitCamera);
 		CONSOLE->AddCommand("CAMFOCUS", this, ConsoleCommand::CamFocus);
+		CONSOLE->AddCommandWithArg("SETPOS", this, ConsoleCommand::SetPos);
+		CONSOLE->AddCommandWithArg("SETANG", this, ConsoleCommand::SetAng);
+		CONSOLE->AddCommand("GETPOS", this, ConsoleCommand::GetPos);
+		CONSOLE->AddCommand("ENT_LIST", this, ConsoleCommand::EntList);
+		CONSOLE->AddCommandWithArg("SCREENSHOT", this, ConsoleCommand::Screenshot);
 		CONSOLE->AddCommandWithArg("ANIM", this, ConsoleCommand::Anim);
 		CONSOLE->AddCommand("TOGGLEPHYSICS", this, ConsoleCommand::TogglePhys);
 		CONSOLE->AddCommand("SHOWINFO", this, ConsoleCommand::ShowInfo);

@@ -38,6 +38,10 @@ class BGLSwapChain
     {
         return swapChainImageViews[index];
     }
+    VkImage getImage(uint8_t index)
+    {
+        return swapChainImages[index];
+    }
     VkImageView getDepthImageView(uint8_t index)
     {
         return depthImageViews[index];

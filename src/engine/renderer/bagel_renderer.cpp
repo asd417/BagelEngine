@@ -5,7 +5,14 @@
 
 #include <stdexcept>
 #include <array>
+#include <cstring>
+#include <filesystem>
 #include <iostream>
+#include <utility>
+
+// The only stb_image_write user (tinygltf is built with TINYGLTF_NO_STB_IMAGE_WRITE).
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 namespace bagel
 {
@@ -76,12 +83,19 @@ namespace bagel
 		assert(isFrameStarted && "Cannot call endFrame() while frame is not in progress");
 
 		auto commandBuffer = getCurrentCommandBuffer();
+		VkBuffer shotBuffer = VK_NULL_HANDLE;
+		VkDeviceMemory shotMemory = VK_NULL_HANDLE;
+		if (!screenshotPath.empty())
+			recordScreenshotCopy(commandBuffer, shotBuffer, shotMemory);
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to record command buffer");
 		}
 
 		auto result = bglSwapChain->submitCommandBuffers(&commandBuffer, &currentImageIndex);
+		// Before the swapchain can be recreated below: the save reads its extent and format.
+		if (shotBuffer != VK_NULL_HANDLE)
+			saveScreenshot(shotBuffer, shotMemory);
 		// VK_SUBOPTIMAL_KHR means the swapchain no longer matches the surface but can be used to present on the surface
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || bglWindow.wasWindowResized())
 		{
@@ -95,6 +109,87 @@ namespace bagel
 
 		isFrameStarted = false;
 		currentFrameIndex = (currentFrameIndex + 1) % BGLSwapChain::MAX_FRAMES_IN_FLIGHT;
+	}
+
+	// Recorded after the swapchain render pass, which leaves the image in PRESENT_SRC.
+	void BGLRenderer::recordScreenshotCopy(VkCommandBuffer commandBuffer, VkBuffer &buffer, VkDeviceMemory &memory)
+	{
+		const VkExtent2D ext = bglSwapChain->getSwapChainExtent();
+		bglDevice.createBuffer(VkDeviceSize{ext.width} * ext.height * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+							   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+							   buffer, memory);
+		VkImage image = bglSwapChain->getImage(static_cast<uint8_t>(currentImageIndex));
+
+		VkImageMemoryBarrier barrier{};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.image = image;
+		barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+							 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+		VkBufferImageCopy region{};
+		region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+		region.imageExtent = {ext.width, ext.height, 1};
+		vkCmdCopyImageToBuffer(commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
+
+		// Back to PRESENT_SRC for the present, and make the copy visible to the host read.
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		barrier.dstAccessMask = 0;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		VkMemoryBarrier hostRead{};
+		hostRead.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+		hostRead.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		hostRead.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+							 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT,
+							 0, 1, &hostRead, 0, nullptr, 1, &barrier);
+	}
+
+	void BGLRenderer::saveScreenshot(VkBuffer buffer, VkDeviceMemory memory)
+	{
+		// ponytail: stalls the CPU on the GPU for this one frame; fine for an on-demand capture.
+		vkDeviceWaitIdle(BGLDevice::device());
+
+		const VkExtent2D ext = bglSwapChain->getSwapChainExtent();
+		const VkFormat fmt = bglSwapChain->getSwapChainImageFormat();
+		const bool bgra = fmt == VK_FORMAT_B8G8R8A8_SRGB || fmt == VK_FORMAT_B8G8R8A8_UNORM;
+		const size_t count = size_t{ext.width} * ext.height;
+		// One bulk copy out of the mapping first: this memory is not HOST_CACHED, so the
+		// byte-by-byte reads below (and stb's) took ~6 s per frame straight from it.
+		std::vector<uint8_t> px(count * 4);
+		void *mapped = nullptr;
+		vkMapMemory(BGLDevice::device(), memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+		std::memcpy(px.data(), mapped, px.size());
+		vkUnmapMemory(BGLDevice::device(), memory);
+		vkDestroyBuffer(BGLDevice::device(), buffer, nullptr);
+		vkFreeMemory(BGLDevice::device(), memory, nullptr);
+
+		// The bytes are already sRGB-encoded (an _SRGB swapchain stores encoded values), so
+		// they go into the PNG as-is; only the channel order and the meaningless alpha change.
+		for (size_t i = 0; i < count; ++i)
+		{
+			if (bgra)
+				std::swap(px[i * 4], px[i * 4 + 2]);
+			px[i * 4 + 3] = 255;
+		}
+		const std::string tmp = screenshotPath + ".tmp";
+		const int w = static_cast<int>(ext.width);
+		const int h = static_cast<int>(ext.height);
+		std::error_code ec;
+		if (stbi_write_png(tmp.c_str(), w, h, 4, px.data(), w * 4) != 0)
+			std::filesystem::rename(tmp, screenshotPath, ec);
+		else
+			std::cerr << "[screenshot] could not write " << tmp << "\n";
+		if (ec)
+			std::cerr << "[screenshot] could not rename to " << screenshotPath << ": " << ec.message() << "\n";
+		screenshotPath.clear();
 	}
 
 	void BGLRenderer::beginSwapChainRenderPass(VkCommandBuffer commandBuffer)

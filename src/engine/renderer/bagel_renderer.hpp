@@ -10,6 +10,7 @@
 #include <array>
 #include <cassert>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace bagel
@@ -301,7 +302,16 @@ namespace bagel
 			recreateSwapChain();
 		}
 
+		// Copy the next presented swapchain image (UI included) out and write it as PNG to
+		// `path` once that frame is submitted. Written to path.tmp then renamed, so a reader
+		// polling for `path` never sees a partial file.
+		void requestScreenshot(const std::string &path) { screenshotPath = path; }
+
 	private:
+		std::string screenshotPath; // empty = no capture pending
+		void recordScreenshotCopy(VkCommandBuffer commandBuffer, VkBuffer &buffer, VkDeviceMemory &memory);
+		void saveScreenshot(VkBuffer buffer, VkDeviceMemory memory);
+
 		uint32_t currentImageIndex = 0;
 		int currentFrameIndex = 0;
 		bool isFrameStarted = false;

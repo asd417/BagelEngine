@@ -1,4 +1,7 @@
 ﻿#include "bagel_console_commands.hpp"
+#include "ecs/components/name.hpp"
+
+#include <sstream>
 
 // Console command callbacks. Declared in bagel_console_commands.hpp; defined here (out of the
 // header) so they have a single definition ??multiple .cpp files register/reference them, and
@@ -26,6 +29,66 @@ namespace ConsoleCommand {
 		Application* app = static_cast<Application*>(ptr);
 		if (app->frameCamera(app->selectedEntity)) return "Framed";
 		return "camfocus: nothing to frame";
+	}
+	// Three whitespace-separated floats. strtof, not sscanf: the MSVC CRT deprecates sscanf.
+	static bool parseVec3(const char* s, glm::vec3& v) {
+		if (!s) return false;
+		for (int i = 0; i < 3; ++i) {
+			char* end;
+			v[i] = strtof(s, &end);
+			if (end == s) return false;
+			s = end;
+		}
+		return true;
+	}
+	const char* SetPos(void* ptr, const char* args) {
+		static char response[96];
+		Application* app = static_cast<Application*>(ptr);
+		glm::vec3 p;
+		if (!parseVec3(args, p)) return "setpos <x> <y> <z>";
+		app->teleportCamera(p);
+		snprintf(response, sizeof(response), "setpos %.3f %.3f %.3f", p.x, p.y, p.z);
+		return response;
+	}
+	const char* SetAng(void* ptr, const char* args) {
+		static char response[96];
+		Application* app = static_cast<Application*>(ptr);
+		glm::vec3 a;
+		if (!parseVec3(args, a)) return "setang <pitch> <yaw> <roll>  (degrees)";
+		app->aimCamera(glm::radians(a));
+		snprintf(response, sizeof(response), "setang %.2f %.2f %.2f", a.x, a.y, a.z);
+		return response;
+	}
+	const char* GetPos(void* ptr) {
+		static char response[160];
+		Application* app = static_cast<Application*>(ptr);
+		const glm::vec3 p = app->getCameraPos();
+		const glm::vec3 a = glm::degrees(app->getCameraRot());
+		snprintf(response, sizeof(response), "setpos %.3f %.3f %.3f\nsetang %.2f %.2f %.2f", p.x, p.y, p.z, a.x, a.y, a.z);
+		return response;
+	}
+	const char* EntList(void* ptr) {
+		static std::string response;
+		Application* app = static_cast<Application*>(ptr);
+		entt::registry& reg = app->getRegistry();
+		std::ostringstream os;
+		int named = 0;
+		for (auto [e, n, t] : reg.view<NameComponent, TransformComponent>().each()) {
+			const glm::vec3 p = t.getTranslation();
+			os << n.name << "  pos " << p.x << ' ' << p.y << ' ' << p.z << '\n';
+			++named;
+		}
+		os << named << " named / " << reg.storage<entt::entity>().size() << " total entities";
+		response = os.str();
+		return response.c_str();
+	}
+	const char* Screenshot(void* ptr, const char* args) {
+		static std::string response;
+		Application* app = static_cast<Application*>(ptr);
+		const std::string path = (args && args[0] != '\0') ? args : "screenshot.png";
+		app->requestScreenshot(path);
+		response = "screenshot: saving next frame to " + path;
+		return response.c_str();
 	}
 	const char* TogglePhys(void* ptr) {
 		Application* app = static_cast<Application*>(ptr);

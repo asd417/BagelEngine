@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "bagel-engine": {
+      "command": "python",
+      "args": ["tools/bagel_mcp.py"]
+    }
+  }
+}
