@@ -142,6 +142,32 @@ namespace bagel
 			ImGui::SliderFloat("Move Speed", &cameraController.moveSpeed, 1.0f, 100.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
 			resetBtn(cameraController.moveSpeed, cfg::kMoveSpeed);
 			ImGui::Separator();
+			ImGui::Text("Orbit Camera");
+			// setOrbitCamera(), not a raw write: enabling has to schedule the state sync so
+			// the pivot is rebuilt from wherever the free-fly camera was left.
+			{
+				bool orbitOn = orbitCamera;
+				if (ImGui::Checkbox("Orbit mode (MMB tumble, Shift pan, wheel zoom)", &orbitOn))
+					setOrbitCamera(orbitOn);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Frame")) frameCamera(selectedEntity);
+			ImGui::SliderFloat("Orbit Sensitivity", &orbitController.orbitSensitivity, 0.001f, 0.02f, "%.4f rad/px");
+			resetBtn(orbitController.orbitSensitivity, cfg::kOrbitSensitivity);
+			ImGui::SliderFloat("Pan Sensitivity", &orbitController.panSensitivity, 0.1f, 4.0f, "%.2f x");
+			resetBtn(orbitController.panSensitivity, cfg::kOrbitPanSensitivity);
+			ImGui::SliderFloat("Zoom Step", &orbitController.zoomStep, 1.01f, 1.5f, "%.3f /notch");
+			resetBtn(orbitController.zoomStep, cfg::kOrbitZoomStep);
+			ImGui::SliderFloat("Orbit Min Distance", &orbitController.minDistance, 0.01f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+			resetBtn(orbitController.minDistance, cfg::kOrbitMinDistance);
+			ImGui::SliderFloat("Orbit Max Distance", &orbitController.maxDistance, 10.0f, 5000.0f, "%.0f", ImGuiSliderFlags_Logarithmic);
+			resetBtn(orbitController.maxDistance, cfg::kOrbitMaxDistance);
+			if (orbitController.minDistance >= orbitController.maxDistance)
+				orbitController.maxDistance = orbitController.minDistance + 1.0f;
+			ImGui::Text("pivot %.2f %.2f %.2f  dist %.2f",
+				orbitController.pivot.x, orbitController.pivot.y, orbitController.pivot.z,
+				orbitController.distance);
+			ImGui::Separator();
 			ImGui::Text("Camera");
 			ImGui::SliderFloat("FOV (horizontal)", &cameraFovDegrees, 20.0f, 120.0f, "%.0f deg");
 			resetBtn(cameraFovDegrees, cfg::kCameraFovDegrees);

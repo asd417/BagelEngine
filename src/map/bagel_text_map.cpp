@@ -93,6 +93,16 @@ namespace {
 				settings.buildMode = ComponentBuildMode::LINES;
 			builder.buildComponent(e, src.c_str(), settings); // emplaces ModelComponent + GPU buffers
 		}
+		else if (type == "NameComponent") {
+			// Source-style targetname. Scripted animation sequences (/anims/*.yaml) find their
+			// targets by this, so anything a sequence drives needs one.
+			const std::string n = parseString(field("name"));
+			if (n.empty()) {
+				std::cerr << "[textmap] NameComponent with no name; skipped\n";
+				return;
+			}
+			registry.emplace_or_replace<NameComponent>(e, n.c_str());
+		}
 		else if (type == "PointLightComponent") {
 			auto &pl = registry.emplace_or_replace<PointLightComponent>(e);
 			pl.color = parseColor(field("color"), pl.color);

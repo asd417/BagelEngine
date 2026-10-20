@@ -27,10 +27,17 @@
 
 // #include "texture/bagel_textures.hpp"
 // #include "model/bagel_model.hpp"
+#include "animation/bagel_anim_sequence.hpp"
 #include "animation/bagel_skin_manager.hpp"
 #include "bagel_camera.hpp"
 #include "bagel_material.hpp"
+#include "orbit_camera_controller.hpp"
 
+// <chrono> is used directly below (the Clock alias, and syncFrameRate's steady_clock
+// parameter). It used to arrive only transitively through a render-system header, which the
+// compiler tolerated but clangd did not — it reported "use of undeclared identifier 'Clock'"
+// on every use, the cascade from the alias itself failing to resolve std::chrono.
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -71,6 +78,9 @@ class Application
 
     // Console Command variables
     bool freeFly = true;
+    // Blender-style orbit camera (console: `orbit 0/1`). Takes over from the free-fly
+    // controller while on — both drive the same viewer transform, so only one may run.
+    bool orbitCamera = false;
     bool runPhys = false;
     bool showInfo = false;
     bool showImgui = true; // ` (grave) key toggles all ImGui panels
@@ -93,7 +103,7 @@ class Application
     bool showProfile = false;
     bool stutterDetect = true;
     float stutterThresholdMs = 33.3f; // flag frames slower than this (~30fps)
-    int maxFps = 0;                   // 0 = unlimited; minimum enforced value is 15
+    int maxFps = 90;                  // 0 = unlimited; minimum enforced value is 15
     bool vsync = false;
     bool vsyncDirty = false;
     float exposure = cfg::kExposure;
@@ -130,6 +140,31 @@ class Application
     {
         return keybinds;
     }
+
+    // ---- orbit camera -------------------------------------------------------
+    OrbitCameraController &getOrbitCamera()
+    {
+        return orbitController;
+    }
+    // Enter/leave orbit mode. Enabling only RAISES a sync flag: this can be called from the
+    // console (mid-frame, after the camera phase has already run), and the orbit state must be
+    // rebuilt from the viewer transform at the top of a frame, before anything reads the camera.
+    void setOrbitCamera(bool on);
+    // Frame `e` (pivot on it, back off to fit it on screen). entt::null frames every drawable
+    // entity in the scene — Blender's "view all". Writes the pose straight into the viewer, so
+    // it also works as a teleport while in free-fly mode. Returns false if there was nothing
+    // to frame (invalid entity / no bounds / empty scene).
+    bool frameCamera(entt::entity e = entt::null);
+
+    // ---- scripted animation sequences (/anims/*.yaml) -----------------------
+    AnimSequencePlayer &getAnimPlayer()
+    {
+        return animPlayer;
+    }
+    // Backing implementation of the `anim` console command; returns the text to print.
+    // "" / "list" -> what is running + which files exist, "stop [name]", "props" -> the
+    // animatable property keys, anything else -> play /anims/<that>.yaml.
+    std::string consoleAnim(const std::string &args);
 
     // Console "map <name>" hook: load /maps/<name>.bmap by name and rehydrate. Base is a no-op
     // error; the derived app implements the actual load. Returns a status message for the console.
@@ -223,6 +258,16 @@ class Application
     entt::registry registry;
     // Declared after registry (constructed after it; holds only a reference to it).
     PoseGizmo poseGizmo{registry};
+    // Orbit camera state (pivot/distance/yaw/pitch + its tunables). A member, not a run()
+    // local like KeyboardMovementController, so the console commands and the Settings panel
+    // can reach it through the Application pointer.
+    OrbitCameraController orbitController;
+    // Scripted property tweens loaded from /anims/*.yaml. Declared after registry (holds a
+    // reference to it); ticked once per frame at the top of the update phase in run().
+    AnimSequencePlayer animPlayer{registry};
+    // Set by setOrbitCamera(true) / a scene's spawn teleport; consumed at the top of the next
+    // camera phase in run(), which re-derives the orbit state from the viewer transform.
+    bool orbitSyncPending = false;
     // Key -> console-command table; polled each frame in run() (see bagel_keybinds.hpp).
     KeyBindManager keybinds;
 

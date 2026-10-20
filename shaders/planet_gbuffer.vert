@@ -16,10 +16,12 @@ layout(location=2) in vec3 normal;
 
 layout(location=0) out float fragHeight; // normalized elevation in [0,1]
 layout(location=1) out vec3 fragNormalWorld;
+layout(location=2) out vec3 vertPos;
 
 layout(push_constant) uniform Push {
 	mat4 modelMatrix;
 	vec4 params;                          // x=radius, y=minElevation, z=maxElevation, w=gradientCount
+	vec4 params2;                         // x=sphereness (1 sphere / 0 cube), yzw spare
 	vec4 gradient[MAX_GRADIENT_POINTS];   // xyz=colour, w=height key
 } push;
 
@@ -28,10 +30,18 @@ void main() {
 	vec4 positionWorld = push.modelMatrix * vec4(position, 1.0);
 	gl_Position = ubo.projectionMatrix * ubo.viewMatrix * positionWorld;
 
-	// position is model-space (unit * radius * (1 + noise)), so |position|/radius - 1 = elevation.
-	float elevation = length(position) / push.params.x - 1.0;
+	// position is model-space (dir * radius * shape(dir) * (1 + noise)) and the displacement is
+	// purely radial, so normalize() recovers the original unit-sphere direction exactly. Divide
+	// the cube/sphere shape factor back out and what is left is the terrain elevation — without
+	// this, at sphereness < 1 the cube's corners would read as mountains and the gradient would
+	// recolour whenever the shape changed. Mirrors PlanetComponentSystem::shapeScale.
+	vec3 dir = normalize(position);
+	float m = max(abs(dir.x), max(abs(dir.y), abs(dir.z)));
+	float shape = mix(1.0 / max(m, 1e-6), 1.0, push.params2.x);
+	float elevation = length(position) / max(push.params.x * shape, 1e-6) - 1.0;
 	float range = max(push.params.z - push.params.y, 1e-6);
 	fragHeight = clamp((elevation - push.params.y) / range, 0.0, 1.0);
 
 	fragNormalWorld = normalize(normalMatrix * normal);
+    vertPos = position;
 }

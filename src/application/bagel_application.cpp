@@ -15,6 +15,7 @@
 #include <cassert>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include "entt.hpp"
@@ -28,6 +29,7 @@
 #include "bagel_camera.hpp"
 #include "bagel_frame_info.hpp"
 #include "bagel_hierachy.hpp"
+#include "ecs/components/model.hpp" // ModelComponent bounds — frameCamera()
 #include "engine/bagel_engine_config.hpp"
 #include "imgui/bagel_imgui.hpp"
 #include "keyboard_movement_controller.hpp"
@@ -203,6 +205,85 @@ void Application::ensureViewerEntity()
     tc.setRotation(viewerRotCache);
 }
 
+void Application::setOrbitCamera(bool on)
+{
+    // Only the transition matters: re-derive the orbit state from wherever the free-fly
+    // camera left off, so switching modes never moves the view.
+    if (on && !orbitCamera)
+        orbitSyncPending = true;
+    orbitCamera = on;
+}
+
+bool Application::frameCamera(entt::entity e)
+{
+    ensureViewerEntity();
+
+    // windows.h (included above for the frame-pacing timer) defines min/max as function-like
+    // MACROS, so every std::numeric_limits<float>::max / glm::min / glm::max below is wrapped
+    // in parentheses to suppress macro expansion. Do not "clean up" those parens.
+    glm::vec3 lo{(std::numeric_limits<float>::max)()};
+    glm::vec3 hi{(std::numeric_limits<float>::lowest)()};
+    bool any = false;
+
+    // World AABB from the model-space bounds pushed through the full transform. Using the
+    // 8 corners (rather than the translation alone) keeps rotated and non-uniformly scaled
+    // entities framed correctly. computeMat4() — NOT getMat4() — because cacheTransforms()
+    // has not run yet at this point in the frame.
+    auto accumulate = [&](entt::entity ent)
+    {
+        auto *tc = registry.try_get<TransformComponent>(ent);
+        auto *mc = registry.try_get<ModelComponent>(ent);
+        if (!tc || !mc)
+            return;
+        const glm::vec3 bmin = mc->mesh().aabbMin;
+        const glm::vec3 bmax = mc->mesh().aabbMax;
+        if (bmin == bmax)
+            return; // no drawable bounds
+        const glm::mat4 M = tc->computeMat4();
+        for (int i = 0; i < 8; i++)
+        {
+            const glm::vec3 corner{(i & 1) ? bmax.x : bmin.x,
+                                   (i & 2) ? bmax.y : bmin.y,
+                                   (i & 4) ? bmax.z : bmin.z};
+            const glm::vec3 w = glm::vec3(M * glm::vec4(corner, 1.0f));
+            lo = (glm::min)(lo, w);
+            hi = (glm::max)(hi, w);
+        }
+        any = true;
+    };
+
+    if (registry.valid(e) && e != viewerEntity)
+    {
+        accumulate(e);
+    }
+    else
+    {
+        auto view = registry.view<TransformComponent, ModelComponent>();
+        for (auto ent : view)
+            if (ent != viewerEntity)
+                accumulate(ent);
+    }
+    if (!any)
+        return false;
+
+    const float aspect = bglRenderer.getAspectRatio();
+    const float fovY =
+        2.0f * atanf(tanf(glm::radians(cameraFovDegrees) * 0.5f) / aspect);
+
+    TransformComponent &tc = registry.get<TransformComponent>(viewerEntity);
+    // Adopt the viewer's CURRENT angles first: framing must only change where the camera
+    // stands, never which way it faces (and in free-fly the orbit state may be stale).
+    const glm::vec3 rot = tc.getRotation();
+    orbitController.pitch = rot.x;
+    orbitController.yaw = rot.y;
+    orbitController.focusOn((lo + hi) * 0.5f, glm::length(hi - lo) * 0.5f, fovY, aspect);
+    orbitController.applyToTransform(tc);
+    viewerPosCache = tc.getTranslation();
+    viewerRotCache = tc.getRotation();
+    orbitSyncPending = false; // the orbit state IS the viewer pose now
+    return true;
+}
+
 void Application::run()
 {
     VkDeviceSize uboAlignment =
@@ -362,6 +443,7 @@ void Application::run()
 #endif
 
     bool gravePrev = false; // edge-detect the hard-coded ` UI-toggle key
+    bool keyFPrev = false;  // edge-detect the hard-coded F frame-selection key
 
     HierachySystem hierachy(registry);
 
@@ -423,6 +505,7 @@ void Application::run()
         {
             viewerComp.setTranslation(spawnCameraPos);
             spawnCameraPosDirty = false;
+            orbitSyncPending = true; // the pivot must follow the teleport
         }
         // Parallel one-shot for the camera's orientation (radians, YXZ euler). A scene sets it via
         // setSpawnCameraRot() to aim the spawn view (e.g. a text map's info_player_start); left
@@ -431,10 +514,47 @@ void Application::run()
         {
             viewerComp.setRotation(spawnCameraRot);
             spawnCameraRotDirty = false;
+            orbitSyncPending = true;
         }
-        if (freeFly)
+
+        // Projection params are needed BEFORE the controllers run: the orbit pan is
+        // screen-space exact, so it needs this frame's vertical fov.
+        float aspect = bglRenderer.getAspectRatio(); // aspect ratio might change
+                                                     // due to window resize
+        // cameraFovDegrees is HORIZONTAL; derive vertical from the aspect ratio so
+        // the horizontal framing stays fixed as the window/aspect changes.
+        float fovX = glm::radians(cameraFovDegrees);
+        float fovY = 2.0f * atanf(tanf(fovX * 0.5f) / aspect);
+
+        // F frames the current selection, or the whole scene when nothing is picked
+        // (Blender's "view selected" / "view all"). Hard-coded like the gizmo's hotkeys,
+        // and applied BEFORE the controllers so the new pose is what this frame renders.
+        {
+            const bool fDown =
+                glfwGetKey(bglWindow.getGLFWWindow(), GLFW_KEY_F) == GLFW_PRESS;
+            if (fDown && !keyFPrev && !ImGui::GetIO().WantCaptureKeyboard)
+                frameCamera(selectedEntity);
+            keyFPrev = fDown;
+        }
+
+        if (orbitCamera)
+        {
+            // Orbit mode owns the viewer transform; the free-fly controller must not also
+            // write it (they would fight over the same pose every frame).
+            if (orbitSyncPending)
+            {
+                orbitController.syncFromTransform(viewerComp);
+                orbitSyncPending = false;
+            }
+            VkExtent2D camExt = bglRenderer.getExtent();
+            orbitController.update(bglWindow.getGLFWWindow(), viewerComp, fovY,
+                                   static_cast<float>(camExt.height));
+        }
+        else if (freeFly)
+        {
             cameraController.moveInPlaneXZ(bglWindow.getGLFWWindow(), frameTime,
                                            viewerComp, 0);
+        }
         camera.setViewYXZ(viewerComp.getTranslation(), viewerComp.getRotation());
         cameraWorldPos =
             viewerComp.getTranslation(); // expose to OnUpdate (planet LOD, etc.)
@@ -443,13 +563,9 @@ void Application::run()
         viewerPosCache = viewerComp.getTranslation();
         viewerRotCache = viewerComp.getRotation();
         glm::vec3 camFwd = -glm::vec3(
-            camera.getInverseView()[2]);             // camera images along -w of its basis
-        float aspect = bglRenderer.getAspectRatio(); // aspect ratio might change
-                                                     // due to window resize
-        // cameraFovDegrees is HORIZONTAL; derive vertical from the aspect ratio so
-        // the horizontal framing stays fixed as the window/aspect changes.
-        float fovX = glm::radians(cameraFovDegrees);
-        float fovY = 2.0f * atanf(tanf(fovX * 0.5f) / aspect);
+            camera.getInverseView()[2]); // camera images along -w of its basis
+        // aspect/fovX/fovY were computed above (the orbit controller needs fovY before it
+        // runs) — do not recompute them here.
         camera.setPerspectiveProjection(fovY, aspect, cameraNear, cameraFar);
         recordSection(S_CAMERA, tMs(t0, Clock::now()));
 
@@ -466,6 +582,10 @@ void Application::run()
 
         {
             t0 = Clock::now();
+            // Scripted /anims/*.yaml tweens first: they write component values (transforms,
+            // light intensities) that the hierarchy pass and cacheTransforms() below consume
+            // this same frame.
+            animPlayer.update(frameTime);
             OnUpdate(camera, frameTime);
             recordSection(S_UPDATE, tMs(t0, Clock::now()));
         }

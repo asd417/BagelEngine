@@ -45,6 +45,12 @@ bool bagel::KeyboardMovementController::moveInPlaneXZ(GLFWwindow* window, float 
 		}
 	}
 
+	// Wheel retunes the fly speed (the orbit camera uses the wheel to dolly; in free-fly there
+	// is no dolly, so it does what every editor's free-fly does instead). Same 1..100 range as
+	// the Settings slider, geometric so the low end stays fine-grained.
+	if (io.MouseWheel != 0.0f && !io.WantCaptureMouse)
+		moveSpeed = glm::clamp(moveSpeed * powf(1.1f, io.MouseWheel), 1.0f, 100.0f);
+
 	if (io.WantCaptureKeyboard) return updated;
 
 	// Arrow key look

@@ -13,6 +13,20 @@ namespace ConsoleCommand {
 		if (app->freeFly) return "Free fly acivated";
 		else return "Free fly deacivated";
 	}
+	const char* SetOrbitCamera(void* ptr, const char* args) {
+		static char response[64];
+		Application* app = static_cast<Application*>(ptr);
+		// No argument toggles, so it is useful as a plain `bind TAB orbit` hotkey.
+		const bool on = (!args || args[0] == '\0') ? !app->orbitCamera : atoi(args) != 0;
+		app->setOrbitCamera(on);
+		snprintf(response, sizeof(response), "Orbit camera %s", on ? "enabled" : "disabled");
+		return response;
+	}
+	const char* CamFocus(void* ptr) {
+		Application* app = static_cast<Application*>(ptr);
+		if (app->frameCamera(app->selectedEntity)) return "Framed";
+		return "camfocus: nothing to frame";
+	}
 	const char* TogglePhys(void* ptr) {
 		Application* app = static_cast<Application*>(ptr);
 		app->runPhys = !app->runPhys;
@@ -146,6 +160,17 @@ namespace ConsoleCommand {
 		static char response[256];
 		Application* app = static_cast<Application*>(ptr);
 		const std::string msg = app->consoleLoadTextMap(args ? args : "");
+		snprintf(response, sizeof(response), "%s", msg.c_str());
+		return response;
+	}
+	// anim <name> | anim stop [<name>] | anim list | anim props
+	// Scripted animation sequences from /anims/<name>.yaml. The work lives on the Application
+	// (it owns the player); this just forwards the argument string, like MAP/TEXTMAP do.
+	const char* Anim(void* ptr, const char* args)
+	{
+		static char response[1024];
+		Application* app = static_cast<Application*>(ptr);
+		const std::string msg = app->consoleAnim(args ? args : "");
 		snprintf(response, sizeof(response), "%s", msg.c_str());
 		return response;
 	}

@@ -67,6 +67,16 @@ set(YAML_CPP_BUILD_TOOLS   OFF CACHE BOOL "" FORCE)
 set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "" FORCE)
 set(YAML_CPP_INSTALL       OFF CACHE BOOL "" FORCE)
 add_subdirectory(Dependencies/yaml-cpp)
+# yaml-cpp's target does not receive the platform default CMAKE_CXX_FLAGS (no /GR /EHsc, and
+# its own flag block is gated on CXX_COMPILER_ID STREQUAL MSVC, which clang-cl — reported as
+# "Clang" — never matches). clang-cl defaults to exceptions OFF, so every `throw` in the
+# library fails to compile with "cannot use 'throw' with exceptions disabled". yaml-cpp is
+# exception-based by design (Node::as, the parser), so hand it /EHsc explicitly.
+# NOTE: this only ever bites on a from-scratch build — stale yaml-cpp objects from an older
+# toolchain survive a normal rebuild and hide it. MSVC is TRUE for clang-cl.
+if (MSVC)
+  target_compile_options(yaml-cpp PRIVATE /EHsc)
+endif()
 
 # Jolt is built from source with our compiler and config, the same way yaml-cpp is.
 # A prebuilt Jolt.lib was the source of two problems: a fresh clone had no way to

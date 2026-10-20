@@ -1,0 +1,61 @@
+# Scripted animation sequence. Play it from the console with:  anim demo
+# (The file is re-read from disk on every `anim demo`, so edit and re-run to iterate.)
+#
+# Works with the cube_field map:  textmap cube_field
+# It drives the entities that map names `hero_cube` and `red_lamp` (NameComponent).
+#
+# Each track is one property going from a start value to an end value over a duration.
+# There are no keyframes — stagger tracks with `delay` to build up a sequence.
+#
+#   target    entity NameComponent to drive
+#   property  "Component.property" — run `anim props` for the full list
+#   from      literal value, or `current` to start from wherever the value is right now
+#   to        literal value
+#   duration  seconds (required in practice; defaults to 1.0)
+#   delay     seconds to wait before this track starts (default 0)
+#   easing    linear (default) | smooth | in | out
+#
+# Y is DOWN in engine world space, so -Y raises the cube.
+# TransformComponent.rotation is in RADIANS here (only the text-map loader takes degrees).
+
+tracks:
+  # Lift the cube, ease out so it settles.
+  - target:   hero_cube
+    property: TransformComponent.position
+    from:     current
+    to:       [2.0, -2.0, 0.0]
+    duration: 1.5
+    easing:   out
+
+  # ...then spin it a full turn about Y while it hangs there.
+  - target:   hero_cube
+    property: TransformComponent.rotation
+    from:     [0, 0, 0]
+    to:       [0, 6.2832, 0]
+    delay:    1.5
+    duration: 2.0
+    easing:   smooth
+
+  # ...and drop it back down.
+  - target:   hero_cube
+    property: TransformComponent.position
+    from:     [2.0, -2.0, 0.0]
+    to:       [2.0,  0.0, 0.0]
+    delay:    3.5
+    duration: 0.8
+    easing:   in
+
+  # Meanwhile the red lamp fades down and back up (a float property: scalar values).
+  - target:   red_lamp
+    property: PointLightComponent.lux
+    from:     800
+    to:       50
+    duration: 2.0
+    easing:   smooth
+  - target:   red_lamp
+    property: PointLightComponent.lux
+    from:     50
+    to:       800
+    delay:    2.5
+    duration: 1.8
+    easing:   smooth

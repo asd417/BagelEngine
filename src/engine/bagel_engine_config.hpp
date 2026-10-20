@@ -17,6 +17,14 @@ namespace bagel::cfg
 // Camera controller
 inline constexpr float kMouseSensitivity = 0.1f;
 inline constexpr float kMoveSpeed = 10.0f;
+// Orbit (Blender-style) camera. Sensitivity is radians per pixel of MMB drag; the pan is
+// screen-space exact, so kOrbitPanSensitivity is a plain multiplier on top of it.
+inline constexpr float kOrbitSensitivity = 0.005f;
+inline constexpr float kOrbitPanSensitivity = 1.0f;
+inline constexpr float kOrbitZoomStep = 1.1f; // distance factor per wheel notch
+inline constexpr float kOrbitMinDistance = 0.05f;
+inline constexpr float kOrbitMaxDistance = 2000.0f;
+inline constexpr float kOrbitDistance = 8.0f; // pivot distance before anything is framed
 // Camera projection
 inline constexpr float kCameraNear = 0.1f;
 inline constexpr float kCameraFar = 300.0f;

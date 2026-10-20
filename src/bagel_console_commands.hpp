@@ -11,6 +11,13 @@ namespace ConsoleCommand {
 
 	// FirstApp Controllers
 	const char* ToggleFly(void* ptr);
+	// orbit <0|1>  -- Blender-style orbit camera (no arg toggles). Replaces free-fly while on.
+	const char* SetOrbitCamera(void* ptr, const char* args);
+	// camfocus  -- frame the selected entity, or the whole scene when nothing is selected (F key).
+	const char* CamFocus(void* ptr);
+	// anim <name>   -- play the scripted sequence /anims/<name>.yaml (re-read from disk each time)
+	// anim stop [<name>] / anim list / anim props
+	const char* Anim(void* ptr, const char* args);
 	const char* TogglePhys(void* ptr);
 	const char* ShowInfo(void* ptr);
 	const char* ShowWireframe(void* ptr);

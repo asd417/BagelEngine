@@ -32,7 +32,19 @@ float PlanetComponentSystem::evaluateNoiseFilter(const glm::vec3 &unit, const No
         return 0.0f;
     }
 }
-glm::vec3 PlanetComponentSystem::displacedPoint(const NoiseLayer (&layers)[MAX_NOISE_LAYERS], const glm::vec3 &unit, float radius)
+// custom modified smooth mix function for adding mountain-like features without dirupting the ocean
+float mixFunction(float fx, float gx)
+{
+    return (fx + gx - sqrt((fx - gx) * (fx - gx) + fx * gx)) / 2.0f;
+}
+float PlanetComponentSystem::shapeScale(const glm::vec3 &unit, float sphereness)
+{
+    const float m = glm::max(glm::abs(unit.x), glm::max(glm::abs(unit.y), glm::abs(unit.z)));
+    const float cube = (m > 1e-6f) ? 1.0f / m : 1.0f; // where this ray exits the unit cube
+    return glm::mix(cube, 1.0f, glm::clamp(sphereness, 0.0f, 1.0f));
+}
+
+glm::vec3 PlanetComponentSystem::displacedPoint(const NoiseLayer (&layers)[MAX_NOISE_LAYERS], const glm::vec3 &unit, float radius, float sphereness)
 {
 
     float firstLayerValue = (layers[0].enabled) ? evaluateNoiseFilter(unit, layers[0].settings, layers[0].type) : 0.0f;
@@ -45,24 +57,30 @@ glm::vec3 PlanetComponentSystem::displacedPoint(const NoiseLayer (&layers)[MAX_N
             elevation += evaluateNoiseFilter(unit, layers[i].settings, layers[i].type) * mask;
         }
     }
-    return unit * radius * (1.0f + elevation);
+    // Noise is sampled on `unit` (the sphere direction) no matter the shape, so morphing the base
+    // between cube and sphere slides the surface in and out without changing the terrain pattern.
+    return unit * (radius * shapeScale(unit, sphereness)) * (1.0f + elevation);
 }
 
-BGLModel::Vertex PlanetComponentSystem::calculateVertexOnPlanet(const NoiseLayer (&layers)[MAX_NOISE_LAYERS], const glm::vec3 &pos, float radius, uint32_t x, uint32_t y, uint32_t resolution)
+BGLModel::Vertex PlanetComponentSystem::calculateVertexOnPlanet(const NoiseLayer (&layers)[MAX_NOISE_LAYERS], const glm::vec3 &pos, float radius, float sphereness, uint32_t x, uint32_t y, uint32_t resolution)
 {
-    const glm::vec3 center = displacedPoint(layers, pos, radius);
+    const glm::vec3 center = displacedPoint(layers, pos, radius, sphereness);
 
     // Analytic normal: perturb the point along two sphere-tangent directions, re-displace, and
     // cross the resulting surface deltas. This samples the displacement field directly, so it is
     // seamless across the 6 cube faces — unlike averaging per-face triangle normals, which creases
-    // at the shared edges (each face owns its own duplicated edge vertices).
+    // at the shared edges (each face owns its own duplicated edge vertices). Because displacedPoint
+    // applies the cube/sphere morph too, the normals follow the shape automatically.
+    // (At sphereness < 1 the cube edges are a genuine crease: within ~eps of one, the two samples
+    // straddle it and the normal reads slightly rounded. One vertex ring wide, so it is not worth
+    // special-casing.)
     const glm::vec3 up = (pos.y * pos.y < 0.9801f) ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0); // not parallel to pos
     const glm::vec3 tangent = glm::normalize(glm::cross(up, pos));
     const glm::vec3 bitangent = glm::cross(pos, tangent);
 
     const float eps = 0.001f;
-    const glm::vec3 dA = displacedPoint(layers, glm::normalize(pos + tangent * eps), radius) - center;
-    const glm::vec3 dB = displacedPoint(layers, glm::normalize(pos + bitangent * eps), radius) - center;
+    const glm::vec3 dA = displacedPoint(layers, glm::normalize(pos + tangent * eps), radius, sphereness) - center;
+    const glm::vec3 dB = displacedPoint(layers, glm::normalize(pos + bitangent * eps), radius, sphereness) - center;
     glm::vec3 normal = glm::normalize(glm::cross(dA, dB));
     if (glm::dot(normal, pos) < 0.0f) // keep it pointing outward
         normal = -normal;
@@ -120,7 +138,7 @@ entt::entity PlanetComponentSystem::constructMesh(entt::entity entity)
 
                 glm::vec3 pointOnUnitCube = localUp + (percent.x - 0.5f) * 2 * axisA + (percent.y - 0.5f) * 2 * axisB;
                 glm::vec3 pointOnUnitSphere = glm::normalize(pointOnUnitCube);
-                vertices[vertIndex] = calculateVertexOnPlanet(pc.layers, pointOnUnitSphere, pc.radius, x, y, resolution);
+                vertices[vertIndex] = calculateVertexOnPlanet(pc.layers, pointOnUnitSphere, pc.radius, pc.sphereness, x, y, resolution);
 
                 // this engine uses CCW winding order
                 // 0 1 2 3
@@ -154,7 +172,12 @@ entt::entity PlanetComponentSystem::constructMesh(entt::entity entity)
         float maxH = std::numeric_limits<float>::lowest();
         for (const auto &v : vertices)
         {
-            const float h = glm::length(v.position) / pc.radius - 1.0f;
+            // Divide the cube bulge back out (the same shapeScale the position was built with)
+            // so this stays TERRAIN elevation. Otherwise, at sphereness < 1, the cube corners —
+            // up to sqrt(3) further out than the face centres — would dominate the span and the
+            // gradient would recolour itself every time the slider moved.
+            const float shape = shapeScale(glm::normalize(v.position), pc.sphereness);
+            const float h = glm::length(v.position) / (pc.radius * shape) - 1.0f;
             minH = std::min(minH, h);
             maxH = std::max(maxH, h);
         }

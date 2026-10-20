@@ -3,8 +3,46 @@
 #include "ecs/bagel_ecs_components.hpp"
 #include "imgui.h"
 
+#include <random>
+
 namespace bagel
 {
+namespace
+{
+// Upper bound on a layer's elevation scale. Beyond this the displacement swamps the radius and
+// the planet turns into spikes, so the slider clamps here (typed entry included).
+constexpr float kMaxNoiseStrength = 1.5f;
+
+// Shared cap for both roughness sliders: the starting frequency (baseRoughness) and the
+// per-octave frequency multiplier (roughness / lacunarity). Past ~2 the octaves outrun the mesh
+// resolution and the terrain just aliases into noise.
+constexpr float kMaxRoughness = 2.0f;
+
+// Re-roll one noise layer into a different, still plausible-looking terrain.
+//
+// `center` is the offset into the noise field (both filters sample `point * frequency + center`),
+// so a random one is effectively a new seed — that alone gives completely different terrain. The
+// shape parameters are re-rolled too, but each within a deliberately narrower band than its
+// slider allows: the extremes of those sliders produce mush or spikes, and a randomize button is
+// only useful if most clicks land on something worth looking at. `type`, `enabled` and the mask
+// flag are left alone — those are the author's choices, not part of "the noise".
+void randomizeNoiseLayer(NoiseSettings &n)
+{
+    static std::mt19937 rng{std::random_device{}()};
+    auto uniform = [](float lo, float hi) {
+        return std::uniform_real_distribution<float>{lo, hi}(rng);
+    };
+
+    n.center = {uniform(-100.0f, 100.0f), uniform(-100.0f, 100.0f), uniform(-100.0f, 100.0f)};
+    n.numLayers = std::uniform_int_distribution<int>{3, 8}(rng); // fBm octaves
+    n.baseRoughness = uniform(0.5f, kMaxRoughness);
+    n.roughness = uniform(1.5f, kMaxRoughness); // lacunarity; 2 is the classic octave doubling
+    n.persistence = uniform(0.35f, 0.65f);  // near 1 accumulates into noise-on-noise
+    n.minValue = uniform(0.7f, 1.2f);       // floor that carves out the flat/ocean regions
+    n.strength = uniform(0.05f, 0.5f);      // well under the cap: random 1.5 is never usable
+}
+} // namespace
+
 void DrawPlanetComponent(entt::registry &registry, entt::entity entity)
 {
     auto *pc = registry.try_get<PlanetComponent>(entity);
@@ -16,6 +54,22 @@ void DrawPlanetComponent(entt::registry &registry, entt::entity entity)
     // regenerates the mesh and clears the flag (live update).
     bool changed = false;
     changed |= ImGui::DragFloat("Radius", &pc->radius, 0.5f, 0.1f, 100000.0f);
+
+    // 1 = sphere, 0 = the raw cube the mesh is generated from (each vertex's distance from the
+    // origin is lerped between the two). Terrain noise is unaffected — only the base shape morphs.
+    changed |= ImGui::SliderFloat("Sphereness", &pc->sphereness, 0.0f, 1.0f);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Cube"))
+    {
+        pc->sphereness = 0.0f;
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Sphere"))
+    {
+        pc->sphereness = 1.0f;
+        changed = true;
+    }
 
     int res = static_cast<int>(pc->resolution);
     if (ImGui::DragInt("Resolution", &res, 0.25f, 2, MAX_PLANET_RESOLUTION))
@@ -36,6 +90,14 @@ void DrawPlanetComponent(entt::registry &registry, entt::entity entity)
         if (ImGui::TreeNode("layer", "Layer %d%s", i, layer.enabled ? "" : " (off)"))
         {
             NoiseSettings &n = layer.settings;
+            // Per-layer re-roll: new seed (center) + new shape, leaving the other layers alone.
+            if (ImGui::Button("Randomize"))
+            {
+                randomizeNoiseLayer(n);
+                changed = true;
+            }
+            ImGui::SameLine();
+            ImGui::TextDisabled("(new seed + shape)");
             // Keep order in sync with the NoiseType enum (SIMPLE, RIDGES).
             static const char *noiseTypeNames[] = {"Simple", "Ridges"};
             int type = static_cast<int>(layer.type);
@@ -46,9 +108,14 @@ void DrawPlanetComponent(entt::registry &registry, entt::entity entity)
             }
             changed |= ImGui::Checkbox("Masked", &layer.useFirstLayerAsMask);
             changed |= ImGui::DragInt("Octaves", &n.numLayers, 0.1f, 1, 8); // fBm octaves within this layer
-            changed |= ImGui::DragFloat("Strength", &n.strength, 0.01f, 0.0f, 100.0f);
-            changed |= ImGui::DragFloat("Base roughness", &n.baseRoughness, 0.01f, 0.0f, 100.0f);
-            changed |= ImGui::DragFloat("Roughness (lacunarity)", &n.roughness, 0.01f, 0.0f, 10.0f);
+            // AlwaysClamp so ctrl+click typed entry respects the cap too — a plain DragFloat
+            // only clamps while dragging.
+            changed |= ImGui::DragFloat("Strength", &n.strength, 0.01f, 0.0f, kMaxNoiseStrength,
+                                        "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            changed |= ImGui::DragFloat("Base roughness", &n.baseRoughness, 0.01f, 0.0f, kMaxRoughness,
+                                        "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            changed |= ImGui::DragFloat("Roughness (lacunarity)", &n.roughness, 0.01f, 0.0f, kMaxRoughness,
+                                        "%.3f", ImGuiSliderFlags_AlwaysClamp);
             changed |= ImGui::DragFloat("Persistence", &n.persistence, 0.01f, 0.0f, 1.0f);
             changed |= ImGui::DragFloat("Min value", &n.minValue, 0.01f, 0.0f, 10.0f);
             changed |= ImGui::DragFloat3("Center", &n.center.x, 0.01f);

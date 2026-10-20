@@ -85,9 +85,17 @@ if not exist "%VSWHERE%" (
     exit /b 1
 )
 
-for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -property installationPath`) do set "VSPATH=%%i"
+REM -requires ...VC.Llvm.Clang, NOT a bare -latest: with several VS versions installed, the
+REM NEWEST one is not necessarily the one carrying the clang compiler. Two ways that bites:
+REM   * the newest install may ship only clang-format/clang-tidy (no clang-cl at all), and
+REM   * its MSVC STL hard-errors on an older Clang ("STL1000: expected Clang 20 or newer"),
+REM     so pairing the new STL with an older install's clang-cl cannot work either.
+REM Selecting the install that HAS clang keeps its STL and its clang-cl matched by construction.
+for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath`) do set "VSPATH=%%i"
 if not defined VSPATH (
-    echo ERROR: Visual Studio installation not found via vswhere.
+    echo ERROR: No Visual Studio install with the "C++ Clang Compiler for Windows"
+    echo        component was found. Add it via the Visual Studio Installer
+    echo        ^(Individual components -^> C++ Clang Compiler for Windows^).
     exit /b 1
 )
 
@@ -99,6 +107,14 @@ if not exist "%VCVARS%" (
 call "%VCVARS%" x64 >nul
 if errorlevel 1 (
     echo [FAILED] vcvarsall
+    exit /b 1
+)
+REM vcvarsall does NOT put the LLVM tools on PATH, so do it here rather than depending on the
+REM user's PATH — that is what broke when a newer VS install shadowed the one holding clang-cl.
+set "LLVMBIN=%VSPATH%\VC\Tools\Llvm\x64\bin"
+set "PATH=%LLVMBIN%;%PATH%"
+if not exist "%LLVMBIN%\clang-cl.exe" (
+    echo ERROR: clang-cl.exe not found in "%LLVMBIN%"
     exit /b 1
 )
 echo [OK] Windows SDK + MSVC stdlib on PATH ^(x64^); compiler is clang-cl
@@ -120,9 +136,19 @@ REM files (e.g. src/model_loaders, src/map) before building.
 REM Ninja Multi-Config keeps one build dir holding both Debug and Release, the way
 REM the old .sln did. It also emits compile_commands.json, which the VS Code C/C++
 REM extension and clang-tidy read so editor diagnostics match the compiler exactly.
+REM CMAKE_LINKER and CMAKE_AR are pinned to the LLVM tools. Left to its own devices CMake
+REM searches PATH and, on a machine with msys2/mingw installed, picks the MinGW `ld.exe` and
+REM `ar.exe` — neither understands MSVC-style arguments, so links die with "cannot find
+REM /nologo" and static libs with "ar: invalid option -- /". Both values also STICK in
+REM build/CMakeCache.txt once written, so a bad pick survives until the cache is deleted.
+REM Both are FULL paths on purpose: CMake stores them as FILEPATH cache entries and resolves a
+REM bare tool name against the BUILD directory, not PATH ("'...\build\llvm-lib' is not
+REM recognized"), so `-DCMAKE_AR=llvm-lib` silently produces a broken archiver.
 cmake -S "%~dp0." -B "%~dp0build" -G "Ninja Multi-Config" ^
     -DCMAKE_C_COMPILER=clang-cl ^
     -DCMAKE_CXX_COMPILER=clang-cl ^
+    "-DCMAKE_LINKER=%LLVMBIN%\lld-link.exe" ^
+    "-DCMAKE_AR=%LLVMBIN%\llvm-lib.exe" ^
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 if errorlevel 1 (
     echo [FAILED] CMake configure

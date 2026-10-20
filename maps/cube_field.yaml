@@ -10,7 +10,17 @@ prefabs:
   prop_static:
     - { type: TransformComponent, position: $position, rotation: $rotation, scale: $scale }
     - { type: ModelComponent, source: $model, mergesolidsubmeshes: $merge }
+  # Same as prop_static plus a NameComponent (Source's targetname). Give an entity a name when
+  # something outside the map has to find it — e.g. a scripted sequence in /anims/*.yaml.
+  prop_static_named:
+    - { type: NameComponent, name: $name }
+    - { type: TransformComponent, position: $position, rotation: $rotation, scale: $scale }
+    - { type: ModelComponent, source: $model, mergesolidsubmeshes: $merge }
   light_point:
+    - { type: TransformComponent, position: $position }
+    - { type: PointLightComponent, color: $color, lux: $lux }
+  light_point_named:
+    - { type: NameComponent, name: $name }
     - { type: TransformComponent, position: $position }
     - { type: PointLightComponent, color: $color, lux: $lux }
   light_directional:
@@ -23,7 +33,8 @@ entities:
 
   - { class: light_directional, rotation: [-152, 30, 0], color: [0.6, 0.6, 0.2], lux: 2000 }
 
-  - { class: light_point, position: [ 3.0, 1,  0.0  ], color: [1.0, 0.1, 0.1], lux: 800 }
+  # Named so /anims/demo.yaml can drive it (`anim demo`).
+  - { class: light_point_named, name: red_lamp, position: [ 3.0, 1,  0.0  ], color: [1.0, 0.1, 0.1], lux: 800 }
   - { class: light_point, position: [ 1.5, 1,  2.598], color: [0.1, 0.1, 1.0], lux: 800 }
   - { class: light_point, position: [-1.5, 1,  2.598], color: [0.1, 1.0, 0.1], lux: 800 }
   - { class: light_point, position: [-3.0, 1,  0.0  ], color: [1.0, 1.0, 0.1], lux: 800 }
@@ -31,7 +42,7 @@ entities:
   - { class: light_point, position: [ 1.5, 1, -2.598], color: [1.0, 1.0, 1.0], lux: 800 }
 
   # placeCubes(): 8 cubes. First four (scale 0.4) on the axes, four (scale 0.3) raised at y=0.6.
-  - { class: prop_static, model: /models/cube.obj, position: [ 2.0, 0.0,  0.0], rotation: [0,0,0], scale: [0.4, 0.4, 0.4], merge: true }
+  - { class: prop_static_named, name: hero_cube, model: /models/cube.obj, position: [ 2.0, 0.0,  0.0], rotation: [0,0,0], scale: [0.4, 0.4, 0.4], merge: true }
   - { class: prop_static, model: /models/cube.obj, position: [-2.0, 0.0,  0.0], rotation: [0,0,0], scale: [0.4, 0.4, 0.4], merge: true }
   - { class: prop_static, model: /models/cube.obj, position: [ 0.0, 0.0,  2.0], rotation: [0,0,0], scale: [0.4, 0.4, 0.4], merge: true }
   - { class: prop_static, model: /models/cube.obj, position: [ 0.0, 0.0, -2.0], rotation: [0,0,0], scale: [0.4, 0.4, 0.4], merge: true }

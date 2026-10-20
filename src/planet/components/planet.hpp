@@ -45,6 +45,12 @@ struct PlanetComponent
 {
     float radius = 50.0f;
     uint32_t resolution = 50; // shared by all six faces
+    // Cube <-> sphere blend. The mesh is generated as 6 cube faces which are normalized onto a
+    // sphere; this lerps each vertex's DISTANCE FROM THE ORIGIN between the two, along the same
+    // ray. 1 = sphere (the normal planet), 0 = the raw cube, anything between is a rounded cube.
+    // Terrain noise is always sampled on the sphere direction, so the landscape stays put while
+    // this is dragged — only the base shape morphs.
+    float sphereness = 1.0f;
     TerrainFace faces[6] = {{{0, 0, 1}}, {{0, 0, -1}}, {{1, 0, 0}}, {{-1, 0, 0}}, {{0, 1, 0}}, {{0, -1, 0}}};
     bool meshBuilt = false;
     // Raised whenever the registry panel edits radius/resolution/noise; the per-frame planet pass
@@ -75,9 +81,20 @@ class PlanetComponentSystem
     // resolution). Pass an existing entity to regenerate it in place — its components are kept
     // (get_or_emplace); pass entt::null (default) to spawn a fresh one with default settings.
     entt::entity constructMesh(entt::entity entity = entt::null);
-    BGLModel::Vertex calculateVertexOnPlanet(const NoiseLayer (&layers)[MAX_NOISE_LAYERS], const glm::vec3 &pos, float radius, uint32_t x, uint32_t y, uint32_t resolution);
-    // Elevation-displaced position of a unit-sphere point: unit * radius * (1 + sum of enabled layers).
-    glm::vec3 displacedPoint(const NoiseLayer (&layers)[MAX_NOISE_LAYERS], const glm::vec3 &unit, float radius);
+    BGLModel::Vertex calculateVertexOnPlanet(const NoiseLayer (&layers)[MAX_NOISE_LAYERS], const glm::vec3 &pos, float radius, float sphereness, uint32_t x, uint32_t y, uint32_t resolution);
+    // Elevation-displaced position of a unit-sphere point:
+    //   unit * radius * shapeScale(unit, sphereness) * (1 + sum of enabled layers).
+    glm::vec3 displacedPoint(const NoiseLayer (&layers)[MAX_NOISE_LAYERS], const glm::vec3 &unit, float radius, float sphereness);
+
+    // Distance from the origin (in units of `radius`) to the base shape's surface along the unit
+    // direction `unit`: 1.0 on the sphere, 1/max|component| on the cube — that second one is where
+    // the ray from the origin crosses the cube face, so the two agree on the face centres and
+    // differ most at the corners (sqrt(3)). `sphereness` lerps between them.
+    //
+    // Expressed as a function of DIRECTION rather than of the cube-face grid point, so it also
+    // works for the perturbed directions the analytic normal uses — the normals follow the morph
+    // for free, flattening out to true face normals at sphereness 0.
+    static float shapeScale(const glm::vec3 &unit, float sphereness);
 
   private:
     float evaluateNoiseFilter(const glm::vec3 &unit, const NoiseSettings &settings, NoiseType type);
